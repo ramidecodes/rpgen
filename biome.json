@@ -73,7 +73,8 @@
       "enabled": true
     },
     "parser": {
-      "tailwindDirectives": true
+      "tailwindDirectives": true,
+      "allowWrongLineComments": true
     },
     "linter": {
       "enabled": false

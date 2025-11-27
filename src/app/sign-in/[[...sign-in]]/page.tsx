@@ -9,9 +9,9 @@ import {
 
 export default function SignInPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+    <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
+        <CardHeader className="text-center">
           <CardTitle>Sign In</CardTitle>
           <CardDescription>
             Sign in to your account to continue your adventure
@@ -22,7 +22,8 @@ export default function SignInPage() {
             appearance={{
               elements: {
                 rootBox: "mx-auto",
-                card: "shadow-none",
+                card: "shadow-none border-0",
+                headerTitle: "font-title",
               },
             }}
           />
