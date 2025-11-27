@@ -1,0 +1,40 @@
+---
+description: Use available lint scripts for code validation and never run the development server
+alwaysApply: false
+---
+
+# Linting and Development Server Rules
+
+## Available Lint Scripts
+
+This project uses Biome for linting and formatting. The following scripts are available in `package.json`:
+
+- **`pnpm lint`**: Runs Biome linter to check for code issues without making changes
+- **`pnpm format`**: Formats code using Biome formatter (writes changes)
+- **`pnpm check`**: Runs both linting and formatting checks, and applies fixes automatically (equivalent to `biome check --write .`)
+
+## When to Use Lint Scripts
+
+- **After making code changes**: Always run `pnpm lint` or `pnpm check` to validate code quality
+- **Before committing**: Use `pnpm check` to ensure code is properly formatted and linted
+- **When fixing linting errors**: Use `pnpm check` to automatically fix auto-fixable issues
+- **For validation only**: Use `pnpm lint` when you only want to check for issues without making changes
+
+## Development Server
+
+**IMPORTANT**: The development server (`pnpm dev`) is **always** run manually by the user.
+
+- **DO NOT** run `pnpm dev` from the agent terminal
+- **DO NOT** attempt to start, stop, or manage the development server
+- The user maintains full control over the development server lifecycle
+- If you need to verify that code works, rely on:
+  - TypeScript compilation (`pnpm exec tsc --noEmit`)
+  - Linting (`pnpm lint` or `pnpm check`)
+  - Build verification (`pnpm build`)
+
+## Best Practices
+
+1. After editing files, run `pnpm check` to ensure code quality
+2. If linting fails, review the errors and fix them manually or let Biome auto-fix when possible
+3. Never assume the development server needs to be restarted - the user handles this
+4. Use build verification (`pnpm build`) to catch production build issues
