@@ -1,4 +1,67 @@
+# Generative Deep Neural Dungeon
+
 A web-app game that allows the player to start a new text based RPG campaign. Inspired by the old-school text based role play games. Where user will read from the description of a situation and will type out the desired actions of their characters. The environment will react, and some event will take place. It combines mechanics from the text based dungeons, and from traditional Dungeons and Dragons. Borrowing the roll based actions, where for each action the user must roll a dice (the size of the dice is correlated to their skill level, like intelligence, strength, agility, scholarship, etc.). The third inspiration is the old-school point-and-click games (like Monkey Island or Full Throttle), user can see a panel where an image is rendered displaying the current environment where their characters are. A Game Master Agent (GMA) analyze every action and reshapes the underlying parameters of the campaign always adjusting it to players decisions providing a live universe that reacts to the player in unique ways. There are no two identical campaigns, every run is a unique experience.
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+ 
+- pnpm 8+ (package manager)
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd generative-deep-neural-dungeon
+```
+
+2. Install dependencies:
+```bash
+pnpm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.local.example .env.local
+```
+
+Edit `.env.local` and add your configuration values:
+- `DATABASE_URL`: Your Neon Postgres connection string
+- Other API keys will be added as features are implemented
+
+4. Run database migrations (once database is configured):
+```bash
+pnpm db:generate
+pnpm db:migrate
+```
+
+5. Start the development server:
+```bash
+pnpm dev
+```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Development Commands
+
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm start` - Start production server
+- `pnpm lint` - Run ESLint
+- `pnpm db:generate` - Generate Drizzle migrations
+- `pnpm db:migrate` - Run database migrations
+- `pnpm db:studio` - Open Drizzle Studio
+
+### Project Structure
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+
+## Features
+
+See the [docs/features/](docs/features/) directory for feature requirement documents (FREDs).
+
 
 ## World Generation
 
