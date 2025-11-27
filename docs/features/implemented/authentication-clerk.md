@@ -15,7 +15,7 @@
       - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (from Clerk Dashboard)
       - `CLERK_SECRET_KEY` (from Clerk Dashboard)
     - Verify `.gitignore` excludes `.env*` files to prevent committing secrets
-  - Set up Clerk middleware in `src/middleware.ts` or root `middleware.ts`:
+  - Set up Clerk proxy in `src/proxy.ts` or root `proxy.ts` (Next.js 16+ naming convention):
     - Use `clerkMiddleware()` from `@clerk/nextjs/server` (NOT deprecated `authMiddleware()`)
     - Configure matcher pattern to skip Next.js internals and static files:
       - Skip `_next`, static files (html, css, js, images, etc.)
@@ -84,14 +84,14 @@
 
   - Clerk SDK is installed and configured correctly (`@clerk/nextjs@latest`)
   - Clerk provider (`<ClerkProvider>`) is set up in root layout (`app/layout.tsx`)
-  - Clerk middleware uses `clerkMiddleware()` (NOT deprecated `authMiddleware()`)
-  - Middleware matcher pattern correctly skips Next.js internals and static files
-  - Middleware always runs for API routes (`/api/*` and `/trpc/*`)
+  - Clerk proxy uses `clerkMiddleware()` (NOT deprecated `authMiddleware()`)
+  - Proxy matcher pattern correctly skips Next.js internals and static files
+  - Proxy always runs for API routes (`/api/*` and `/trpc/*`)
   - Sign-up flow works with email/password authentication using `<SignUpButton />` or `<SignUp />` components
   - Sign-in flow works for existing users using `<SignInButton />` or `<SignIn />` components
   - Conditional rendering works with `<SignedIn>` and `<SignedOut>` components
   - Sign-out functionality clears user session (via `<UserButton />` component or hooks)
-  - Protected routes redirect unauthenticated users to sign-in page (via middleware)
+  - Protected routes redirect unauthenticated users to sign-in page (via proxy)
   - Server actions can access current user via `auth()` helper from `@clerk/nextjs/server` (using async/await)
   - API routes can validate user sessions using Clerk's `auth()` helper (using async/await)
   - User authentication state is correctly displayed in UI (via `useUser()` hook, `<UserButton />`, `<SignedIn>`, `<SignedOut>`)
@@ -130,7 +130,7 @@
     - Do NOT use deprecated `authMiddleware()` - use `clerkMiddleware()` instead
     - Do NOT use deprecated APIs like `withAuth` or old `currentUser` patterns
   - **Verification Checklist**:
-    - Middleware uses `clerkMiddleware()` from `@clerk/nextjs/server`
+    - Proxy uses `clerkMiddleware()` from `@clerk/nextjs/server`
     - `<ClerkProvider>` wraps app in `app/layout.tsx` (or `src/app/layout.tsx`)
     - All imports are from `@clerk/nextjs` or `@clerk/nextjs/server`
     - Using App Router structure (not Pages Router)
