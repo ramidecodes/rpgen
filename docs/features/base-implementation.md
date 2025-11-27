@@ -6,7 +6,8 @@
 
 - **User Story**: As a developer, I want a properly configured Next.js project with TypeScript and App Router structure, so that I can build the game application with type safety, modern React patterns, and server-side capabilities.
 
-- **Functional Requirements**: 
+- **Functional Requirements**:
+
   - Initialize Next.js 14+ project with TypeScript support
   - Configure App Router structure with proper directory layout
   - Set up TypeScript configuration (tsconfig.json) with strict type checking
@@ -41,12 +42,13 @@
   - Create basic root layout.tsx and page.tsx files
   - Configure environment variable handling (.env.local template)
   - Ensure project can run locally with `pnpm dev` command
-  - Set up ESLint and Prettier configurations
+  - Set up Biome configuration for linting and formatting (replaces ESLint and Prettier)
   - Set up Drizzle Kit configuration (`drizzle.config.ts`) for migrations
 
 - **Data Requirements**: None - this is a foundational setup feature with no database or data persistence requirements.
 
-- **User Flow**: 
+- **User Flow**:
+
   1. Developer clones or initializes the repository
   2. Developer runs `pnpm install` to install dependencies
   3. Developer runs `pnpm dev` to start the development server
@@ -54,7 +56,8 @@
   5. Developer can verify TypeScript compilation works without errors
   6. Developer can verify the directory structure matches the architecture specification
 
-- **Acceptance Criteria**: 
+- **Acceptance Criteria**:
+
   - Next.js project initializes successfully with TypeScript
   - Project structure matches the repository structure defined in ARCHITECTURE.md
   - TypeScript compilation passes without errors
@@ -66,15 +69,17 @@
   - Tailwind CSS is configured and working (test with utility classes)
   - Drizzle Kit is configured for migrations
   - Project can be built successfully with `pnpm build`
-  - ESLint runs without critical errors
+  - Biome linting runs without critical errors
 
-- **Edge Cases**: 
+- **Edge Cases**:
+
   - Port 3000 already in use - should handle gracefully or allow port override
   - Missing Node.js version - should specify minimum Node.js version requirement
   - TypeScript version conflicts - should pin compatible versions
   - Missing environment variables - should provide clear error messages or defaults
 
-- **Non-Functional Requirements**: 
+- **Non-Functional Requirements**:
+
   - **Performance**: Initial page load should be fast (< 2 seconds)
   - **Developer Experience**: Clear error messages, helpful TypeScript types, hot module reloading working
   - **Maintainability**: Code structure should be clear and follow Next.js best practices
@@ -83,4 +88,3 @@
   - **Documentation**: README should include setup instructions for all dependencies
 
 - **Dependencies**: None - this is the foundational feature
-
