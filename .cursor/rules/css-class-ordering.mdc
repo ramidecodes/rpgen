@@ -1,0 +1,81 @@
+---
+description: Always use Tailwind CSS class ordering conventions (shortcut declarations)
+alwaysApply: false
+---
+
+# CSS Class Ordering Rule
+
+## Overview
+
+Always write Tailwind CSS classes in the recommended order. This ensures consistency, improves readability, and works seamlessly with Biome's `useSortedClasses` linting rule.
+
+## Rule: Use Tailwind's Recommended Class Order
+
+When writing `className` attributes with multiple Tailwind CSS classes, **always order them according to Tailwind's recommended convention**:
+
+### Class Ordering Priority:
+
+1. **Layout** (display, position, etc.)
+
+   - `flex`, `grid`, `block`, `inline`, `relative`, `absolute`, `fixed`, `sticky`
+   - `z-*` (z-index)
+
+2. **Spacing** (margin, padding)
+
+   - `m-*`, `mx-*`, `my-*`, `mt-*`, `mr-*`, `mb-*`, `ml-*`
+   - `p-*`, `px-*`, `py-*`, `pt-*`, `pr-*`, `pb-*`, `pl-*`
+
+3. **Sizing** (width, height)
+
+   - `w-*`, `h-*`, `min-w-*`, `max-w-*`, `min-h-*`, `max-h-*`
+
+4. **Typography** (font, text)
+
+   - `font-*`, `text-*`, `leading-*`, `tracking-*`
+
+5. **Visual** (colors, borders, effects)
+
+   - `bg-*`, `text-*`, `border-*`, `rounded-*`, `shadow-*`, `opacity-*`
+
+6. **Interactivity** (hover, focus, etc.)
+   - `hover:*`, `focus:*`, `active:*`, `disabled:*`
+
+### Examples:
+
+**Correct (Recommended Order):**
+
+```tsx
+<h1 className="mb-4 font-bold text-4xl">
+<div className="flex min-h-screen flex-col items-center justify-center p-24">
+<button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+```
+
+**Incorrect (Wrong Order):**
+
+```tsx
+<h1 className="text-4xl font-bold mb-4">  // ❌ Wrong: text before spacing
+<div className="p-24 flex min-h-screen">   // ❌ Wrong: spacing before layout
+<button className="bg-blue-500 px-4 py-2"> // ❌ Wrong: visual before spacing
+```
+
+## Why This Matters:
+
+1. **Consistency**: All developers follow the same pattern
+2. **Readability**: Classes are easier to scan and understand
+3. **Tooling**: Biome's `useSortedClasses` rule will automatically enforce this
+4. **Maintainability**: Easier to find and modify specific class types
+
+## Enforcement:
+
+- Biome's `useSortedClasses` rule (configured in `biome.json`) will warn about incorrectly ordered classes
+- Always fix class ordering when writing new code
+- When refactoring, update class order to match this convention
+
+## Quick Reference:
+
+Common patterns:
+
+- **Container**: `flex items-center justify-between p-4`
+- **Text**: `mb-4 font-bold text-2xl text-gray-900`
+- **Button**: `px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600`
+- **Card**: `p-6 bg-white rounded-lg shadow-md border border-gray-200`
