@@ -110,7 +110,7 @@
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
-    font-family: var(--font-bellefair);
+    font-family: var(--font-special-elite);
     font-size: 1.5rem; /* 24px - improved readability and better ratio */
     line-height: 1.4;
   }
@@ -125,7 +125,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-dm-serif-display);
+    font-family: var(--font-jersey-25);
   }
 }
 
@@ -135,7 +135,7 @@
 }
 
 @utility font-title {
-  font-family: var(--font-dm-serif-display);
+  font-family: var(--font-jersey-25);
 }
 
 @utility container {
@@ -156,6 +156,6 @@
   /* Ensure Clerk component titles use the title font */
   [class*="cl-headerTitle"],
   [class*="cl-internal"][class*="headerTitle"] {
-    font-family: var(--font-dm-serif-display) !important;
+    font-family: var(--font-jersey-25) !important;
   }
 }

@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Logo } from "@/components/ui/logo";
 
 export default function Home() {
   return (
@@ -20,6 +21,9 @@ export default function Home() {
         <section className="py-24 md:py-32">
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-8 flex justify-center">
+                <Logo className="h-24 w-24 md:h-32 md:w-32" />
+              </div>
               <h1 className="mb-6 font-bold text-5xl tracking-tight md:text-6xl">
                 Generative Deep Neural Dungeon
               </h1>

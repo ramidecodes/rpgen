@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -21,8 +22,9 @@ export function Header() {
         <div className="flex items-center gap-6">
           <Link
             href="/"
-            className="font-semibold font-title text-xl tracking-tight"
+            className="flex items-center gap-2 font-semibold font-title text-xl tracking-tight"
           >
+            <Logo className="h-8 w-8" />
             Gen DnD
           </Link>
           <nav className="hidden gap-4 md:flex">
