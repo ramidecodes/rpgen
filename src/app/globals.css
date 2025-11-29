@@ -30,9 +30,20 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
+  /* Technomancy colors */
+  --color-glow: hsl(var(--glow));
+  --color-glow-muted: hsl(var(--glow-muted));
+  --color-arcane: hsl(var(--arcane));
+  --color-arcane-muted: hsl(var(--arcane-muted));
+  --color-circuit: hsl(var(--circuit));
+
   /* Animation keyframes */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-glow-pulse: glow-pulse 4s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-circuit-flow: circuit-flow 8s linear infinite;
+  --animate-rune-drift: rune-drift 12s ease-in-out infinite;
 
   @keyframes accordion-down {
     from {
@@ -51,55 +62,165 @@
       height: 0;
     }
   }
+
+  @keyframes glow-pulse {
+    0%,
+    100% {
+      opacity: 0.8;
+      filter: brightness(1);
+    }
+    50% {
+      opacity: 1;
+      filter: brightness(1.2);
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  @keyframes circuit-flow {
+    0% {
+      stroke-dashoffset: 1000;
+    }
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes rune-drift {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 0.6;
+    }
+    25% {
+      transform: translateY(-5px) rotate(2deg);
+      opacity: 0.8;
+    }
+    50% {
+      transform: translateY(-8px) rotate(0deg);
+      opacity: 0.7;
+    }
+    75% {
+      transform: translateY(-3px) rotate(-2deg);
+      opacity: 0.9;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
 }
 
-/* ===== Light Theme (Default) ===== */
+/* ===== Light Theme (Muted Technomancy) ===== */
 :root {
   color-scheme: light;
   --radius: 0.5rem;
-  --background: 0 0% 98%;
-  --foreground: 0 0% 10%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 10%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 10%;
-  --primary: 0 0% 10%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 0 0% 95%;
-  --secondary-foreground: 0 0% 10%;
-  --muted: 0 0% 95%;
-  --muted-foreground: 0 0% 45%;
-  --accent: 0 0% 95%;
-  --accent-foreground: 0 0% 10%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 90%;
-  --input: 0 0% 90%;
-  --ring: 0 0% 10%;
+
+  /* Base colors - soft gray tones */
+  --background: 210 20% 96%;
+  --foreground: 200 25% 15%;
+  --card: 210 25% 98%;
+  --card-foreground: 200 25% 15%;
+  --popover: 210 25% 98%;
+  --popover-foreground: 200 25% 15%;
+
+  /* Primary - dark teal for light theme */
+  --primary: 174 60% 25%;
+  --primary-foreground: 210 20% 98%;
+
+  /* Secondary */
+  --secondary: 210 15% 92%;
+  --secondary-foreground: 200 25% 15%;
+
+  /* Muted */
+  --muted: 210 15% 90%;
+  --muted-foreground: 200 15% 45%;
+
+  /* Accent */
+  --accent: 210 15% 92%;
+  --accent-foreground: 200 25% 15%;
+
+  /* Destructive */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 20% 98%;
+
+  /* Borders and inputs */
+  --border: 210 15% 85%;
+  --input: 210 15% 85%;
+  --ring: 174 60% 35%;
+
+  /* Technomancy glow colors - muted for light theme */
+  --glow: 174 50% 35%;
+  --glow-muted: 174 40% 45%;
+  --arcane: 270 45% 50%;
+  --arcane-muted: 270 35% 60%;
+  --circuit: 174 45% 30%;
+
+  /* Glow intensity for light theme */
+  --glow-opacity: 0.15;
+  --glow-blur: 20px;
 }
 
-/* ===== Dark Theme ===== */
+/* ===== Dark Theme (Full Technomancy) ===== */
 .dark {
   color-scheme: dark;
-  --background: 0 0% 8%;
-  --foreground: 0 0% 96%;
-  --card: 0 0% 10%;
-  --card-foreground: 0 0% 96%;
-  --popover: 0 0% 10%;
-  --popover-foreground: 0 0% 96%;
-  --primary: 0 0% 96%;
-  --primary-foreground: 0 0% 8%;
-  --secondary: 0 0% 15%;
-  --secondary-foreground: 0 0% 96%;
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 65%;
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 96%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 96%;
-  --border: 0 0% 20%;
-  --input: 0 0% 20%;
-  --ring: 0 0% 80%;
+
+  /* Base colors - deep charcoal with blue undertone */
+  --background: 200 30% 6%;
+  --foreground: 180 15% 92%;
+  --card: 200 25% 8%;
+  --card-foreground: 180 15% 92%;
+  --popover: 200 25% 8%;
+  --popover-foreground: 180 15% 92%;
+
+  /* Primary - vibrant cyan glow */
+  --primary: 168 80% 55%;
+  --primary-foreground: 200 30% 6%;
+
+  /* Secondary */
+  --secondary: 200 20% 12%;
+  --secondary-foreground: 180 15% 92%;
+
+  /* Muted */
+  --muted: 200 20% 12%;
+  --muted-foreground: 180 10% 60%;
+
+  /* Accent */
+  --accent: 200 20% 15%;
+  --accent-foreground: 180 15% 92%;
+
+  /* Destructive */
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 180 15% 92%;
+
+  /* Borders and inputs */
+  --border: 200 20% 18%;
+  --input: 200 20% 18%;
+  --ring: 168 80% 55%;
+
+  /* Technomancy glow colors - vibrant for dark theme */
+  --glow: 168 85% 55%;
+  --glow-muted: 168 70% 40%;
+  --arcane: 270 65% 60%;
+  --arcane-muted: 270 50% 45%;
+  --circuit: 168 75% 45%;
+
+  /* Glow intensity for dark theme */
+  --glow-opacity: 0.4;
+  --glow-blur: 30px;
 }
 
 /* ===== Base Styles ===== */
@@ -111,7 +232,7 @@
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
     font-family: var(--font-special-elite);
-    font-size: 1.5rem; /* 24px - improved readability and better ratio */
+    font-size: 1.5rem;
     line-height: 1.4;
   }
 
@@ -151,11 +272,128 @@
   }
 }
 
+/* Technomancy glow utilities */
+@utility glow-text {
+  text-shadow:
+    0 0 10px hsl(var(--glow) / var(--glow-opacity)),
+    0 0 20px hsl(var(--glow) / calc(var(--glow-opacity) * 0.5)),
+    0 0 40px hsl(var(--glow) / calc(var(--glow-opacity) * 0.25));
+}
+
+@utility glow-box {
+  box-shadow:
+    0 0 15px hsl(var(--glow) / var(--glow-opacity)),
+    0 0 30px hsl(var(--glow) / calc(var(--glow-opacity) * 0.5)),
+    inset 0 0 15px hsl(var(--glow) / calc(var(--glow-opacity) * 0.25));
+}
+
+@utility glow-border {
+  border-color: hsl(var(--glow));
+  box-shadow:
+    0 0 10px hsl(var(--glow) / var(--glow-opacity)),
+    0 0 20px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3));
+}
+
+@utility arcane-glow {
+  box-shadow:
+    0 0 15px hsl(var(--arcane) / var(--glow-opacity)),
+    0 0 30px hsl(var(--arcane) / calc(var(--glow-opacity) * 0.5));
+}
+
+/* SVG stroke and fill utilities for technomancy colors */
+@utility stroke-glow {
+  stroke: hsl(var(--glow));
+}
+
+@utility fill-glow {
+  fill: hsl(var(--glow));
+}
+
+@utility stroke-arcane {
+  stroke: hsl(var(--arcane));
+}
+
+@utility fill-arcane {
+  fill: hsl(var(--arcane));
+}
+
+@utility stroke-circuit {
+  stroke: hsl(var(--circuit));
+}
+
+@utility fill-circuit {
+  fill: hsl(var(--circuit));
+}
+
+@utility text-glow {
+  color: hsl(var(--glow));
+}
+
+/* Hero section geometric grid background with runes */
+@utility hero-grid-bg {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: linear-gradient(
+        hsl(var(--glow) / 0.05) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, hsl(var(--glow) / 0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+  }
+
+  &::after {
+    content: "ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ᛈ ᛇ ᛉ ᛊ ᛏ ᛒ ᛖ ᛗ ᛚ ᛜ ᛞ ᛟ";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-content: space-around;
+    font-size: 1.5rem;
+    letter-spacing: 3rem;
+    line-height: 4rem;
+    color: hsl(var(--glow) / 0.08);
+    pointer-events: none;
+    overflow: hidden;
+    mask-image: radial-gradient(ellipse at center, transparent 20%, black 50%, transparent 80%);
+  }
+}
+
+.dark .hero-grid-bg::before {
+  background-image: linear-gradient(
+      hsl(var(--glow) / 0.08) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, hsl(var(--glow) / 0.08) 1px, transparent 1px);
+}
+
+.dark .hero-grid-bg::after {
+  color: hsl(var(--glow) / 0.12);
+}
+
 /* ===== Clerk Component Overrides ===== */
 @layer base {
   /* Ensure Clerk component titles use the title font */
   [class*="cl-headerTitle"],
   [class*="cl-internal"][class*="headerTitle"] {
     font-family: var(--font-jersey-25) !important;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

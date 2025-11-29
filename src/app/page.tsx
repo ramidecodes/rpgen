@@ -10,49 +10,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Logo } from "@/components/ui/logo";
+import { HeroScene } from "@/components/hero/hero-scene";
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="flex-1">
-        {/* Hero Section */}
-        <section className="py-24 md:py-32">
-          <div className="container">
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="mb-8 flex justify-center">
-                <Logo className="h-24 w-24 md:h-32 md:w-32" />
-              </div>
-              <h1 className="mb-6 font-bold text-5xl tracking-tight md:text-6xl">
-                Generative Deep Neural Dungeon
-              </h1>
-              <p className="mb-8 text-muted-foreground text-xl md:text-2xl">
-                An AI-driven text-based RPG where every campaign is a unique
-                adventure. Your choices shape a living, breathing universe that
-                reacts and evolves with every decision.
-              </p>
-              <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <SignedOut>
-                  <Button asChild size="lg">
-                    <Link href="/sign-up">Begin Your Adventure</Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline">
-                    <Link href="/sign-in">Sign In</Link>
-                  </Button>
-                </SignedOut>
-                <SignedIn>
-                  <Button asChild size="lg">
-                    <Link href="/profile">Continue Your Journey</Link>
-                  </Button>
-                </SignedIn>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* Hero Section - Full viewport Technomancy scene */}
+        <HeroScene />
 
         {/* Game Overview */}
-        <section className="border-y bg-muted/30 py-16">
+        <section className="border-glow/20 border-y bg-muted/30 py-16">
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="mb-4 font-semibold text-3xl md:text-4xl">
@@ -76,7 +45,7 @@ export default function Home() {
                 Choose Your Genre
               </h2>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
+                <Card className="border-glow/10 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-glow/30 hover:shadow-[0_0_20px_hsl(var(--glow)/0.1)]">
                   <CardHeader>
                     <CardTitle>Fantasy</CardTitle>
                     <CardDescription>
@@ -91,7 +60,7 @@ export default function Home() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-glow/10 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-glow/30 hover:shadow-[0_0_20px_hsl(var(--glow)/0.1)]">
                   <CardHeader>
                     <CardTitle>Sci-fi</CardTitle>
                     <CardDescription>
@@ -106,7 +75,7 @@ export default function Home() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-glow/10 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-glow/30 hover:shadow-[0_0_20px_hsl(var(--glow)/0.1)]">
                   <CardHeader>
                     <CardTitle>Horror</CardTitle>
                     <CardDescription>
@@ -121,7 +90,7 @@ export default function Home() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-glow/10 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-glow/30 hover:shadow-[0_0_20px_hsl(var(--glow)/0.1)]">
                   <CardHeader>
                     <CardTitle>Slice-of-life</CardTitle>
                     <CardDescription>
@@ -142,14 +111,17 @@ export default function Home() {
         </section>
 
         {/* Core Mechanics */}
-        <section className="border-y bg-muted/30 py-16">
+        <section className="border-glow/20 border-y bg-muted/30 py-16">
           <div className="container">
             <div className="mx-auto max-w-4xl">
               <h2 className="mb-12 text-center font-semibold text-3xl md:text-4xl">
                 Core Mechanics
               </h2>
               <div className="grid gap-8 md:grid-cols-3">
-                <div>
+                <div className="group">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-glow/20 bg-glow/5 transition-colors group-hover:border-glow/40 group-hover:bg-glow/10">
+                    <UniverseIcon className="h-6 w-6 text-glow" />
+                  </div>
                   <h3 className="mb-3 font-semibold text-xl">
                     Universe Generation
                   </h3>
@@ -159,7 +131,10 @@ export default function Home() {
                     rich history that shapes your adventure.
                   </p>
                 </div>
-                <div>
+                <div className="group">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-glow/20 bg-glow/5 transition-colors group-hover:border-glow/40 group-hover:bg-glow/10">
+                    <CampaignIcon className="h-6 w-6 text-glow" />
+                  </div>
                   <h3 className="mb-3 font-semibold text-xl">
                     Dynamic Campaigns
                   </h3>
@@ -169,7 +144,10 @@ export default function Home() {
                     decisions, creating unique endings.
                   </p>
                 </div>
-                <div>
+                <div className="group">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-glow/20 bg-glow/5 transition-colors group-hover:border-glow/40 group-hover:bg-glow/10">
+                    <CharacterIcon className="h-6 w-6 text-glow" />
+                  </div>
                   <h3 className="mb-3 font-semibold text-xl">
                     Character Creation
                   </h3>
@@ -193,7 +171,7 @@ export default function Home() {
                 What Makes It Unique
               </h2>
               <div className="space-y-6 text-left">
-                <div>
+                <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
                   <h3 className="mb-2 font-semibold text-xl">
                     Text-Based Narration
                   </h3>
@@ -203,7 +181,7 @@ export default function Home() {
                     world.
                   </p>
                 </div>
-                <div>
+                <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
                   <h3 className="mb-2 font-semibold text-xl">
                     Dice-Based Actions
                   </h3>
@@ -213,7 +191,7 @@ export default function Home() {
                     social challenges.
                   </p>
                 </div>
-                <div>
+                <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
                   <h3 className="mb-2 font-semibold text-xl">
                     Visual Scene Generation
                   </h3>
@@ -223,7 +201,7 @@ export default function Home() {
                     conversations or explore your surroundings.
                   </p>
                 </div>
-                <div>
+                <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
                   <h3 className="mb-2 font-semibold text-xl">
                     Game Master Agent
                   </h3>
@@ -239,7 +217,7 @@ export default function Home() {
         </section>
 
         {/* CTA Section */}
-        <section className="border-t bg-muted/30 py-16">
+        <section className="border-glow/20 border-t bg-muted/30 py-16">
           <div className="container">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="mb-4 font-semibold text-3xl md:text-4xl">
@@ -250,12 +228,20 @@ export default function Home() {
                 waiting to be told.
               </p>
               <SignedOut>
-                <Button asChild size="lg">
+                <Button
+                  asChild
+                  size="lg"
+                  className="glow-border border-2 border-glow bg-background/80 px-6 py-5 font-title text-foreground tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20"
+                >
                   <Link href="/sign-up">Create Your Character</Link>
                 </Button>
               </SignedOut>
               <SignedIn>
-                <Button asChild size="lg">
+                <Button
+                  asChild
+                  size="lg"
+                  className="glow-border border-2 border-glow bg-background/80 px-6 py-5 font-title text-foreground tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20"
+                >
                   <Link href="/profile">View Your Profile</Link>
                 </Button>
               </SignedIn>
@@ -265,5 +251,92 @@ export default function Home() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+// Icons for the Core Mechanics section
+function UniverseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="10"
+        ry="4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="4"
+        ry="10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function CampaignIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M4 19V5C4 3.89543 4.89543 3 6 3H18C19.1046 3 20 3.89543 20 5V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 7H16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 11H16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 15H12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CharacterIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M4 20C4 16.6863 7.58172 14 12 14C16.4183 14 20 16.6863 20 20"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
