@@ -1,129 +1,64 @@
 # Feature Requirement Document - Game Master Agent Integration
 
-- **Feature Name**: Game Master Agent Integration
+- **Feature Name**: Game Master Agent (GMA) Integration & Living World Logic
 
-- **Goal**: Integrate AI SDK with OpenRouter to create a Game Master Agent (GMA) that interprets player actions, generates narrative responses, and manages campaign state. The GMA uses streaming LLM responses to provide real-time story updates.
+- **Goal**: Integrate the AI SDK to power a GMA that acts not just as a narrator, but as a **World Simulator**. The GMA must read the `Narrative Graph`, interpret player intent, and use **Tools** to update the campaign state (moving clocks, changing relationships) dynamically.
 
-- **User Story**: As a player, I want my actions to be interpreted by an AI Game Master that responds with dynamic narrative, so that the story adapts to my choices and creates a unique, immersive experience.
+- **User Story**: As a player, I want the world to react to me intelligently—if I insult the King, the "Relationship Edge" should change to "Hostile," and the "Royal Guard Hunt" Front should advance—so that my choices feel impactful.
 
 - **Functional Requirements**: 
-  - Set up Vercel AI SDK (`ai` package) with OpenRouter provider:
-    - Configure `createOpenRouter()` provider instance
-    - Set up API key from environment variables
-    - Configure default model selection (e.g., `anthropic/claude-3.5-sonnet`)
-  - Create Game Master Agent abstraction in `src/agents/game-master/`:
-    - `src/agents/game-master/index.ts` - Main GMA interface
-    - `src/agents/game-master/prompts.ts` - System prompts and prompt templates
-    - `src/agents/game-master/tools.ts` - Tool definitions for game state updates
-  - Implement streaming LLM responses using **`streamText()`** from AI SDK:
-    - Use `streamText()` function for narrative generation
-    - Stream tokens to client via Server Actions or API routes
-    - Handle streaming responses with proper error handling
-  - Implement **Tool Calling** for game state updates:
-    - Define tools using `tool()` function from AI SDK
-    - Use Zod schemas to define tool input/output schemas
-    - Tools for: `updateCampaignState`, `rollDice`, `updateFactionRelations`, `triggerEvent`
-    - GMA can call tools to update game state while narrating
-  - GMA capabilities:
-    - Interpret player actions in context of current campaign state
-    - Generate narrative responses that advance the story (via `streamText`)
-    - Update campaign state via tool calls (dice rolls, state changes)
-    - Maintain consistency with campaign universe, factions, and history
-    - Incorporate character stats and abilities into narrative outcomes
-    - Handle dice roll results and incorporate into narrative
-  - Create server action in `src/app/actions/game-master.ts`:
-    - `processPlayerActionAction` - Server action that:
-      - Validates player action input with Zod
-      - Loads campaign context from database
-      - Calls `streamText()` with system prompt and tools
-      - Streams response back to client
-      - Updates campaign state after streaming completes
-  - Implement prompt engineering for GMA:
-    - System prompt with campaign context (universe, character, current state)
-    - Action interpretation instructions
-    - Narrative style guidelines
-    - Consistency rules
-    - Tool usage instructions
-  - Create Zod schemas for:
-    - Player action input validation
-    - Tool input/output schemas
-    - Campaign state updates
-  - Handle GMA errors gracefully (API failures, rate limits, timeouts)
-  - Support multiple LLM models via OpenRouter (configurable via environment variable)
+  - **AI Configuration**:
+    - Use `streamText` from Vercel AI SDK.
+    - Support OpenRouter models (e.g., Claude 3.5 Sonnet for high reasoning).
+  - **Context Management**:
+    - **Input**: 
+      - Player Action.
+      - `Universe Ontology` (The Rules).
+      - `Campaign Genres` (The Tone).
+      - `Campaign State` (The Graph, Fronts, Vectors).
+  - **Tool Calling (The "Hands" of the GMA)**:
+    - The GMA **MUST** have tools to manipulate the state. It cannot just "speak".
+    - **Required Tools**:
+      - `update_narrative_vector({ hope_delta, chaos_delta })`: Shift the mood.
+      - `manage_relationship({ source, target, new_relation })`: Update the Knowledge Graph.
+      - `advance_front({ front_name, steps })`: Move a plot threat forward (e.g., "The bomb timer ticks down").
+      - `create_quest({ title, goal })`: Open a new thread.
+      - `log_event({ description })`: Record history.
+  - **Logic Flow**:
+    1. **Perceive**: Read Player Input + Current Graph.
+    2. **Reason**: 
+       - Does this action trigger a Front? 
+       - Does it change a Relationship?
+       - Is it successful (Dice Roll)?
+    3. **Act (Tools)**: Call tools to update the JSONB state.
+    4. **Narrate**: Stream the descriptive text response to the player.
 
 - **Data Requirements**: 
-  - **New Table**: `event_logs` (for tracking GMA interactions and narrative history)
-    - `id`: UUID (primary key)
-    - `campaign_id`: UUID (foreign key to campaigns.id)
-    - `player_action`: TEXT (what the player did/said)
-    - `gma_response`: TEXT (GMA narrative response)
-    - `state_changes`: JSONB (what changed in campaign state)
-    - `created_at`: TIMESTAMP (default: now())
-  - **Updates to `campaigns` table**:
-    - `current_narrative`: TEXT (latest story segment)
-    - `last_action`: TEXT (last player action)
-    - `last_response`: TEXT (last GMA response)
-  - **Indexes**: 
-    - Index on `campaign_id` for campaign history queries
-    - Index on `created_at` for chronological ordering
-  - **Relationships**: 
-    - Many-to-one with campaigns
+  - **Tool Schemas (Zod)**:
+    - Defined in `src/lib/ai/tools.ts`.
+    - Must match the `campaignState` structure defined in Campaign Generation.
+  - **Prompt Engineering**:
+    - System Prompt must explicitly instruct the AI to **check Active Fronts** every turn.
+    - "If the player ignores the [Zombie Horde] Front, advance it by 1 step."
 
 - **User Flow**: 
-  1. Player is in active campaign with current narrative displayed
-  2. Player types action in chat input
-  3. Player submits action
-  4. System sends action to GMA with campaign context:
-     - Current narrative state
-     - Character stats and abilities
-     - Universe details (factions, locations, history)
-     - Campaign elements (conflict, allies, enemies)
-  5. GMA processes action and generates response
-  6. Response streams to UI token-by-token (real-time display)
-  7. GMA response completes
-  8. System updates campaign state based on response
-  9. System saves event log entry
-  10. Updated narrative is displayed to player
-  11. Player can take next action
+  - (Invisible to User): 
+    1. User types: "I punch the goblin."
+    2. Server retrieves Campaign State.
+    3. AI decides: "Roll Strength." -> Success.
+    4. AI calls `manage_relationship("Goblin Tribe", "Player", "HOSTILE")`.
+    5. AI calls `update_narrative_vector({ chaos: +0.1 })`.
+    6. AI narrates: "You connect a solid blow..."
 
 - **Acceptance Criteria**: 
-  - AI SDK is configured with OpenRouter successfully using `createOpenRouter()`
-  - GMA uses `streamText()` for narrative generation
-  - Tool calling is implemented with Zod schemas for state updates
-  - GMA can process player actions with campaign context
-  - Player actions are validated with Zod before processing
-  - GMA generates coherent narrative responses
-  - Responses stream to UI in real-time (token-by-token) via `streamText`
-  - GMA can call tools to update game state (dice rolls, state changes)
-  - Campaign state is updated after each interaction (via tools or post-processing)
-  - Event logs are created for each GMA interaction
-  - GMA maintains consistency with universe and campaign elements
-  - Character stats influence narrative outcomes appropriately
-  - Errors are handled gracefully with user-friendly messages
-  - Multiple models can be selected via environment variable configuration
-  - Streaming works reliably without interruption
-  - Server actions properly handle streaming responses
+  - GMA uses Tools to modify the `campaignState` in the database.
+  - Streaming responses work with Tool calls (Server-side execution).
+  - The "Narrative Graph" updates persist between turns.
 
 - **Edge Cases**: 
-  - GMA API timeout - should retry or show error message
-  - GMA rate limit exceeded - should queue or show error
-  - Invalid player action - should handle gracefully
-  - GMA generates inappropriate content - should filter or regenerate
-  - Streaming interruption - should resume or show partial response
-  - Campaign state becomes inconsistent - should validate and correct
-  - Very long player action - should truncate or handle appropriately
-  - GMA response is too short/long - should have length guidelines
-
-- **Non-Functional Requirements**: 
-  - **Performance**: GMA response should start streaming within 2 seconds
-  - **Quality**: Generated narrative should be coherent and engaging
-  - **Reliability**: Should handle API failures gracefully with retries
-  - **Cost**: Should optimize token usage to manage API costs
-  - **Security**: API keys must be stored securely in environment variables
-  - **Rate Limiting**: Should respect OpenRouter rate limits
+  - **Hallucination**: GMA adds a node that doesn't make sense. (Mitigation: Strict Zod validation on tool inputs).
+  - **Tool Loop**: GMA tries to call too many tools. (Limit: Max 5 tool calls per turn).
 
 - **Dependencies**: 
-  - Base Next.js Implementation (base-implementation.md)
-  - Campaign Generation (campaign-generation.md)
-  - Note: Can be implemented with mock responses initially for testing game loop
-
+  - Campaign Generation (State Structure).
+  - Vercel AI SDK.

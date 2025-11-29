@@ -1,154 +1,113 @@
 # Feature Requirement Document - Campaign Generation
 
-- **Feature Name**: Campaign Generation
+- **Feature Name**: Campaign Generation & Living World State
 
-- **Goal**: Enable players to create new campaigns with main conflicts, factions, allies, enemies, ultimate boss, random events, and ending conditions. Campaigns link characters and universes together to create playable adventures.
+- **Goal**: Create an open-ended, multi-genre campaign engine where the "State" is not just a log, but a sophisticated **Narrative Graph**. This allows the Game Master Agent (GMA) to track complex relationships, unfolding plots (Fronts), and world changes dynamically.
 
-- **User Story**: As a player, I want to create a campaign that combines my character and a universe, so that I can start playing an adventure with a main conflict, factions, and story elements that will unfold based on my actions.
+- **User Story**: As a player, I want to play a campaign that feels alive—where my actions have consequences, factions move on their own, and the tone can shift between genres (e.g., starting as Fantasy, turning into Horror)—without hitting a hard "Game Over" or "You Win" screen arbitrarily.
 
-- **Functional Requirements**: 
-  - Campaign creation flow using shadcn/ui components:
-    - `Select` component for character selection (or link to create new)
-    - `Select` component for universe selection (or link to create new)
-    - Generate campaign elements based on selected universe
-  - Create Zod schemas in `src/lib/db/schemas/campaign.ts`:
-    - `allySchema`: name, background, motivations (all strings)
-    - `enemySchema`: name, agenda, motivations (all strings)
-    - `bossSchema`: name, description, challengeLevel (all strings)
-    - `eventSchema`: name, description, triggerConditions (all strings)
-    - `conditionSchema`: description, type (enum: 'victory', 'defeat', 'alternative')
-    - `campaignStateSchema`: narrative state, progress, faction relationships (JSONB structure)
-    - `createCampaignSchema`: characterId, universeId, name, all campaign elements
-    - `updateCampaignSchema`: state updates, status changes
-  - Define Drizzle schema in `src/lib/db/schema.ts`:
-    - `campaigns` table with JSONB columns for complex nested data
-    - Foreign keys to characters, universes, user_profiles
-    - Use Drizzle's `jsonb()` type with TypeScript types
-  - Campaign elements to generate/store:
-    - Main conflict (text, validated via Zod)
-    - Factions involved (array of strings, references from universe)
-    - Main allies (array validated via Zod array of allySchema)
-    - Main enemies (array validated via Zod array of enemySchema)
-    - Ultimate boss (object validated via bossSchema)
-    - Random events (array validated via Zod array of eventSchema)
-    - Ending conditions (array validated via Zod array of conditionSchema)
-  - Campaign state management:
-    - Track current story segment/narrative state (JSONB, validated via campaignStateSchema)
-    - Track player progress/decisions (in state JSONB)
-    - Track faction relationships and changes (in state JSONB)
-    - Track completed events and encounters (in state JSONB)
-  - Create server actions in `src/app/actions/campaigns.ts`:
-    - `createCampaignAction` - Server action with Zod validation
-    - `getUserCampaignsAction` - Fetch user's campaigns
-    - `getCampaignAction` - Fetch campaign by ID with full details
-    - `updateCampaignStateAction` - Update campaign state (Zod validated)
-    - `deleteCampaignAction` - Delete campaign with confirmation
-  - Campaign persistence in database using Drizzle ORM
-  - Campaign selection/loading interface using shadcn/ui components
-  - Display campaign details and current state (shadcn/ui `Card` components)
-  - Resume existing campaign functionality
-  - Campaign list showing all user's campaigns (shadcn/ui components)
-  - Campaign deletion (with confirmation using shadcn/ui `AlertDialog`)
+- **Functional Requirements**:
 
-- **Data Requirements**: 
-  - **New Table**: `campaigns`
-    - `id`: UUID (primary key)
-    - `user_id`: UUID (foreign key to user_profiles.id)
-    - `character_id`: UUID (foreign key to characters.id)
-    - `universe_id`: UUID (foreign key to universes.id)
-    - `name`: VARCHAR(200) (not null, user-provided or auto-generated)
-    - `main_conflict`: TEXT (not null)
-    - `factions_involved`: JSONB (array of faction references/names)
-    - `main_allies`: JSONB (array of ally objects)
-    - `main_enemies`: JSONB (array of enemy objects)
-    - `ultimate_boss`: JSONB (boss object)
-    - `random_events`: JSONB (array of event objects)
-    - `ending_conditions`: JSONB (array of condition objects)
-    - `current_state`: JSONB (current narrative state, progress tracking)
-    - `status`: VARCHAR(20) (enum: active, completed, abandoned, default: active)
-    - `created_at`: TIMESTAMP (default: now())
-    - `updated_at`: TIMESTAMP (default: now())
-  - **Ally Object Structure (stored in JSONB):
-    - `name`: string
-    - `background`: string
-    - `motivations`: string
-  - **Enemy Object Structure** (stored in JSONB):
-    - `name`: string
-    - `agenda`: string
-    - `motivations`: string
-  - **Boss Object Structure** (stored in JSONB):
-    - `name`: string
-    - `description`: string
-    - `challenge_level`: string
-  - **Event Object Structure** (stored in JSONB):
-    - `name`: string
-    - `description`: string
-    - `trigger_conditions`: string
-  - **Condition Object Structure** (stored in JSONB):
-    - `description`: string
-    - `type`: string (e.g., "victory", "defeat", "alternative")
-  - **Indexes**: 
-    - Index on `user_id` for user's campaigns
-    - Index on `character_id` for character's campaigns
-    - Index on `universe_id` for universe's campaigns
-    - Index on `status` for filtering active campaigns
-  - **Relationships**: 
-    - Many-to-one with user_profiles
-    - Many-to-one with characters
-    - Many-to-one with universes
-    - Future: One-to-many with event_logs (campaign history)
+  - **Multi-Genre Selection**:
+    - User selects up to **3 Genres** to define the _narrative lens_ (e.g., "Fantasy" + "Horror" = Dark Fantasy).
+    - Genres: `Fantasy`, `Sci-Fi`, `Slice of Life`, `Horror`.
+  - **Campaign Setup**:
+    - Select `Universe` + `Character`.
+    - Select `Genres`.
+    - AI generates initial **"Guiding Principles"** (Themes, Tone, Pacing).
+  - **Advanced State Model ("The Narrative Graph")**:
+    - **Active Fronts** (PbtA Style): A list of threats/plots that advance if the player ignores them.
+      - _Structure_: `{ name: "Cult Ritual", steps: 5, current: 2, description: "The sky is turning purple." }`
+    - **Knowledge Graph**:
+      - A graph structure of `Nodes` (NPCs, Locations, Items) and `Edges` (Relationships).
+      - _Example Edge_: `(King Alaric) --[FEARS]--> (The Dragon)`
+      - Allows GMA to query: "Who does X hate?" or "What items are in location Y?"
+    - **Narrative Vectors**:
+      - Float values tracking abstract game feel.
+      - `Hope`: 0.0 (Despair) to 1.0 (Heroic).
+      - `Chaos`: 0.0 (Order) to 1.0 (Anarchy).
+    - **Quest Threads**:
+      - Open-ended objectives tracked as lists, not booleans.
+  - **Game Loop Integration**:
+    - The GMA reads this Graph every turn to decide _what happens next_.
+    - The GMA uses tools to _modify_ this Graph (e.g., `add_graph_edge`, `advance_front`).
 
-- **User Flow**: 
-  1. User navigates to campaign creation page
-  2. User selects an existing character (or creates new one)
-  3. User selects an existing universe (or creates new one)
-  4. System generates campaign elements based on selected universe:
-     - Main conflict derived from universe factions/history
-     - Factions involved from universe factions
-     - Main allies generated based on character and universe
-     - Main enemies generated based on conflict and factions
-     - Ultimate boss generated based on main conflict
-     - Random events generated based on universe genre
-     - Ending conditions generated based on conflict and factions
-  5. User reviews generated campaign
-  6. User can optionally customize campaign name
-  7. User saves campaign
-  8. Campaign is stored in database
-  9. User is redirected to campaign play page
-  10. User can resume campaign later from campaign list
+- **Data Requirements**:
 
-- **Acceptance Criteria**: 
-  - Campaign creation requires both character and universe selection
-  - All campaign elements are generated and stored correctly
-  - Campaign elements are coherent with selected universe and genre
-  - Campaign is persisted to database with correct relationships
-  - Campaign list displays all user's campaigns
-  - Campaign can be resumed from saved state
-  - Campaign status can be tracked (active, completed, abandoned)
-  - Campaign can be deleted with confirmation
-  - Campaign name can be customized
-  - Campaign elements reference universe factions correctly
-  - Generated allies/enemies/boss are unique and appropriate
+  - **Drizzle Schema Definition** (`src/lib/db/schema.ts`):
 
-- **Edge Cases**: 
-  - User tries to create campaign without character - should require character selection
-  - User tries to create campaign without universe - should require universe selection
-  - Campaign generation fails - should show error and allow retry
-  - User deletes character/universe used in campaign - should handle gracefully (cascade or prevent)
-  - Campaign state becomes corrupted - should have recovery mechanism
-  - User creates multiple campaigns with same character/universe - should allow
-  - Network error during campaign creation - should handle gracefully
+    ```typescript
+    export const campaigns = pgTable("campaigns", {
+      id: uuid("id").defaultRandom().primaryKey(),
+      userId: uuid("user_id")
+        .references(() => userProfiles.id)
+        .notNull(),
+      universeId: uuid("universe_id")
+        .references(() => universes.id)
+        .notNull(),
+      characterId: uuid("character_id")
+        .references(() => characters.id)
+        .notNull(),
+      name: varchar("name", { length: 200 }).notNull(),
+      genres: jsonb("genres").$type<string[]>().notNull(), // e.g. ["fantasy", "horror"]
 
-- **Non-Functional Requirements**: 
-  - **Performance**: Campaign generation should complete in < 15 seconds
-  - **Quality**: Generated campaign elements should be coherent and engaging
-  - **Data Integrity**: Campaign relationships must be maintained (character, universe)
-  - **Scalability**: Campaign state should be efficiently stored and retrieved
+      // The "Blackbox" State
+      campaignState: jsonb("campaign_state")
+        .$type<{
+          activeFronts: Array<{
+            name: string;
+            description: string;
+            doomClock: number;
+            maxDoom: number;
+          }>;
+          narrativeVectors: { hope: number; chaos: number };
+          questThreads: Array<{
+            title: string;
+            status: string;
+            clues: string[];
+          }>;
+          knowledgeGraph: {
+            nodes: Array<{
+              id: string;
+              type: string;
+              label: string;
+              data: any;
+            }>;
+            edges: Array<{
+              source: string;
+              target: string;
+              relation: string;
+              weight: number;
+            }>;
+          };
+        }>()
+        .notNull(),
 
-- **Dependencies**: 
-  - Base Next.js Implementation (base-implementation.md)
-  - Database Setup with User Profile (database-setup-user-profile.md)
-  - Character Creation (character-creation.md)
-  - World Universe Generation (world-universe-generation.md)
-  - Note: Campaign generation may use AI (Game Master Agent) but can start with template-based generation
+      status: varchar("status", { length: 20 }).default("active"),
+      createdAt: timestamp("created_at").defaultNow().notNull(),
+      updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    });
+    ```
 
+- **User Flow**:
+
+  1. **Select Character**: User picks their avatar. (Universe is implicit from Character).
+  2. **Set Tone (Genres)**: User picks "Sci-Fi" + "Slice of Life" (e.g., "Coffee shop on a space station").
+  3. **Initialize**: System generates the initial `campaignState` (Creating the first Fronts and Graph Nodes).
+  4. **Play**: The campaign begins.
+
+- **Acceptance Criteria**:
+
+  - Campaign supports multiple genres.
+  - Database stores the complex `campaignState` JSONB correctly.
+  - GMA can read/write to the Knowledge Graph (verified via Tool use in next phase).
+  - "Fronts" exist and can be advanced by the AI.
+
+- **Edge Cases**:
+
+  - **Graph Explosion**: If the Knowledge Graph gets too big (>10MB), we may need to prune old nodes or summarize.
+  - **Contradictory Genres**: "Slice of Life" + "Horror". AI should interpret this as "Normal life interrupted by terror" or "Psychological horror".
+
+- **Dependencies**:
+  - Character Creation.
+  - Game Master Agent (to consume the state).
