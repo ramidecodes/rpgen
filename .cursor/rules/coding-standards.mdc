@@ -1,0 +1,263 @@
+---
+description: Core coding standards and style guide for TypeScript, Next.js, and Tailwind CSS
+alwaysApply: true
+---
+
+# Coding Standards & Style Guide
+
+## Overview
+
+This document defines the coding standards for this Next.js TypeScript project. Follow these conventions to ensure consistency and avoid common AI-generated code inconsistencies.
+
+## TypeScript & JavaScript
+
+### Semicolons
+**ALWAYS use semicolons** at the end of statements, declarations, and expressions.
+
+```tsx
+// ✅ Correct
+const name = "John";
+function greet() {
+  return "Hello";
+}
+
+// ❌ Incorrect
+const name = "John"
+function greet() {
+  return "Hello"
+}
+```
+
+### Quotes
+**ALWAYS use double quotes** for strings. Single quotes are not allowed.
+
+```tsx
+// ✅ Correct
+const message = "Hello, world!";
+const className = "flex items-center";
+
+// ❌ Incorrect
+const message = 'Hello, world!';
+const className = 'flex items-center';
+```
+
+### Trailing Commas
+Use trailing commas in ES5 style (objects, arrays, function parameters).
+
+```tsx
+// ✅ Correct
+const obj = {
+  name: "John",
+  age: 30,
+};
+const arr = [1, 2, 3,];
+
+// ❌ Incorrect
+const obj = {
+  name: "John",
+  age: 30
+};
+```
+
+### TypeScript Types
+- **NEVER use `any`** - Always use proper types, `unknown`, or `Record<string, unknown>` when the type is truly unknown
+- Prefer `type` over `interface` for most cases, unless you need declaration merging
+- Use explicit return types for exported functions
+- Use `import type` for type-only imports when appropriate
+
+```tsx
+// ✅ Correct
+type User = {
+  id: string;
+  name: string;
+};
+
+export function getUser(id: string): User {
+  // ...
+}
+
+import type { User } from "@/types/user";
+
+// ✅ When type is unknown, use unknown or Record
+function handleData(data: unknown) {
+  // Type guard needed before using
+  if (typeof data === "object" && data !== null) {
+    // ...
+  }
+}
+
+function handleObject(obj: Record<string, unknown>) {
+  // ...
+}
+
+// ❌ NEVER use any
+function badFunction(param: any) {
+  // This defeats TypeScript's purpose
+}
+
+// ❌ Avoid unless needed
+interface User {
+  id: string;
+  name: string;
+}
+```
+
+## Next.js Conventions
+
+### File Naming
+- Use `kebab-case` for file names: `user-profile.tsx`, `api-handler.ts`
+- Page files: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`
+- Route handlers: `route.ts`
+- Server actions: `actions/` directory with descriptive names
+
+### Server vs Client Components
+- **Default to Server Components** (no "use client" directive)
+- Only add `"use client"` when you need:
+  - React hooks (`useState`, `useEffect`, etc.)
+  - Browser APIs (`window`, `document`, etc.)
+  - Event handlers (`onClick`, `onChange`, etc.)
+  - Context providers
+
+```tsx
+// ✅ Server Component (default)
+export default function Page() {
+  return <div>Hello</div>;
+}
+
+// ✅ Client Component (when needed)
+"use client";
+
+import { useState } from "react";
+
+export function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+### Imports
+- Use `@/` alias for internal imports (configured in `tsconfig.json`)
+- Group imports: external packages → internal modules → types
+- Keep imports organized and avoid circular dependencies
+
+```tsx
+// ✅ Correct import order
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { getUser } from "@/lib/db/queries/user-profile";
+import type { User } from "@/types/user";
+```
+
+### Component Structure
+- Use named exports for components
+- Place `"use client"` directive at the very top if needed
+- Use `React.forwardRef` for components that need refs
+- Keep components focused and single-purpose
+
+```tsx
+// ✅ Correct component structure
+"use client";
+
+import { Button } from "@/components/ui/button";
+
+export function UserCard({ user }: { user: User }) {
+  return (
+    <div>
+      <h2>{user.name}</h2>
+      <Button>Edit</Button>
+    </div>
+  );
+}
+```
+
+## Tailwind CSS
+
+### Class Ordering
+Follow Tailwind's recommended class order (see `css-class-ordering.mdc` for details):
+1. Layout (flex, grid, position)
+2. Spacing (margin, padding)
+3. Sizing (width, height)
+4. Typography (font, text)
+5. Visual (colors, borders, effects)
+6. Interactivity (hover, focus)
+
+```tsx
+// ✅ Correct order
+<div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-md hover:shadow-lg">
+  <h1 className="mb-2 font-bold text-2xl text-gray-900">Title</h1>
+</div>
+
+// ❌ Incorrect order
+<div className="bg-white flex p-4 rounded-lg">
+```
+
+### Class Utilities
+- Use `cn()` utility from `@/lib/utils` for conditional classes
+- Prefer Tailwind classes over inline styles
+- Use responsive prefixes (`sm:`, `md:`, `lg:`) when needed
+
+```tsx
+// ✅ Correct
+import { cn } from "@/lib/utils";
+
+<div className={cn("flex items-center", isActive && "bg-blue-500")} />
+
+// ❌ Avoid inline styles
+<div style={{ display: "flex", backgroundColor: "blue" }} />
+```
+
+## Common AI Confusion Points
+
+### 1. Semicolons
+**Problem**: AI often omits semicolons or uses inconsistent semicolon style.
+**Solution**: Always include semicolons. Biome will enforce this with `"semicolons": "always"`.
+
+### 2. Quote Style
+**Problem**: AI mixes single and double quotes.
+**Solution**: Always use double quotes. Biome enforces this with `"quoteStyle": "double"`.
+
+### 3. Server vs Client Components
+**Problem**: AI adds `"use client"` unnecessarily or forgets it when needed.
+**Solution**: Default to Server Components. Only add `"use client"` when using hooks, events, or browser APIs.
+
+### 4. Import Paths
+**Problem**: AI uses relative paths instead of `@/` alias.
+**Solution**: Always use `@/` for internal imports. Use relative paths only for same-directory imports.
+
+### 5. Component Exports
+**Problem**: AI mixes default and named exports inconsistently.
+**Solution**: Use named exports for components. Use default exports only for Next.js pages (`page.tsx`, `layout.tsx`).
+
+### 6. Type Definitions
+**Problem**: AI uses `interface` when `type` is more appropriate.
+**Solution**: Prefer `type` unless you need declaration merging or extending built-in types.
+
+### 7. Function Declarations
+**Problem**: AI mixes function declarations and arrow functions inconsistently.
+**Solution**: Use arrow functions for component definitions. Use function declarations for utilities when hoisting is needed.
+
+### 8. Avoiding `any` Type
+**Problem**: AI often uses `any` as a shortcut when unsure about types, defeating TypeScript's type safety.
+**Solution**: **NEVER use `any`**. Use proper types, `unknown`, or `Record<string, unknown>` when types are truly unknown. Use type guards to narrow `unknown` types.
+
+## Formatting & Linting
+
+- **Formatter**: Biome (configured in `biome.json`)
+- **Linter**: Biome with recommended rules
+- **Run checks**: `pnpm check` (format + lint)
+- **Format only**: `pnpm format`
+- **Lint only**: `pnpm lint`
+
+Always run `pnpm check` before committing to ensure code follows these standards.
+
+## Quick Reference
+
+- ✅ Semicolons: Always
+- ✅ Quotes: Double quotes only
+- ✅ Components: Named exports (except Next.js pages)
+- ✅ Imports: Use `@/` alias
+- ✅ Server Components: Default (add `"use client"` only when needed)
+- ✅ Types: Prefer `type` over `interface`
+- ✅ **NEVER use `any`** - Use proper types or `unknown`
+- ✅ Tailwind: Follow class ordering convention
+- ✅ Formatting: Run `pnpm check` before committing
