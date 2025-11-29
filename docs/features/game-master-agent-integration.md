@@ -9,7 +9,8 @@
 - **Functional Requirements**: 
   - **AI Configuration**:
     - Use `streamText` from Vercel AI SDK.
-    - Support OpenRouter models (e.g., Claude 3.5 Sonnet for high reasoning).
+    - **Provider**: OpenRouter.
+    - **Model**: `x-ai/grok-4.1-fast:free` (for initial implementation, replacing specific models like Claude 3.5 Sonnet for now).
   - **Context Management**:
     - **Input**: 
       - Player Action.
@@ -18,20 +19,33 @@
       - `Campaign State` (The Graph, Fronts, Vectors).
   - **Tool Calling (The "Hands" of the GMA)**:
     - The GMA **MUST** have tools to manipulate the state. It cannot just "speak".
-    - **Required Tools**:
-      - `update_narrative_vector({ hope_delta, chaos_delta })`: Shift the mood.
-      - `manage_relationship({ source, target, new_relation })`: Update the Knowledge Graph.
-      - `advance_front({ front_name, steps })`: Move a plot threat forward (e.g., "The bomb timer ticks down").
-      - `create_quest({ title, goal })`: Open a new thread.
-      - `log_event({ description })`: Record history.
-  - **Logic Flow**:
-    1. **Perceive**: Read Player Input + Current Graph.
-    2. **Reason**: 
-       - Does this action trigger a Front? 
-       - Does it change a Relationship?
-       - Is it successful (Dice Roll)?
-    3. **Act (Tools)**: Call tools to update the JSONB state.
-    4. **Narrate**: Stream the descriptive text response to the player.
+    - **Tool Specifications (Zod Schemas)**:
+      - **`updateNarrativeVector`**:
+        - *Description*: Shift the abstract mood of the campaign.
+        - *Schema*: `{ hopeDelta: number, chaosDelta: number }`
+      - **`manageRelationship`**:
+        - *Description*: Update or create an edge in the Knowledge Graph.
+        - *Schema*: `{ sourceId: string, targetId: string, relationType: string, value: number }`
+      - **`advanceFront`**:
+        - *Description*: Move a plot threat forward (e.g., "The bomb timer ticks down").
+        - *Schema*: `{ frontId: string, steps: number }`
+      - **`createQuest`**:
+        - *Description*: Open a new narrative thread or objective.
+        - *Schema*: `{ title: string, description: string, type: string }`
+      - **`logEvent`**:
+        - *Description*: Record a significant event in history.
+        - *Schema*: `{ description: string, type: string, importance: string }`
+  - **Logic Flow (AI SDK `maxSteps` Loop)**:
+    1. **Perceive & Reason (Step 1)**:
+       - Model receives Player Input + Current Graph.
+       - Model analyzes implications (e.g., "Does this trigger a Front?", "Does it change a Relationship?").
+       - Model calls necessary Tools.
+    2. **Act (Step 2 - Server Side)**:
+       - Tools execute against the `campaignState` (modifying JSONB).
+       - Tool results are returned to the Model.
+    3. **Narrate (Step 3)**:
+       - Model receives tool results (confirmation of state changes).
+       - Model streams the descriptive text response to the player, incorporating the consequences of the state changes.
 
 - **Data Requirements**: 
   - **Tool Schemas (Zod)**:

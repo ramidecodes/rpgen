@@ -10,6 +10,7 @@
   - **Context-Aware Creation**:
     - The creation flow **MUST** receive `universe_id` as a parameter.
     - The UI fetches the `Universe` details (Ontology, Factions) before rendering options.
+    - **Public Universe Support**: Users can create characters in ANY Public Universe, not just their own. The character is owned by the user, but linked to the public universe.
   - **Profession & Origin Filtering**:
     - Instead of a static list of classes, generating/selecting professions should be filtered by the Universe Ontology.
     - *Example*: If Universe is "Sci-Fi", show "Pilot", "Hacker". If "Fantasy", show "Wizard", "Knight".
@@ -19,6 +20,13 @@
   - **Bio & Backstory**:
     - Fields for `Name`, `Appearance`, `Personality`.
     - **AI Assist**: "Generate Backstory" button that uses the Universe History + Character Stats to write a cohesive origin.
+  - **AI Tool Specifications**:
+    - **Provider**: OpenRouter
+    - **Model**: `x-ai/grok-4.1-fast:free` (for initial implementation)
+    - **`generateBackstory` Tool**:
+      - *Input*: `{ universeContext, characterStats, profession }`
+      - *Output*: `{ backstory: string, personalityTraits: string[] }`
+      - *Usage*: Used via `generateObject` in the client/server action to draft the bio.
   - **Faction Alignment**:
     - User can optionally select a starting alignment with one of the Universe's factions (e.g., "Rebel Sympathizer").
 
@@ -47,8 +55,14 @@
       updatedAt: timestamp('updated_at').defaultNow().notNull(),
     });
     ```
-  - **Zod Schemas**:
-    - `createCharacterSchema`: Validates stats (1-20), ensures `universeId` exists.
+  - **Zod Schemas & AI Generation (`src/lib/db/schemas/character.ts`)**:
+    - **Schema Strategy**: Define Zod schemas that serve TWO purposes:
+      1. **Validation**: Validate data before inserting into Postgres JSONB columns.
+      2. **Generation**: Passed to AI SDK `generateObject` to structure the LLM output.
+    - **Required Schemas**:
+      - `characterStatsSchema`: Validates stats (1-20).
+      - `characterBackstorySchema`: Validates `backstory`, `personalityTraits`.
+      - `createCharacterSchema`: Full validation including `universeId`.
 
 - **User Flow**: 
   1. **Select Universe**: User confirms which world this character belongs to.

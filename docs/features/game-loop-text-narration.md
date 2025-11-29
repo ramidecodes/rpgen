@@ -6,7 +6,8 @@
 
 - **User Story**: As a player, I want to read story segments and type actions to interact with the game world, so that I can play through my campaign and see the narrative unfold based on my choices.
 
-- **Functional Requirements**: 
+- **Functional Requirements**:
+
   - Narrative display panel using shadcn/ui components:
     - `ScrollArea` component for scrollable narrative history
     - `Card` components for individual narrative entries
@@ -23,11 +24,13 @@
   - Action processing flow:
     - Capture player input via `useChat` hook
     - Validate input with Zod schema (not empty, reasonable length)
+    - Convert UI messages to Core messages using `convertToCoreMessages` (AI SDK v5)
     - Send to server action `processPlayerActionAction` with campaign context
-    - Server action uses AI SDK `streamText()` to generate response
+    - Server action uses AI SDK `streamText()` with OpenRouter provider (`x-ai/grok-4.1-fast:free`) and `maxSteps: 5` to allow multi-step reasoning (Reason -> Act -> Narrate)
     - Stream response back to client via `useChat` hook
     - Display player action in narrative history immediately (optimistic update)
     - Stream GMA response in real-time via `useChat` messages
+    - Handle intermediate tool steps (optionally hide/show "reasoning" steps based on UI preference)
     - Update narrative display with new response
     - Save updated campaign state after streaming completes
   - Narrative history management:
@@ -56,7 +59,8 @@
     - Player can zoom in/out of environment description (handled by GMA)
     - GMA responds to contextual questions appropriately
 
-- **Data Requirements**: 
+- **Data Requirements**:
+
   - **Updates to `campaigns` table**:
     - `current_narrative`: TEXT (latest complete narrative segment)
     - `narrative_history`: JSONB (array of narrative entries for session)
@@ -70,7 +74,8 @@
     - `timestamp`: timestamp
     - `metadata`: object (optional context)
 
-- **User Flow**: 
+- **User Flow**:
+
   1. Player loads active campaign
   2. System displays current narrative segment (or starting narrative)
   3. Player reads the narrative
@@ -87,7 +92,8 @@
   14. Player can scroll through narrative history
   15. Player can ask contextual questions ("What did I see earlier?", "Describe this room")
 
-- **Acceptance Criteria**: 
+- **Acceptance Criteria**:
+
   - Narrative text displays clearly and is readable (shadcn/ui components)
   - Chat input accepts and submits player actions (via `useChat` hook)
   - Player actions appear in narrative history immediately (optimistic updates)
@@ -104,7 +110,8 @@
   - Server actions use Zod for validation before processing
   - Database operations use Drizzle ORM for state persistence
 
-- **Edge Cases**: 
+- **Edge Cases**:
+
   - Player submits empty action - should show validation error
   - Player submits very long action - should handle or truncate
   - Network error during action processing - should show error and allow retry
@@ -114,15 +121,15 @@
   - Campaign state save fails - should retry and show error if persistent
   - Player closes browser mid-action - should save state gracefully
 
-- **Non-Functional Requirements**: 
+- **Non-Functional Requirements**:
+
   - **Performance**: Narrative display should update smoothly during streaming
   - **UX**: Input should feel responsive (< 100ms feedback)
   - **Accessibility**: Narrative text should be readable (proper contrast, font size)
   - **Responsiveness**: UI should work on mobile and desktop
   - **Reliability**: State should persist reliably across sessions
 
-- **Dependencies**: 
+- **Dependencies**:
   - Base Next.js Implementation (base-implementation.md)
   - Campaign Generation (campaign-generation.md)
   - Game Master Agent Integration (game-master-agent-integration.md)
-

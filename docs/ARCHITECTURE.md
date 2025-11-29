@@ -36,10 +36,17 @@ flowchart TB
         Storage["Object Storage<br/>Cloudflare R2<br/><i>Scene images, portraits,<br/>generated assets</i>"]
     end
 
+    %% Community Layer
+    subgraph CommunityLayer["Community Layer"]
+        SharedUniverses["Shared Universes"]
+        PublicCampaigns["Public Campaigns"]
+        Ratings["Community Ratings"]
+    end
+
     %% AI Services Boundary
     subgraph AIServices["AI Services"]
         direction TB
-        AISDK["AI SDK<br/>Vercel AI SDK<br/><i>Orchestrates LLM inference<br/>with streaming responses<br/>and tool calling</i>"]
+        AISDK["AI SDK (v5)<br/>Vercel AI SDK<br/><i>Orchestrates LLM inference<br/>with multi-step reasoning (maxSteps)<br/>and structured tool outputs</i>"]
         LLM["LLM Provider<br/>OpenRouter<br/><i>Game Master Agent,<br/>Campaign Crafter, Scribe</i>"]
         ImageGen["Image Generation<br/>Replicate<br/><i>Visual scene rendering</i>"]
         AISDK --> LLM
@@ -85,7 +92,7 @@ flowchart TB
 
 - Next.js (Vercel) — React-based framework for UI, routing, server actions, and ISR.
 - TypeScript — typed, safer frontend + backend logic.
-- AI SDK (Vercel) — unified interface for chat UI + LLM inference with **streaming responses** for real-time display, tool calling, structured streaming.
+- AI SDK (Vercel) — unified interface for chat UI + LLM inference with **streaming responses**, **multi-step tool calling** (`maxSteps`), and **object generation** (`generateObject`).
 
 **Authentication**
 
@@ -93,16 +100,21 @@ flowchart TB
 - Handles user identity, sessions, OAuth, email/password auth.
 - Provides server helpers to secure API routes and server actions.
 
-**Database**
+**Database & Validation Strategy**
 
 - Neon Postgres
 - Serverless Postgres with autoscaling + branching.
 - Stores:
   - User profiles
-  - Universe data
-  - Campaign state
+  - Universe data (Private & Public)
+  - Campaign state (Private & Public)
   - Character sheets
   - Event logs
+- **Dual-Purpose Zod Schemas**:
+  - All complex data structures (Universe Ontology, Campaign State, Character Bio) are defined as Zod schemas.
+  - These schemas serve two simultaneous roles:
+    1. **Database Validation**: Ensuring data integrity before JSONB insertion.
+    2. **AI Generation**: Passing strict structure requirements to the LLM via `generateObject` and `tool` definitions.
 
 **Object Storage**
 

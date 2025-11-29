@@ -9,7 +9,7 @@
 - **Functional Requirements**: 
   - Replicate API integration in `src/lib/image-generation/replicate.ts`:
     - Set up Replicate client using `@replicate/client` or fetch API
-    - Configure image generation model (e.g., Stable Diffusion XL, Flux)
+    - Configure image generation model: `black-forest-labs/flux-schnell`
     - Handle API authentication via environment variables
     - Create wrapper functions for image generation
   - Create Zod schemas in `src/lib/db/schemas/scene.ts`:
@@ -46,7 +46,7 @@
     - Version scenes based on narrative state
     - Store scene metadata (generation prompt, timestamp) in database
   - Prompt engineering:
-    - Convert narrative environment descriptions to image generation prompts
+    - Convert narrative environment descriptions to image generation prompts using OpenRouter (`x-ai/grok-4.1-fast:free`)
     - Include genre/style information in prompts
     - Include character descriptions for portraits
     - Optimize prompts for quality results
