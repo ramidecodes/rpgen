@@ -1,12 +1,12 @@
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 /**
  * Get the current authenticated user
  * @returns The current user object or null if not authenticated
  */
 export async function getCurrentUser() {
-  const user = await currentUser()
-  return user
+  const user = await currentUser();
+  return user;
 }
 
 /**
@@ -15,17 +15,17 @@ export async function getCurrentUser() {
  * @throws Error if user is not authenticated
  */
 export async function requireAuth() {
-  const { userId } = await auth()
+  const { userId } = await auth();
 
   if (!userId) {
-    throw new Error("Unauthorized: Authentication required")
+    throw new Error("Unauthorized: Authentication required");
   }
 
-  const user = await currentUser()
+  const user = await currentUser();
 
   if (!user) {
-    throw new Error("Unauthorized: User not found")
+    throw new Error("Unauthorized: User not found");
   }
 
-  return user
+  return user;
 }

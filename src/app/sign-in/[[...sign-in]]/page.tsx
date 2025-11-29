@@ -1,11 +1,11 @@
-import { SignIn } from "@clerk/nextjs"
+import { SignIn } from "@clerk/nextjs";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 
 export default function SignInPage() {
   return (
@@ -30,5 +30,5 @@ export default function SignInPage() {
         </CardContent>
       </Card>
     </main>
-  )
+  );
 }
