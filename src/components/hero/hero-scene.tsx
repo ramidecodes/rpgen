@@ -1,49 +1,39 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Suspense } from "react";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArchPortal } from "./arch-portal";
-
-const ThreeScene = dynamic(
-  () => import("./three-scene").then((mod) => mod.ThreeScene),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="h-32 w-32 animate-pulse rounded-full bg-glow/10" />
-      </div>
-    ),
-  }
-);
+import { D20Anime } from "./d20-anime";
+import { MatrixRain } from "./matrix-rain";
+import { RuneGrid } from "./rune-grid";
 
 export function HeroScene() {
   return (
-    <section className="hero-grid-bg relative min-h-screen overflow-hidden">
-      {/* Three.js scene with D20 */}
-      <div className="absolute inset-0 z-10 flex items-center justify-center">
-        <div className="relative aspect-[4/5] w-full max-w-lg md:max-w-xl lg:max-w-2xl">
-          <Suspense
-            fallback={
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-32 w-32 animate-pulse rounded-full bg-glow/10" />
-              </div>
-            }
-          >
-            <ThreeScene />
-          </Suspense>
+    <section className="relative min-h-screen overflow-hidden bg-background">
+      {/* Layer 1: Matrix rain background (deepest) */}
+      <MatrixRain className="z-0" columns={24} speed={0.8} />
 
-          {/* Arch portal frame */}
+      {/* Layer 2: Floating glowing runes */}
+      <RuneGrid className="z-5" count={20} />
+
+      {/* Layer 3: Central Visuals */}
+      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+        <div className="pointer-events-auto relative aspect-4/5 w-full max-w-lg md:max-w-xl lg:max-w-2xl">
+          {/* AnimeJS D20 - proper icosahedron */}
+          <div className="absolute inset-0 z-10 scale-[0.65] md:scale-[0.8]">
+            <D20Anime />
+          </div>
+
+          {/* Arch portal frame with circuits and particles */}
           <ArchPortal className="absolute inset-0 z-20" />
         </div>
       </div>
 
-      {/* Text content overlay */}
+      {/* Layer 4: Text content overlay */}
       <div className="relative z-30 flex min-h-screen flex-col items-center justify-between px-4 py-16 md:py-24">
         {/* Top text */}
-        <div className="text-center">
+        <div className="pointer-events-none text-center">
           <h1 className="glow-text mb-4 font-bold text-4xl tracking-wider md:text-5xl lg:text-6xl">
             Generative Deep Neural Dungeon
           </h1>
@@ -76,7 +66,7 @@ export function HeroScene() {
               className="glow-border group relative overflow-hidden border-2 border-glow bg-background/80 px-8 py-6 font-title text-foreground text-xl tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20 hover:text-glow-foreground"
             >
               <Link href="/profile" className="flex items-center gap-3">
-                <span>CONTINUE YOUR JOURNEY</span>
+                <span>ROLL YOUR ADVENTURE</span>
                 <DungeonIcon className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
               </Link>
             </Button>
@@ -89,6 +79,14 @@ export function HeroScene() {
         className="pointer-events-none absolute right-0 bottom-0 left-0 z-25 h-32"
         style={{
           background: `linear-gradient(to top, hsl(var(--background)), transparent)`,
+        }}
+      />
+
+      {/* Top gradient fade for smooth transition */}
+      <div
+        className="pointer-events-none absolute top-0 right-0 left-0 z-25 h-24"
+        style={{
+          background: `linear-gradient(to bottom, hsl(var(--background) / 0.5), transparent)`,
         }}
       />
     </section>

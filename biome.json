@@ -58,9 +58,7 @@
       "suspicious": {
         "recommended": true
       },
-      "nursery": {
-        "useSortedClasses": "warn"
-      }
+      "nursery": {}
     }
   },
   "json": {
