@@ -14,10 +14,17 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/s3-request-presigner": "^3.940.0",
     "@clerk/nextjs": "^6.35.5",
     "@neondatabase/serverless": "^1.0.2",
+    "@openrouter/ai-sdk-provider": "^1.2.8",
     "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
     "ai": "^5.0.102",
     "animejs": "4.2.2",
     "class-variance-authority": "^0.7.1",
@@ -29,6 +36,7 @@
     "postgres": "^3.4.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "replicate": "^1.0.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.1.13"
   },
