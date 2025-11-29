@@ -1,13 +1,13 @@
-import { eq } from "drizzle-orm"
-import { db } from "../index"
-import { userProfiles } from "../schema"
-import type { UserProfileUpdate } from "../schema"
+import { eq } from "drizzle-orm";
+import { db } from "../index";
+import { userProfiles } from "../schema";
+import type { UserProfileUpdate } from "../schema";
 import {
-	createUserProfileSchema,
-	updateUserProfileSchema,
-	type CreateUserProfile,
-	type UpdateUserProfile,
-} from "../schemas/user-profile"
+  createUserProfileSchema,
+  updateUserProfileSchema,
+  type CreateUserProfile,
+  type UpdateUserProfile,
+} from "../schemas/user-profile";
 
 /**
  * Create a new user profile with Zod validation
@@ -16,33 +16,30 @@ import {
  * @throws Error if validation fails or duplicate Clerk user ID exists
  */
 export async function createUserProfile(
-	data: CreateUserProfile,
+  data: CreateUserProfile
 ): Promise<typeof userProfiles.$inferSelect> {
-	// Validate input with Zod
-	const validatedData = createUserProfileSchema.parse(data)
+  // Validate input with Zod
+  const validatedData = createUserProfileSchema.parse(data);
 
-	try {
-		const [profile] = await db
-			.insert(userProfiles)
-			.values({
-				clerkUserId: validatedData.clerkUserId,
-				username: validatedData.username ?? null,
-			})
-			.returning()
+  try {
+    const [profile] = await db
+      .insert(userProfiles)
+      .values({
+        clerkUserId: validatedData.clerkUserId,
+        username: validatedData.username ?? null,
+      })
+      .returning();
 
-		return profile
-	} catch (error) {
-		// Handle duplicate Clerk user ID error
-		if (
-			error instanceof Error &&
-			error.message.includes("unique constraint")
-		) {
-			throw new Error(
-				`User profile with Clerk ID ${validatedData.clerkUserId} already exists`,
-			)
-		}
-		throw error
-	}
+    return profile;
+  } catch (error) {
+    // Handle duplicate Clerk user ID error
+    if (error instanceof Error && error.message.includes("unique constraint")) {
+      throw new Error(
+        `User profile with Clerk ID ${validatedData.clerkUserId} already exists`
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -51,15 +48,15 @@ export async function createUserProfile(
  * @returns User profile or null if not found
  */
 export async function getUserProfileByClerkId(
-	clerkUserId: string,
-): Promise<(typeof userProfiles.$inferSelect) | null> {
-	const [profile] = await db
-		.select()
-		.from(userProfiles)
-		.where(eq(userProfiles.clerkUserId, clerkUserId))
-		.limit(1)
+  clerkUserId: string
+): Promise<typeof userProfiles.$inferSelect | null> {
+  const [profile] = await db
+    .select()
+    .from(userProfiles)
+    .where(eq(userProfiles.clerkUserId, clerkUserId))
+    .limit(1);
 
-	return profile ?? null
+  return profile ?? null;
 }
 
 /**
@@ -70,29 +67,29 @@ export async function getUserProfileByClerkId(
  * @throws Error if validation fails or profile not found
  */
 export async function updateUserProfile(
-	clerkUserId: string,
-	data: UpdateUserProfile,
+  clerkUserId: string,
+  data: UpdateUserProfile
 ): Promise<typeof userProfiles.$inferSelect> {
-	// Validate input with Zod
-	const validatedData = updateUserProfileSchema.parse(data)
+  // Validate input with Zod
+  const validatedData = updateUserProfileSchema.parse(data);
 
-	// Auto-update updated_at timestamp
-	const updateData: UserProfileUpdate = {
-		...validatedData,
-		updatedAt: new Date(),
-	}
+  // Auto-update updated_at timestamp
+  const updateData: UserProfileUpdate = {
+    ...validatedData,
+    updatedAt: new Date(),
+  };
 
-	const [updatedProfile] = await db
-		.update(userProfiles)
-		.set(updateData)
-		.where(eq(userProfiles.clerkUserId, clerkUserId))
-		.returning()
+  const [updatedProfile] = await db
+    .update(userProfiles)
+    .set(updateData)
+    .where(eq(userProfiles.clerkUserId, clerkUserId))
+    .returning();
 
-	if (!updatedProfile) {
-		throw new Error(`User profile with Clerk ID ${clerkUserId} not found`)
-	}
+  if (!updatedProfile) {
+    throw new Error(`User profile with Clerk ID ${clerkUserId} not found`);
+  }
 
-	return updatedProfile
+  return updatedProfile;
 }
 
 /**
@@ -102,17 +99,16 @@ export async function updateUserProfile(
  * @throws Error if profile not found
  */
 export async function deleteUserProfile(
-	clerkUserId: string,
+  clerkUserId: string
 ): Promise<typeof userProfiles.$inferSelect> {
-	const [deletedProfile] = await db
-		.delete(userProfiles)
-		.where(eq(userProfiles.clerkUserId, clerkUserId))
-		.returning()
+  const [deletedProfile] = await db
+    .delete(userProfiles)
+    .where(eq(userProfiles.clerkUserId, clerkUserId))
+    .returning();
 
-	if (!deletedProfile) {
-		throw new Error(`User profile with Clerk ID ${clerkUserId} not found`)
-	}
+  if (!deletedProfile) {
+    throw new Error(`User profile with Clerk ID ${clerkUserId} not found`);
+  }
 
-	return deletedProfile
+  return deletedProfile;
 }
-
