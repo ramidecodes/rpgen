@@ -42,3 +42,37 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
   }
 }
 
+/**
+ * Generates a character portrait using Replicate based on a text prompt.
+ * Optimized for square aspect ratio and character focus.
+ */
+export async function generateCharacterPortrait(prompt: string): Promise<Buffer> {
+  const model = "black-forest-labs/flux-schnell";
+
+  const input = {
+    prompt: `Character portrait, highly detailed, expressive face, cinematic lighting: ${prompt}. 8k resolution, trending on artstation, centered composition.`,
+    go_fast: true,
+    megapixels: "1",
+    num_outputs: 1,
+    aspect_ratio: "1:1", // Square for portraits
+    output_format: "webp",
+    output_quality: 80,
+  };
+
+  try {
+    const output = (await replicate.run(model, { input })) as string[];
+
+    if (!output || output.length === 0) {
+      throw new Error("No image generated from Replicate");
+    }
+
+    const imageUrl = output[0];
+    const response = await fetch(imageUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error("Error generating character portrait with Replicate:", error);
+    throw new Error("Failed to generate character portrait");
+  }
+}
