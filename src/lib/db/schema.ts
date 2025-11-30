@@ -68,6 +68,37 @@ export const universes = pgTable("universes", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const characters = pgTable("characters", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => userProfiles.id)
+    .notNull(),
+  universeId: uuid("universe_id")
+    .references(() => universes.id)
+    .notNull(), // Link to specific reality
+  name: varchar("name", { length: 100 }).notNull(),
+  stats: jsonb("stats")
+    .$type<{
+      strength: number;
+      agility: number;
+      intelligence: number;
+      scholarship: number;
+      intuition: number;
+    }>()
+    .notNull(),
+  properties: jsonb("properties").$type<{
+    origin?: string;
+    profession: string;
+    appearance?: string;
+    backstory?: string;
+    personalityTraits?: string[];
+    factionName?: string;
+    imageUrl?: string;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Type exports for Drizzle schema
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
@@ -77,3 +108,6 @@ export type UserProfileUpdate = Partial<
 
 export type Universe = typeof universes.$inferSelect;
 export type NewUniverse = typeof universes.$inferInsert;
+
+export type Character = typeof characters.$inferSelect;
+export type NewCharacter = typeof characters.$inferInsert;
