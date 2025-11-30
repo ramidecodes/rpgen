@@ -64,7 +64,7 @@ export default function CharactersPage() {
                   Heroes you've forged across the multiverse
                 </p>
               </div>
-              <Link href="/universe">
+              <Link href="/universes">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" /> New Character
                 </Button>
@@ -124,7 +124,7 @@ export default function CharactersPage() {
                             </div>
 
                             <div className="mt-auto pt-2">
-                              <Link href={`/character/${character.id}`} className="w-full block">
+                              <Link href={`/characters/${character.id}`} className="w-full block">
                                 <Button
                                   size="sm"
                                   className="w-full"
@@ -143,7 +143,7 @@ export default function CharactersPage() {
                   <div className="text-center py-16 text-muted-foreground">
                     <p className="text-lg mb-2">You haven't created any characters yet.</p>
                     <p className="text-sm">Explore the multiverse to start your journey.</p>
-                    <Link href="/universe" className="mt-6 inline-block">
+                    <Link href="/universes" className="mt-6 inline-block">
                       <Button variant="default">
                         Explore Universes
                       </Button>

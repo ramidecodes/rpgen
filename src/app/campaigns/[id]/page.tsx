@@ -179,7 +179,7 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
                       <h3 className="font-semibold mb-4">Active Runs</h3>
                       <div className="space-y-2">
                         {activeRuns.map((run) => (
-                          <Link key={run.id} href={`/run/${run.id}`}>
+                          <Link key={run.id} href={`/runs/${run.id}`}>
                             <Button
                               variant="outline"
                               className="w-full justify-start"
@@ -210,3 +210,4 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
     </div>
   );
 }
+

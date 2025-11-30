@@ -1,14 +1,19 @@
 import { getUniverseAction } from "@/app/actions/universe";
 import { CharacterCreationForm } from "@/components/character/character-creation-form";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  searchParams: Promise<{ universeId?: string }>;
 }
 
-export default async function CreateCharacterPage({ params }: PageProps) {
-  const { id } = await params;
-  const { success, universe } = await getUniverseAction(id);
+export default async function CreateCharacterPage({ searchParams }: PageProps) {
+  const { universeId } = await searchParams;
+
+  if (!universeId) {
+    redirect("/universes");
+  }
+
+  const { success, universe } = await getUniverseAction(universeId);
 
   if (!success || !universe) {
     notFound();

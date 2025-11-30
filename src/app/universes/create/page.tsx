@@ -76,7 +76,7 @@ export default function CreateUniversePage() {
         throw new Error(result.error || "Failed to create universe");
       }
 
-      router.push("/universe");
+      router.push("/universes");
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -269,3 +269,4 @@ export default function CreateUniversePage() {
     </div>
   );
 }
+

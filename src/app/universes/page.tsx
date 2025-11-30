@@ -66,7 +66,7 @@ export default async function UniverseListPage() {
                 Explore existing realities or forge your own.
               </p>
             </div>
-            <Link href="/universe/create">
+            <Link href="/universes/create">
               <Button size="lg" className="gap-2">
                 <Plus className="h-5 w-5" />
                 Create New Universe
@@ -105,7 +105,7 @@ export default async function UniverseListPage() {
                   <p className="text-muted-foreground mb-4">
                     You haven't created any universes yet.
                   </p>
-                  <Link href="/universe/create">
+                  <Link href="/universes/create">
                     <Button variant="outline">Create Your First World</Button>
                   </Link>
                 </div>
@@ -243,7 +243,7 @@ function UniverseCard({
           asChild
         >
           {/* Placeholder link for detail view */}
-          <Link href={`/universe/${universe.id}`}>
+          <Link href={`/universes/${universe.id}`}>
             Explore World <Plus className="h-4 w-4 ml-2" />
           </Link>
         </Button>
@@ -251,3 +251,4 @@ function UniverseCard({
     </Card>
   );
 }
+

@@ -155,7 +155,7 @@ export default async function RunPage({ params }: RunPageProps) {
                       <div className="flex justify-between">
                         <dt className="text-muted-foreground">Campaign</dt>
                         <dd>
-                          <Link href={`/campaign/${campaign.id}`} className="text-primary hover:underline">
+                          <Link href={`/campaigns/${campaign.id}`} className="text-primary hover:underline">
                             {campaign.name}
                           </Link>
                         </dd>

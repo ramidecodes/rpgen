@@ -54,7 +54,7 @@ export default function CharacterPageWrapper({ params }: { params: Promise<{ id:
              <div className="text-center space-y-4">
                 <h1 className="text-2xl font-bold text-destructive">Error</h1>
                 <p className="text-muted-foreground">{error || "Character not found"}</p>
-                <Link href="/profile"><Button>Return to Profile</Button></Link>
+                <Link href="/characters"><Button>Return to Characters</Button></Link>
              </div>
           </main>
           <Footer />
@@ -146,7 +146,7 @@ function CharacterDetailView({ character: initialCharacter, universe }: { charac
       <main className="flex-1 py-12">
         <div className="container max-w-5xl">
           <div className="flex items-center justify-between mb-6">
-            <Link href="/profile" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/characters" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Characters
             </Link>
             <div className="flex gap-2">
@@ -226,7 +226,7 @@ function CharacterDetailView({ character: initialCharacter, universe }: { charac
                    <div className="flex flex-col gap-3">
                      <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Universe</span>
-                        <Link href={`/universe/${universe.id}`} className="font-medium hover:underline">
+                        <Link href={`/universes/${universe.id}`} className="font-medium hover:underline">
                           {universe.name}
                         </Link>
                      </div>
@@ -359,3 +359,4 @@ function StatRow({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+

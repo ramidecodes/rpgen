@@ -68,7 +68,7 @@ export default function CampaignsPage() {
                   Active adventures and ongoing sagas.
                 </p>
               </div>
-              <Link href="/campaign/create">
+              <Link href="/campaigns/create">
                 <Button size="lg" className="shadow-lg">
                   <Plus className="w-4 h-4 mr-2" /> New Campaign
                 </Button>
@@ -143,7 +143,7 @@ export default function CampaignsPage() {
                           <Calendar className="w-3 h-3 mr-1" />
                           {new Date(campaign.updatedAt).toLocaleDateString()}
                         </div>
-                        <Link href={`/campaign/${campaign.id}`}>
+                        <Link href={`/campaigns/${campaign.id}`}>
                             <Button size="sm" variant="secondary" className="gap-1">
                                 View <Play className="w-3 h-3 ml-1" />
                             </Button>
@@ -162,7 +162,7 @@ export default function CampaignsPage() {
                 <p className="text-muted-foreground max-w-sm mb-6">
                   The multiverse is waiting. Create a new campaign to start your journey.
                 </p>
-                <Link href="/campaign/create">
+                <Link href="/campaigns/create">
                   <Button>Start New Adventure</Button>
                 </Link>
               </div>

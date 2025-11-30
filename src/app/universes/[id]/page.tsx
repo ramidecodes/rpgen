@@ -47,7 +47,7 @@ export default async function UniversePage({
           <p className="text-muted-foreground mb-8">
             You do not have permission to view this universe.
           </p>
-          <Link href="/universe">
+          <Link href="/universes">
             <Button>Return to Universe Nexus</Button>
           </Link>
         </div>
@@ -81,7 +81,7 @@ export default async function UniversePage({
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent" />
 
           <div className="absolute top-6 left-6">
-            <Link href="/universe">
+            <Link href="/universes">
               <Button
                 variant="secondary"
                 size="sm"
@@ -121,7 +121,7 @@ export default async function UniversePage({
                     size="lg"
                     className="gap-2 shadow-lg animate-in fade-in zoom-in duration-500"
                   >
-                    <Link href={`/universe/${id}/create-character`}>
+                    <Link href={`/characters/create?universeId=${id}`}>
                       <Play className="h-5 w-5" /> Create Character
                     </Link>
                   </Button>
@@ -325,7 +325,7 @@ export default async function UniversePage({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {characters && characters.length > 0 ? (
                       characters.map((char: any) => (
-                        <Link href={`/character/${char.id}`} key={char.id} className="group">
+                        <Link href={`/characters/${char.id}`} key={char.id} className="group">
                           <Card className="hover:border-primary/50 transition-all hover:shadow-md h-full">
                             <CardContent className="p-4 flex items-center gap-4">
                               <Avatar className="h-12 w-12 border-2 border-muted group-hover:border-primary/50 transition-colors">
@@ -350,7 +350,7 @@ export default async function UniversePage({
                           <Users className="h-8 w-8 opacity-20" />
                           <p>No characters forged in this universe yet.</p>
                           <Button variant="link" asChild className="mt-2">
-                            <Link href={`/universe/${id}/create-character`}>
+                            <Link href={`/characters/create?universeId=${id}`}>
                               Be the first to create one
                             </Link>
                           </Button>
@@ -412,3 +412,4 @@ function OntologyItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+

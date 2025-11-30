@@ -207,7 +207,7 @@ function RunCard({ run }: { run: Run }) {
             <Calendar className="w-3 h-3 mr-1" />
             {new Date(run.updatedAt).toLocaleDateString()}
           </div>
-          <Link href={`/run/${run.id}`}>
+          <Link href={`/runs/${run.id}`}>
             <Button size="sm" variant={run.status === "active" ? "default" : "secondary"} className="gap-1">
               {run.status === "active" ? (
                 <>
