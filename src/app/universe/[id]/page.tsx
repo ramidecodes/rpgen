@@ -27,6 +27,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default async function UniversePage({
   params,
@@ -34,7 +35,7 @@ export default async function UniversePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { success, universe, error } = await getUniverseAction(id);
+  const { success, universe, characters, error } = await getUniverseAction(id);
 
   if (!success || !universe) {
     if (error === "Unauthorized") {
@@ -115,12 +116,14 @@ export default async function UniversePage({
                 </div>
 
                 <div className="flex gap-3">
-                  {/* Placeholder for Start Campaign */}
                   <Button
+                    asChild
                     size="lg"
                     className="gap-2 shadow-lg animate-in fade-in zoom-in duration-500"
                   >
-                    <Play className="h-5 w-5" /> Start Campaign
+                    <Link href={`/universe/${id}/create-character`}>
+                      <Play className="h-5 w-5" /> Create Character
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -188,15 +191,18 @@ export default async function UniversePage({
             {/* Main Content */}
             <div className="lg:col-span-8">
               <Tabs defaultValue="lore" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-8">
+                <TabsList className="grid w-full grid-cols-4 mb-8">
                   <TabsTrigger value="lore" className="gap-2">
-                    <BookOpen className="h-4 w-4" /> World Lore
+                    <BookOpen className="h-4 w-4" /> Lore
                   </TabsTrigger>
                   <TabsTrigger value="factions" className="gap-2">
                     <Crown className="h-4 w-4" /> Factions
                   </TabsTrigger>
                   <TabsTrigger value="locations" className="gap-2">
                     <MapPin className="h-4 w-4" /> Locations
+                  </TabsTrigger>
+                  <TabsTrigger value="characters" className="gap-2">
+                    <Users className="h-4 w-4" /> Characters
                   </TabsTrigger>
                 </TabsList>
 
@@ -307,6 +313,48 @@ export default async function UniversePage({
                     {!locations?.length && (
                       <div className="text-center py-12 text-muted-foreground col-span-2">
                         No locations recorded.
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent
+                  value="characters"
+                  className="animate-in slide-in-from-bottom-4 duration-500"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {characters && characters.length > 0 ? (
+                      characters.map((char: any) => (
+                        <Link href={`/character/${char.id}`} key={char.id} className="group">
+                          <Card className="hover:border-primary/50 transition-all hover:shadow-md h-full">
+                            <CardContent className="p-4 flex items-center gap-4">
+                              <Avatar className="h-12 w-12 border-2 border-muted group-hover:border-primary/50 transition-colors">
+                                <AvatarImage src={char.imageUrl} alt={char.name} className="object-cover" />
+                                <AvatarFallback>{char.name[0]}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold truncate group-hover:text-primary transition-colors">
+                                  {char.name}
+                                </h4>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {char.profession}
+                                </p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="col-span-2 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Users className="h-8 w-8 opacity-20" />
+                          <p>No characters forged in this universe yet.</p>
+                          <Button variant="link" asChild className="mt-2">
+                            <Link href={`/universe/${id}/create-character`}>
+                              Be the first to create one
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

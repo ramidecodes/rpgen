@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { universes } from "@/lib/db/schema";
+import { characters, universes } from "@/lib/db/schema";
 import { createUniverseInputSchema } from "@/lib/db/schemas/universe";
 import { generateUniverse } from "@/lib/ai/universe-generator";
 import { generateUniverseImage } from "@/lib/ai/image-generator";
@@ -160,18 +160,22 @@ export async function getUniverseAction(id: string) {
     }
 
     // 2. Check authorization
-    if (!universe.isPublic) {
-      try {
+    let isOwner = false;
+    try {
         const userProfile = await ensureUserProfile();
-        // If logged in, check ownership
-        // Note: userId might be null for system templates, but those should be public or isPremade
-        if (universe.userId !== userProfile.id) {
-          return { success: false, error: "Unauthorized" };
+        if (userProfile && universe.userId === userProfile.id) {
+            isOwner = true;
         }
-      } catch (e) {
-        // ensureUserProfile throws if not authenticated
+    } catch(e) {
+        // Ignore auth error for public check
+    }
+
+    if (!universe.isPublic && !isOwner) {
+        // If not public and not owner, it's unauthorized
+        // But we already tried getting userProfile above. 
+        // If getUniverseAction is called server-side, we might have context.
+        // Let's just return what we have if public, or error.
         return { success: false, error: "Unauthorized" };
-      }
     }
 
     // 3. Resolve image URL
@@ -179,7 +183,45 @@ export async function getUniverseAction(id: string) {
       universe.coverImage = await getPublicUrl(universe.coverImage);
     }
 
-    return { success: true, universe };
+    // 4. Fetch Associated Characters (Public info only)
+    // We only show characters that belong to this universe.
+    // If the user is the owner of the universe, maybe show all? 
+    // Or just show public characters? For now, let's show all characters created in this universe
+    // But we might want to filter by privacy later. Assuming characters in public universes are visible or at least listed.
+    
+    const universeCharacters = await db
+        .select({
+            id: characters.id,
+            name: characters.name,
+            profession: characters.properties, // We need profession from JSON
+            imageUrl: characters.properties,   // We need imageUrl from JSON
+            userId: characters.userId,
+        })
+        .from(characters)
+        .where(eq(characters.universeId, id))
+        .orderBy(desc(characters.createdAt))
+        .limit(10); // Limit to 10 for now
+
+    // Process characters to extract fields safely and resolve images
+    const processedCharacters = await Promise.all(universeCharacters.map(async (char) => {
+        // @ts-ignore - Drizzle JSON typing is tricky here without explicit mapping, accessing properties directly
+        const props = char.profession as any;
+        let imageUrl = props?.imageUrl;
+        
+        if (imageUrl && !imageUrl.startsWith("http")) {
+            imageUrl = await getPublicUrl(imageUrl);
+        }
+
+        return {
+            id: char.id,
+            name: char.name,
+            profession: props?.profession || "Unknown",
+            imageUrl: imageUrl,
+            userId: char.userId
+        };
+    }));
+
+    return { success: true, universe, characters: processedCharacters };
   } catch (error) {
     console.error("Failed to get universe:", error);
     return { success: false, error: "Failed to load universe" };

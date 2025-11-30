@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  createUniverseInputSchema,
   TimeframeEnum,
   MagicLevelEnum,
   PhysicsEnum,
@@ -214,16 +211,24 @@ export default function CreateUniversePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="additionalPrompts">Additional Description (Optional)</Label>
+            <Label htmlFor="additionalPrompts">
+              Additional Description (Optional)
+            </Label>
             <Textarea
               id="additionalPrompts"
               placeholder="Describe specific themes, factions, or any other details you'd like to see in this universe..."
               value={formData.additionalPrompts || ""}
-              onChange={(e) => setFormData(prev => ({ ...prev, additionalPrompts: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  additionalPrompts: e.target.value,
+                }))
+              }
               className="h-32"
             />
             <p className="text-xs text-muted-foreground">
-              The AI will use this description to guide the generation of history, factions, and locations.
+              The AI will use this description to guide the generation of
+              history, factions, and locations.
             </p>
           </div>
 
