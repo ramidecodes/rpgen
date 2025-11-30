@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useUser } from "@clerk/nextjs";
-import { BookOpen, Calendar, MapPin, Play, Plus } from "lucide-react";
+import { BookOpen, Calendar, MapPin, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -82,10 +82,10 @@ export default function CampaignsPage() {
             ) : campaigns.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {campaigns.map((campaign) => (
-                  <Card
-                    key={campaign.id}
-                    className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full"
-                  >
+                  <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
+                    <Card
+                      className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer"
+                    >
                     <div className="relative aspect-video w-full bg-muted overflow-hidden">
                       {campaign.coverImage ? (
                         <Image
@@ -138,19 +138,15 @@ export default function CampaignsPage() {
                         ))}
                       </div>
 
-                      <div className="flex items-center justify-between pt-4 border-t mt-auto">
+                      <div className="flex items-center pt-4 border-t mt-auto">
                         <div className="flex items-center text-xs text-muted-foreground">
                           <Calendar className="w-3 h-3 mr-1" />
                           {new Date(campaign.updatedAt).toLocaleDateString()}
                         </div>
-                        <Link href={`/campaigns/${campaign.id}`}>
-                            <Button size="sm" variant="secondary" className="gap-1">
-                                View <Play className="w-3 h-3 ml-1" />
-                            </Button>
-                        </Link>
                       </div>
                     </CardContent>
                   </Card>
+                  </Link>
                 ))}
               </div>
             ) : (

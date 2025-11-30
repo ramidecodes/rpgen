@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -184,7 +183,8 @@ function UniverseCard({
   isStarter?: boolean;
 }) {
   return (
-    <Card className="overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow border-primary/10 group">
+    <Link href={`/universes/${universe.id}`}>
+      <Card className="overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow border-primary/10 group cursor-pointer">
       <div className="relative aspect-video w-full bg-muted">
         {universe.coverImage ? (
           <Image
@@ -236,19 +236,8 @@ function UniverseCard({
           </span>
         </div>
       </CardContent>
-      <CardFooter className="border-t bg-muted/5 pt-4">
-        <Button
-          variant="ghost"
-          className="w-full justify-between hover:bg-primary/5 hover:text-primary"
-          asChild
-        >
-          {/* Placeholder link for detail view */}
-          <Link href={`/universes/${universe.id}`}>
-            Explore World <Plus className="h-4 w-4 ml-2" />
-          </Link>
-        </Button>
-      </CardFooter>
     </Card>
+    </Link>
   );
 }
 

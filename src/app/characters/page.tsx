@@ -3,18 +3,14 @@
 import { getUserCharactersAction } from "@/app/actions/character";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { useUser } from "@clerk/nextjs";
-import { BookOpen, Play, Plus, User } from "lucide-react";
+import { BookOpen, Calendar, Plus, Shield, User, Zap } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -81,12 +77,31 @@ export default function CharactersPage() {
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {characters.map(({ character, universeName }) => {
                       const imageUrl = character.properties?.imageUrl;
+                      const stats = character.stats;
+                      const properties = character.properties || {};
+                      const totalStats = stats
+                        ? stats.strength +
+                          stats.agility +
+                          stats.intelligence +
+                          stats.scholarship +
+                          stats.intuition
+                        : 0;
+                      const personalityTraits = properties.personalityTraits || [];
+                      const backstory = properties.backstory || "";
+                      const backstoryPreview = backstory
+                        ? backstory.length > 60
+                          ? `${backstory.substring(0, 60)}...`
+                          : backstory
+                        : null;
                       
                       return (
-                        <div
+                        <Link
                           key={character.id}
-                          className="flex flex-col border rounded-lg bg-card hover:border-primary/50 transition-colors overflow-hidden group h-full shadow-sm hover:shadow-md"
+                          href={`/characters/${character.id}`}
                         >
+                          <div
+                            className="flex flex-col border rounded-lg bg-card hover:border-primary/50 transition-colors overflow-hidden group h-full shadow-sm hover:shadow-md cursor-pointer"
+                          >
                           <div className="relative aspect-square w-full bg-muted">
                             {imageUrl ? (
                               <Image
@@ -112,30 +127,79 @@ export default function CharactersPage() {
                                     </Badge>
                                 </div>
                                 <p className="text-white/80 text-sm mt-1 font-medium truncate shadow-black drop-shadow-sm">
-                                    {character.properties?.profession}
+                                    {properties.profession}
                                 </p>
                             </div>
                           </div>
 
-                          <div className="flex flex-col flex-1 p-4">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-                              <BookOpen className="w-3 h-3" />
+                          <div className="flex flex-col flex-1 p-3 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <BookOpen className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">{universeName}</span>
                             </div>
 
-                            <div className="mt-auto pt-2">
-                              <Link href={`/characters/${character.id}`} className="w-full block">
-                                <Button
-                                  size="sm"
-                                  className="w-full"
-                                  variant="secondary"
-                                >
-                                  <Play className="w-3 h-3 mr-2" /> Continue
-                                </Button>
-                              </Link>
+                            {backstoryPreview && (
+                              <p className="text-xs text-muted-foreground line-clamp-1 leading-snug">
+                                {backstoryPreview}
+                              </p>
+                            )}
+
+                            {personalityTraits.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {personalityTraits.slice(0, 2).map((trait: string, idx: number) => (
+                                  <Badge
+                                    key={`${character.id}-trait-${idx}`}
+                                    variant="outline"
+                                    className="text-[10px] px-1.5 py-0.5"
+                                  >
+                                    {trait}
+                                  </Badge>
+                                ))}
+                                {personalityTraits.length > 2 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] px-1.5 py-0.5 text-muted-foreground"
+                                  >
+                                    +{personalityTraits.length - 2}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t">
+                              {properties.factionName && (
+                                <div className="flex items-center gap-1">
+                                  <Shield className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{properties.factionName}</span>
+                                </div>
+                              )}
+                              {properties.origin && (
+                                <div className="flex items-center gap-1">
+                                  <Zap className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{properties.origin}</span>
+                                </div>
+                              )}
+                              {stats && (
+                                <div className="flex items-center gap-1 ml-auto">
+                                  <Zap className="w-3 h-3" />
+                                  <span className="font-semibold text-foreground">{totalStats}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <Calendar className="w-2.5 h-2.5" />
+                              <span>
+                                {new Date(character.createdAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </span>
                             </div>
                           </div>
                         </div>
+                        </Link>
                       );
                     })}
                   </div>
