@@ -10,6 +10,7 @@ import {
   boolean,
   integer,
 } from "drizzle-orm/pg-core";
+import type { CampaignState } from "./schemas/campaign";
 
 export const userProfiles = pgTable(
   "user_profiles",
@@ -99,6 +100,43 @@ export const characters = pgTable("characters", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const campaigns = pgTable("campaigns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => userProfiles.id)
+    .notNull(),
+  universeId: uuid("universe_id")
+    .references(() => universes.id)
+    .notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  coverImage: text("cover_image"),
+  genres: jsonb("genres").$type<string[]>().notNull(), // e.g. ["fantasy", "horror"]
+
+  isPublic: boolean("is_public").default(false).notNull(),
+  likesCount: integer("likes_count").default(0).notNull(),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const runs = pgTable("runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => userProfiles.id)
+    .notNull(),
+  campaignId: uuid("campaign_id")
+    .references(() => campaigns.id)
+    .notNull(),
+  characterId: uuid("character_id")
+    .references(() => characters.id)
+    .notNull(),
+  state: jsonb("state").$type<CampaignState>().notNull(),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Type exports for Drizzle schema
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
@@ -111,3 +149,9 @@ export type NewUniverse = typeof universes.$inferInsert;
 
 export type Character = typeof characters.$inferSelect;
 export type NewCharacter = typeof characters.$inferInsert;
+
+export type Campaign = typeof campaigns.$inferSelect;
+export type NewCampaign = typeof campaigns.$inferInsert;
+
+export type Run = typeof runs.$inferSelect;
+export type NewRun = typeof runs.$inferInsert;
