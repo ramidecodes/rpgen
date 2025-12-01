@@ -1,15 +1,28 @@
 "use client";
 
 import { getUserCampaignsAction } from "@/app/actions/campaign-queries";
+import { deleteCampaign } from "@/app/actions/campaign";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useUser } from "@clerk/nextjs";
-import { BookOpen, Calendar, MapPin, Plus } from "lucide-react";
+import { BookOpen, Calendar, MapPin, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface Campaign {
@@ -82,69 +95,16 @@ export default function CampaignsPage() {
             ) : campaigns.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {campaigns.map((campaign) => (
-                  <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
-                    <Card className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer">
-                      <div className="relative aspect-video w-full bg-muted overflow-hidden">
-                        {campaign.coverImage ? (
-                          <Image
-                            src={campaign.coverImage}
-                            alt={campaign.name}
-                            fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-secondary/20">
-                            <BookOpen className="w-12 h-12 text-muted-foreground/30" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-80" />
-
-                        <div className="absolute bottom-0 left-0 p-4 w-full">
-                          <h3 className="font-bold text-xl text-white leading-tight shadow-black drop-shadow-md mb-1">
-                            {campaign.name}
-                          </h3>
-                          <div className="flex items-center text-white/80 text-xs gap-2">
-                            <MapPin className="w-3 h-3" />
-                            <span>{campaign.universeName}</span>
-                          </div>
-                        </div>
-
-                        {campaign.activeRunsCount > 0 && (
-                          <Badge
-                            variant="default"
-                            className="absolute top-3 right-3 bg-background/20 backdrop-blur-md border-white/20 text-white hover:bg-background/30"
-                          >
-                            {campaign.activeRunsCount} Run
-                            {campaign.activeRunsCount > 1 ? "s" : ""}
-                          </Badge>
-                        )}
-                      </div>
-
-                      <CardContent className="flex flex-col flex-1 p-4 pt-5">
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
-                          {campaign.description}
-                        </p>
-
-                        <div className="flex flex-wrap gap-1.5 mb-4">
-                          {campaign.genres.slice(0, 3).map((genre) => (
-                            <span
-                              key={genre}
-                              className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground border px-1.5 py-0.5 rounded"
-                            >
-                              {genre}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center pt-4 border-t mt-auto">
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {new Date(campaign.updatedAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <CampaignCard
+                    key={campaign.id}
+                    campaign={campaign}
+                    onDelete={async () => {
+                      const result = await getUserCampaignsAction();
+                      if (result.success && result.campaigns) {
+                        setCampaigns(result.campaigns);
+                      }
+                    }}
+                  />
                 ))}
               </div>
             ) : (
@@ -169,5 +129,156 @@ export default function CampaignsPage() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+function CampaignCard({
+  campaign,
+  onDelete,
+}: {
+  campaign: Campaign;
+  onDelete: () => Promise<void>;
+}) {
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await deleteCampaign(campaign.id);
+      if (result.success) {
+        await onDelete();
+      }
+    } catch (error) {
+      console.error("Error deleting campaign:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCardClick = () => {
+    router.push(`/campaigns/${campaign.id}`);
+  };
+
+  return (
+    <Card className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full relative">
+      <div
+        role="button"
+        tabIndex={0}
+        className="relative aspect-video w-full bg-muted overflow-hidden cursor-pointer"
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleCardClick();
+          }
+        }}
+      >
+        {campaign.coverImage ? (
+          <Image
+            src={campaign.coverImage}
+            alt={campaign.name}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full bg-secondary/20">
+            <BookOpen className="w-12 h-12 text-muted-foreground/30" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-80" />
+
+        <div className="absolute bottom-0 left-0 p-4 w-full">
+          <h3 className="font-bold text-xl text-white leading-tight shadow-black drop-shadow-md mb-1">
+            {campaign.name}
+          </h3>
+          <div className="flex items-center text-white/80 text-xs gap-2">
+            <MapPin className="w-3 h-3" />
+            <span>{campaign.universeName}</span>
+          </div>
+        </div>
+
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute top-3 right-3 h-8 w-8 bg-background/20 backdrop-blur-md border-white/20 text-white hover:bg-destructive/90 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this campaign? This action
+                cannot be undone. All associated runs and their messages will be
+                permanently deleted, and all files in storage will be removed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+      <CardContent
+        role="button"
+        tabIndex={0}
+        className="flex flex-col flex-1 p-4 pt-5 cursor-pointer"
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleCardClick();
+          }
+        }}
+      >
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
+          {campaign.description}
+        </p>
+
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {campaign.genres.slice(0, 3).map((genre) => (
+            <span
+              key={genre}
+              className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground border px-1.5 py-0.5 rounded"
+            >
+              {genre}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t mt-auto">
+          <div className="flex items-center text-xs text-muted-foreground">
+            <Calendar className="w-3 h-3 mr-1" />
+            {new Date(campaign.updatedAt).toLocaleDateString()}
+          </div>
+          {campaign.activeRunsCount > 0 && (
+            <Badge variant="default">
+              {campaign.activeRunsCount} Run
+              {campaign.activeRunsCount > 1 ? "s" : ""}
+            </Badge>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
