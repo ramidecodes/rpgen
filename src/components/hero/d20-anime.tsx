@@ -260,12 +260,16 @@ export function D20Anime({ className }: D20AnimeProps) {
     y: INITIAL_ROTATION.y,
     z: INITIAL_ROTATION.z,
   });
+  const isInitializedRef = useRef(false);
   const facesRef = useRef<SVGPathElement[]>([]);
   const edgesRef = useRef<SVGLineElement[]>([]);
   const detailGroupsRef = useRef<SVGGElement[]>([]);
   const labelsRef = useRef<SVGTextElement[]>([]);
   const verticesRef = useRef<SVGCircleElement[]>([]);
   const animationRef = useRef<ReturnType<typeof animate> | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number | null>(null);
+  const backgroundRingRef = useRef<SVGGElement | null>(null);
 
   // Recalculate geometry and update DOM
   const updateGeometry = useCallback(() => {
@@ -472,9 +476,17 @@ export function D20Anime({ className }: D20AnimeProps) {
     verticesRef.current = Array.from(
       svg.querySelectorAll<SVGCircleElement>(".d20-vertex")
     );
+    backgroundRingRef.current = svg.querySelector<SVGGElement>(".d20-layer-back");
 
     // Initial geometry update
     updateGeometry();
+
+    // Fade in background glow after initial render
+    animate(svg.querySelectorAll(".d20-glow"), {
+      opacity: [0, 1],
+      duration: 1500,
+      easing: "easeOutQuad",
+    });
 
     // Intro animations
     animate(svg.querySelectorAll(".d20-edge"), ANIMATIONS.edge);
@@ -482,51 +494,111 @@ export function D20Anime({ className }: D20AnimeProps) {
     animate(svg.querySelectorAll(".d20-detail-group"), ANIMATIONS.detail);
     animate(svg.querySelectorAll(".d20-label"), ANIMATIONS.label);
 
-    // Continuous rotation animation using AnimeJS
+    // Continuous rotation animation using requestAnimationFrame for smooth infinite rotation
     const ROTATION_SPEEDS = {
-      x: (Math.PI * 2) / 23000, // Full rotation in ~23 seconds
+      x: (Math.PI * 2) / 23000, // Full rotation in ~23 seconds (radians per ms)
       y: (Math.PI * 2) / 17000, // Full rotation in ~17 seconds
       z: (Math.PI * 2) / 31000, // Full rotation in ~31 seconds
     };
 
-    const startTime = performance.now();
-
-    const timeElement = { value: 0 };
-    animationRef.current = animate(timeElement, {
-      value: 1,
-      duration: 100000, // Long duration, we use elapsed time instead
-      easing: "linear",
-      loop: true,
-      update: () => {
-        const elapsed = performance.now() - startTime;
-        // Calculate rotation angles with different speeds per axis
-        rotationRef.current.x =
-          INITIAL_ROTATION.x + elapsed * ROTATION_SPEEDS.x;
-        rotationRef.current.y =
-          INITIAL_ROTATION.y + elapsed * ROTATION_SPEEDS.y;
-        rotationRef.current.z =
-          INITIAL_ROTATION.z + elapsed * ROTATION_SPEEDS.z;
+    const animateRotation = (currentTime: number) => {
+      if (lastTimeRef.current === null) {
+        lastTimeRef.current = currentTime;
+        // First frame - ensure geometry is updated before starting rotation
         updateGeometry();
-      },
-    });
+        isInitializedRef.current = true;
+        rafRef.current = requestAnimationFrame(animateRotation);
+        return;
+      }
+
+      const deltaTime = currentTime - lastTimeRef.current;
+      lastTimeRef.current = currentTime;
+
+      // Update rotation angles incrementally based on deltaTime
+      rotationRef.current.x += deltaTime * ROTATION_SPEEDS.x;
+      rotationRef.current.y += deltaTime * ROTATION_SPEEDS.y;
+      rotationRef.current.z += deltaTime * ROTATION_SPEEDS.z;
+
+      // Normalize angles to prevent overflow (not strictly necessary but good practice)
+      const TWO_PI = Math.PI * 2;
+      rotationRef.current.x = rotationRef.current.x % TWO_PI;
+      rotationRef.current.y = rotationRef.current.y % TWO_PI;
+      rotationRef.current.z = rotationRef.current.z % TWO_PI;
+
+      updateGeometry();
+
+      rafRef.current = requestAnimationFrame(animateRotation);
+    };
+
+    rafRef.current = requestAnimationFrame(animateRotation);
 
     // Loop animations
     animate(svg, ANIMATIONS.float);
     animate(svg.querySelectorAll(".d20-glow"), ANIMATIONS.pulse);
 
-    // Parallax interaction
+    // Background ring rotations (counter-rotating for depth effect)
+    // Set transform-origin to center for proper rotation
+    const setTransformOrigin = (elements: NodeListOf<Element>) => {
+      elements.forEach((el) => {
+        if (el instanceof SVGGElement) {
+          el.style.transformOrigin = "center center";
+        }
+      });
+    };
+
+    const outerRings = svg.querySelectorAll(".d20-bg-ring-outer");
+    const middleRings = svg.querySelectorAll(".d20-bg-ring-middle");
+    const innerRings = svg.querySelectorAll(".d20-bg-ring-inner");
+    const runeRings = svg.querySelectorAll(".d20-bg-runes");
+
+    setTransformOrigin(outerRings);
+    setTransformOrigin(middleRings);
+    setTransformOrigin(innerRings);
+    setTransformOrigin(runeRings);
+
+    animate(outerRings, {
+      rotate: 360,
+      duration: 25000,
+      loop: true,
+      easing: "linear",
+    });
+
+    animate(middleRings, {
+      rotate: -360,
+      duration: 20000,
+      loop: true,
+      easing: "linear",
+    });
+
+    animate(innerRings, {
+      rotate: 360,
+      duration: 30000,
+      loop: true,
+      easing: "linear",
+    });
+
+    animate(runeRings, {
+      rotate: -360,
+      duration: 35000,
+      loop: true,
+      easing: "linear",
+    });
+
+    // Parallax interaction with enhanced depth
     const handleMouseMove = (e: MouseEvent) => {
       if (!svg) return;
-      const moveX = (e.clientX - window.innerWidth / 2) * 0.015;
-      const moveY = (e.clientY - window.innerHeight / 2) * 0.015;
+      const moveX = (e.clientX - window.innerWidth / 2) * 0.012;
+      const moveY = (e.clientY - window.innerHeight / 2) * 0.012;
 
+      // Background layers move slower for depth
       animate(svg.querySelectorAll(".d20-layer-back"), {
-        translateX: moveX * 0.5,
-        translateY: moveY * 0.5,
+        translateX: moveX * 0.3,
+        translateY: moveY * 0.3,
         duration: 400,
         easing: "easeOutQuad",
       });
 
+      // Front layer moves faster
       animate(svg.querySelectorAll(".d20-layer-front"), {
         translateX: moveX,
         translateY: moveY,
@@ -539,9 +611,14 @@ export function D20Anime({ className }: D20AnimeProps) {
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       if (animationRef.current) {
         animationRef.current.pause();
       }
+      lastTimeRef.current = null;
     };
   }, [updateGeometry]);
 
@@ -560,25 +637,36 @@ export function D20Anime({ className }: D20AnimeProps) {
       >
         <title>D20 Die</title>
         <defs>
+          {/* Subtle background glow filter */}
           <filter id="d20Glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
+            <feGaussianBlur stdDeviation="6" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          {/* Enhanced neon glow for edges and details */}
           <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            <feGaussianBlur stdDeviation="3" result="blur2" />
+            <feGaussianBlur stdDeviation="2.5" result="blur2" />
             <feMerge>
               <feMergeNode in="blur2" />
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          {/* Subtle text glow */}
           <filter id="textGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feGaussianBlur stdDeviation="1" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Background ring glow - very subtle */}
+          <filter id="bgRingGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -626,6 +714,7 @@ export function D20Anime({ className }: D20AnimeProps) {
           </linearGradient>
         </defs>
 
+        {/* Background glow ellipse - subtle animated glow */}
         <ellipse
           cx={VIEWPORT.centerX}
           cy={VIEWPORT.centerY}
@@ -633,19 +722,94 @@ export function D20Anime({ className }: D20AnimeProps) {
           ry="180"
           className="d20-glow fill-glow/10"
           filter="url(#d20Glow)"
+          opacity="0"
         />
 
-        <g className="d20-layer-back">
-          <circle
-            cx={VIEWPORT.centerX}
-            cy={VIEWPORT.centerY}
-            r="120"
-            fill="none"
-            stroke="hsl(var(--arcane))"
-            strokeWidth="1"
-            opacity="0.2"
-            strokeDasharray="4 4"
-          />
+        {/* Layered technomancy background */}
+        <g className="d20-layer-back" ref={backgroundRingRef}>
+          <g transform={`translate(${VIEWPORT.centerX}, ${VIEWPORT.centerY})`}>
+          {/* Outer rotating ring */}
+          <g className="d20-bg-ring-outer" transform="translate(0, 0)">
+            <circle
+              cx="0"
+              cy="0"
+              r="140"
+              fill="none"
+              stroke="hsl(var(--glow))"
+              strokeWidth="1.5"
+              strokeDasharray="8 4"
+              opacity="0.3"
+              filter="url(#bgRingGlow)"
+            />
+            <circle
+              cx="0"
+              cy="0"
+              r="140"
+              fill="none"
+              stroke="hsl(var(--arcane))"
+              strokeWidth="0.5"
+              strokeDasharray="2 6"
+              opacity="0.2"
+            />
+          </g>
+
+          {/* Middle rotating ring */}
+          <g className="d20-bg-ring-middle" transform="translate(0, 0)">
+            <circle
+              cx="0"
+              cy="0"
+              r="110"
+              fill="none"
+              stroke="hsl(var(--circuit))"
+              strokeWidth="1"
+              strokeDasharray="6 3"
+              opacity="0.25"
+              filter="url(#bgRingGlow)"
+            />
+          </g>
+
+          {/* Inner rotating ring */}
+          <g className="d20-bg-ring-inner" transform="translate(0, 0)">
+            <circle
+              cx="0"
+              cy="0"
+              r="85"
+              fill="none"
+              stroke="hsl(var(--glow))"
+              strokeWidth="0.8"
+              strokeDasharray="4 2"
+              opacity="0.2"
+            />
+          </g>
+
+          {/* Rune circle ring */}
+          <g className="d20-bg-runes" transform="translate(0, 0)">
+            {RUNES.map((rune, i) => {
+              const angle = (i / RUNES.length) * 360;
+              const rad = (angle * Math.PI) / 180;
+              const radius = 100;
+              const x = radius * Math.cos(rad);
+              const y = radius * Math.sin(rad);
+              return (
+                <text
+                  key={`rune-${i}`}
+                  x={x}
+                  y={y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="fill-glow/30"
+                  style={{
+                    fontSize: "16px",
+                    fontFamily: "serif",
+                  }}
+                  filter="url(#textGlow)"
+                >
+                  {rune}
+                </text>
+              );
+            })}
+          </g>
+          </g>
         </g>
 
         <g className="d20-layer-front">
@@ -687,6 +851,7 @@ export function D20Anime({ className }: D20AnimeProps) {
                     stroke="hsl(var(--glow))"
                     strokeWidth="1"
                     className="opacity-60"
+                    style={{ opacity: 0 }}
                   />
                   <line
                     x1="0"
@@ -696,6 +861,7 @@ export function D20Anime({ className }: D20AnimeProps) {
                     stroke="hsl(var(--glow))"
                     strokeWidth="0.5"
                     className="opacity-40"
+                    style={{ opacity: 0 }}
                   />
                   <line
                     x1="0"
@@ -705,6 +871,7 @@ export function D20Anime({ className }: D20AnimeProps) {
                     stroke="hsl(var(--glow))"
                     strokeWidth="0.5"
                     className="opacity-40"
+                    style={{ opacity: 0 }}
                   />
                   <line
                     x1="0"
@@ -714,6 +881,7 @@ export function D20Anime({ className }: D20AnimeProps) {
                     stroke="hsl(var(--glow))"
                     strokeWidth="0.5"
                     className="opacity-40"
+                    style={{ opacity: 0 }}
                   />
                 </g>
               );
