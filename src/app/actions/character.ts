@@ -117,6 +117,16 @@ export async function createCharacterAction(
       })
       .returning();
 
+    // Resolve character image URL if needed
+    if (
+      newCharacter.properties?.imageUrl &&
+      !newCharacter.properties.imageUrl.startsWith("http")
+    ) {
+      newCharacter.properties.imageUrl = await getPublicUrl(
+        newCharacter.properties.imageUrl
+      );
+    }
+
     revalidatePath(`/universes/${universeId}`);
     revalidatePath("/profile");
     return { success: true, character: newCharacter };
@@ -172,6 +182,16 @@ export async function updateCharacterAction(
       .where(eq(characters.id, characterId))
       .returning();
 
+    // Resolve character image URL if needed
+    if (
+      updated.properties?.imageUrl &&
+      !updated.properties.imageUrl.startsWith("http")
+    ) {
+      updated.properties.imageUrl = await getPublicUrl(
+        updated.properties.imageUrl
+      );
+    }
+
     revalidatePath(`/characters/${characterId}`);
     revalidatePath("/profile");
     return { success: true, character: updated };
@@ -195,7 +215,11 @@ export async function regenerateCharacterPortraitAction(characterId: string) {
       throw new Error("Unauthorized");
     }
 
-    const appearance = character.properties?.appearance;
+    if (!character.properties) {
+      throw new Error("Character properties not found");
+    }
+
+    const appearance = character.properties.appearance;
     if (!appearance) {
       throw new Error(
         "No appearance description available to generate portrait"
@@ -218,7 +242,7 @@ export async function regenerateCharacterPortraitAction(characterId: string) {
       .update(characters)
       .set({
         properties: {
-          ...character.properties!,
+          ...character.properties,
           imageUrl: uploadResult.key,
         },
         updatedAt: new Date(),

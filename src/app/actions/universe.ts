@@ -60,6 +60,14 @@ export async function createUniverseAction(
       })
       .returning();
 
+    // Resolve universe image URL if needed
+    if (
+      newUniverse.coverImage &&
+      !newUniverse.coverImage.startsWith("http")
+    ) {
+      newUniverse.coverImage = await getPublicUrl(newUniverse.coverImage);
+    }
+
     revalidatePath("/universe");
     return { success: true, universe: newUniverse };
   } catch (error) {
