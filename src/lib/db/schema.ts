@@ -137,6 +137,23 @@ export const runs = pgTable("runs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .references(() => runs.id, { onDelete: "cascade" })
+      .notNull(),
+    role: varchar("role", { length: 20 }).notNull(), // system, user, assistant, tool, data
+    content: jsonb("content").notNull(), // string or Array<TextPart | ImagePart | ToolCallPart | ToolResultPart>
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("messages_run_id_idx").on(table.runId),
+    index("messages_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // Type exports for Drizzle schema
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
@@ -155,3 +172,6 @@ export type NewCampaign = typeof campaigns.$inferInsert;
 
 export type Run = typeof runs.$inferSelect;
 export type NewRun = typeof runs.$inferInsert;
+
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;

@@ -2,6 +2,8 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -122,3 +124,86 @@ export async function getPrivateUrl(key: string): Promise<string> {
 
 // Deprecated alias for backward compatibility if needed, but prefer explicit public/private
 export const getImageUrl = getPublicUrl;
+
+/**
+ * Deletes a file from Cloudflare R2
+ * @param key - The unique key (path) for the file
+ * @returns void
+ */
+export async function deleteFile(key: string): Promise<void> {
+  if (!R2_BUCKET_NAME) {
+    throw new Error("R2_BUCKET_NAME is not configured");
+  }
+
+  if (!key) {
+    return; // No key provided, nothing to delete
+  }
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    });
+
+    await S3.send(command);
+  } catch (error) {
+    // Log error but don't throw - file might not exist
+    console.error("Error deleting file from R2:", error);
+    // Don't throw - allow deletion to continue even if file doesn't exist
+  }
+}
+
+/**
+ * Deletes all files with a given prefix (folder) from Cloudflare R2
+ * @param prefix - The prefix (folder path) to delete all files under
+ * @returns void
+ */
+export async function deleteFolder(prefix: string): Promise<void> {
+  if (!R2_BUCKET_NAME) {
+    throw new Error("R2_BUCKET_NAME is not configured");
+  }
+
+  if (!prefix) {
+    return; // No prefix provided, nothing to delete
+  }
+
+  try {
+    // Ensure prefix ends with / for folder-like behavior
+    const folderPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+
+    // List all objects with the prefix
+    const listCommand = new ListObjectsV2Command({
+      Bucket: R2_BUCKET_NAME,
+      Prefix: folderPrefix,
+    });
+
+    const listResponse = await S3.send(listCommand);
+
+    if (!listResponse.Contents || listResponse.Contents.length === 0) {
+      return; // No files to delete
+    }
+
+    // Delete all files
+    const deletePromises = listResponse.Contents.map((object) => {
+      if (!object.Key) {
+        return Promise.resolve();
+      }
+
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: object.Key,
+      });
+
+      return S3.send(deleteCommand).catch((error) => {
+        // Log error but continue with other deletions
+        console.error(`Error deleting file ${object.Key} from R2:`, error);
+      });
+    });
+
+    await Promise.all(deletePromises);
+  } catch (error) {
+    // Log error but don't throw - folder might not exist
+    console.error("Error deleting folder from R2:", error);
+    // Don't throw - allow deletion to continue even if folder doesn't exist
+  }
+}

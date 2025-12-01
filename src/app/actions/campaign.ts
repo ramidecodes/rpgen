@@ -8,11 +8,12 @@ import {
   type CreateCampaignInput,
 } from "@/lib/db/schemas/campaign";
 import { generateCampaignCover } from "@/lib/ai/image-generator";
-import { uploadImage } from "@/lib/storage/r2";
+import { uploadImage, deleteFile, deleteFolder } from "@/lib/storage/r2";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
+import { runs } from "@/lib/db/schema";
 
 export async function createCampaign(data: CreateCampaignInput) {
   const { userId: clerkUserId } = await auth();
@@ -82,4 +83,50 @@ export async function createCampaign(data: CreateCampaignInput) {
     .returning();
 
   redirect(`/campaigns/${newCampaign.id}`);
+}
+
+export async function deleteCampaign(campaignId: string) {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Get internal user profile
+  const userProfile = await getUserProfileByClerkId(clerkUserId);
+  if (!userProfile) {
+    return { success: false, error: "User profile not found" };
+  }
+
+  // Verify campaign exists and user owns it
+  const [campaign] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.id, campaignId))
+    .limit(1);
+
+  if (!campaign) {
+    return { success: false, error: "Campaign not found" };
+  }
+
+  if (campaign.userId !== userProfile.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Cascade delete all associated runs first (messages cascade automatically)
+  await db.delete(runs).where(eq(runs.campaignId, campaignId));
+
+  // Delete campaign cover image from R2 if it exists
+  if (campaign.coverImage) {
+    await deleteFile(campaign.coverImage);
+  }
+
+  // Delete entire campaign folder from R2
+  const campaignFolderPrefix = `${userProfile.id}/campaigns/${campaignId}`;
+  await deleteFolder(campaignFolderPrefix);
+
+  // Delete campaign from database
+  await db.delete(campaigns).where(eq(campaigns.id, campaignId));
+
+  return { success: true };
 }

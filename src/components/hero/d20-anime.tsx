@@ -476,7 +476,8 @@ export function D20Anime({ className }: D20AnimeProps) {
     verticesRef.current = Array.from(
       svg.querySelectorAll<SVGCircleElement>(".d20-vertex")
     );
-    backgroundRingRef.current = svg.querySelector<SVGGElement>(".d20-layer-back");
+    backgroundRingRef.current =
+      svg.querySelector<SVGGElement>(".d20-layer-back");
 
     // Initial geometry update
     updateGeometry();
@@ -728,87 +729,88 @@ export function D20Anime({ className }: D20AnimeProps) {
         {/* Layered technomancy background */}
         <g className="d20-layer-back" ref={backgroundRingRef}>
           <g transform={`translate(${VIEWPORT.centerX}, ${VIEWPORT.centerY})`}>
-          {/* Outer rotating ring */}
-          <g className="d20-bg-ring-outer" transform="translate(0, 0)">
-            <circle
-              cx="0"
-              cy="0"
-              r="140"
-              fill="none"
-              stroke="hsl(var(--glow))"
-              strokeWidth="1.5"
-              strokeDasharray="8 4"
-              opacity="0.3"
-              filter="url(#bgRingGlow)"
-            />
-            <circle
-              cx="0"
-              cy="0"
-              r="140"
-              fill="none"
-              stroke="hsl(var(--arcane))"
-              strokeWidth="0.5"
-              strokeDasharray="2 6"
-              opacity="0.2"
-            />
-          </g>
+            {/* Outer rotating ring */}
+            <g className="d20-bg-ring-outer" transform="translate(0, 0)">
+              <circle
+                cx="0"
+                cy="0"
+                r="140"
+                fill="none"
+                stroke="hsl(var(--glow))"
+                strokeWidth="1.5"
+                strokeDasharray="8 4"
+                opacity="0.3"
+                filter="url(#bgRingGlow)"
+              />
+              <circle
+                cx="0"
+                cy="0"
+                r="140"
+                fill="none"
+                stroke="hsl(var(--arcane))"
+                strokeWidth="0.5"
+                strokeDasharray="2 6"
+                opacity="0.2"
+              />
+            </g>
 
-          {/* Middle rotating ring */}
-          <g className="d20-bg-ring-middle" transform="translate(0, 0)">
-            <circle
-              cx="0"
-              cy="0"
-              r="110"
-              fill="none"
-              stroke="hsl(var(--circuit))"
-              strokeWidth="1"
-              strokeDasharray="6 3"
-              opacity="0.25"
-              filter="url(#bgRingGlow)"
-            />
-          </g>
+            {/* Middle rotating ring */}
+            <g className="d20-bg-ring-middle" transform="translate(0, 0)">
+              <circle
+                cx="0"
+                cy="0"
+                r="110"
+                fill="none"
+                stroke="hsl(var(--circuit))"
+                strokeWidth="1"
+                strokeDasharray="6 3"
+                opacity="0.25"
+                filter="url(#bgRingGlow)"
+              />
+            </g>
 
-          {/* Inner rotating ring */}
-          <g className="d20-bg-ring-inner" transform="translate(0, 0)">
-            <circle
-              cx="0"
-              cy="0"
-              r="85"
-              fill="none"
-              stroke="hsl(var(--glow))"
-              strokeWidth="0.8"
-              strokeDasharray="4 2"
-              opacity="0.2"
-            />
-          </g>
+            {/* Inner rotating ring */}
+            <g className="d20-bg-ring-inner" transform="translate(0, 0)">
+              <circle
+                cx="0"
+                cy="0"
+                r="85"
+                fill="none"
+                stroke="hsl(var(--glow))"
+                strokeWidth="0.8"
+                strokeDasharray="4 2"
+                opacity="0.2"
+              />
+            </g>
 
-          {/* Rune circle ring */}
-          <g className="d20-bg-runes" transform="translate(0, 0)">
-            {RUNES.map((rune, i) => {
-              const angle = (i / RUNES.length) * 360;
-              const rad = (angle * Math.PI) / 180;
-              const radius = 100;
-              const x = radius * Math.cos(rad);
-              const y = radius * Math.sin(rad);
-              return (
-                <text
-                  key={`rune-${i}`}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="fill-glow/30"
-                  style={{
-                    fontSize: "16px",
-                    fontFamily: "serif",
-                  }}
-                  filter="url(#textGlow)"
-                >
-                  {rune}
-                </text>
-              );
-            })}
-          </g>
+            {/* Rune circle ring */}
+            <g className="d20-bg-runes" transform="translate(0, 0)">
+              {RUNES.map((rune, i) => {
+                const angle = (i / RUNES.length) * 360;
+                const rad = (angle * Math.PI) / 180;
+                const radius = 100;
+                // Round to 4 decimal places to prevent hydration mismatch between server and client
+                const x = Number.parseFloat((radius * Math.cos(rad)).toFixed(4));
+                const y = Number.parseFloat((radius * Math.sin(rad)).toFixed(4));
+                return (
+                  <text
+                    key={`rune-${i}`}
+                    x={x}
+                    y={y}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    className="fill-glow/30"
+                    style={{
+                      fontSize: "16px",
+                      fontFamily: "serif",
+                    }}
+                    filter="url(#textGlow)"
+                  >
+                    {rune}
+                  </text>
+                );
+              })}
+            </g>
           </g>
         </g>
 

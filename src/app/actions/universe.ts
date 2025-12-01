@@ -61,10 +61,7 @@ export async function createUniverseAction(
       .returning();
 
     // Resolve universe image URL if needed
-    if (
-      newUniverse.coverImage &&
-      !newUniverse.coverImage.startsWith("http")
-    ) {
+    if (newUniverse.coverImage && !newUniverse.coverImage.startsWith("http")) {
       newUniverse.coverImage = await getPublicUrl(newUniverse.coverImage);
     }
 

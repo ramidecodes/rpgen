@@ -262,8 +262,8 @@ function RunCard({
               <AlertDialogTitle>Delete Run</AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to delete this run? This action cannot be
-                undone. All messages and game state associated with this run will
-                be permanently deleted.
+                undone. All messages and game state associated with this run
+                will be permanently deleted.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

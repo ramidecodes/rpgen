@@ -9,7 +9,7 @@ import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { getPublicUrl } from "@/lib/storage/r2";
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { BookOpen, Calendar, MapPin, Play, User } from "lucide-react";
+import { Calendar, Play } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -187,7 +187,7 @@ export default async function RunPage({ params }: RunPageProps) {
                   </div>
 
                   <div className="pt-4 border-t">
-                    <Link href={`/play/${run.id}`} className="block">
+                    <Link href={`/runs/${run.id}/play`} className="block">
                       <Button className="w-full" size="lg">
                         <Play className="w-4 h-4 mr-2" />
                         Continue Playing

@@ -91,3 +91,33 @@ export async function createRun(data: CreateRunInput) {
 
   redirect(`/runs/${newRun.id}`);
 }
+
+export async function deleteRun(runId: string) {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Get internal user profile
+  const userProfile = await getUserProfileByClerkId(clerkUserId);
+  if (!userProfile) {
+    return { success: false, error: "User profile not found" };
+  }
+
+  // Verify run exists and user owns it
+  const [run] = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
+
+  if (!run) {
+    return { success: false, error: "Run not found" };
+  }
+
+  if (run.userId !== userProfile.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Delete run (messages cascade automatically via schema)
+  await db.delete(runs).where(eq(runs.id, runId));
+
+  return { success: true };
+}

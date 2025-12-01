@@ -198,7 +198,6 @@ function CampaignCard({
           </div>
         </div>
 
-
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button

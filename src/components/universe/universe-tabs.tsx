@@ -12,12 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Faction, Location } from "@/lib/db/schema";
-import {
-  BookOpen,
-  Crown,
-  MapPin,
-  Users,
-} from "lucide-react";
+import { BookOpen, Crown, MapPin, Users } from "lucide-react";
 import Link from "next/link";
 
 interface UniverseTabsProps {
@@ -210,4 +205,3 @@ export function UniverseTabs({
     </Tabs>
   );
 }
-
