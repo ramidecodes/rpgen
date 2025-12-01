@@ -34,7 +34,7 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
     const imageUrl = output[0];
     const response = await fetch(imageUrl);
     const arrayBuffer = await response.arrayBuffer();
-    
+
     return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error("Error generating image with Replicate:", error);
@@ -46,7 +46,9 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
  * Generates a character portrait using Replicate based on a text prompt.
  * Optimized for square aspect ratio and character focus.
  */
-export async function generateCharacterPortrait(prompt: string): Promise<Buffer> {
+export async function generateCharacterPortrait(
+  prompt: string
+): Promise<Buffer> {
   const model = "black-forest-labs/flux-schnell";
 
   const input = {
@@ -69,7 +71,7 @@ export async function generateCharacterPortrait(prompt: string): Promise<Buffer>
     const imageUrl = output[0];
     const response = await fetch(imageUrl);
     const arrayBuffer = await response.arrayBuffer();
-    
+
     return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error("Error generating character portrait with Replicate:", error);
@@ -104,7 +106,7 @@ export async function generateCampaignCover(prompt: string): Promise<Buffer> {
     const imageUrl = output[0];
     const response = await fetch(imageUrl);
     const arrayBuffer = await response.arrayBuffer();
-    
+
     return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error("Error generating campaign cover with Replicate:", error);

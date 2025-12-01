@@ -1,6 +1,9 @@
 import { generateObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { characterBackstorySchema, type CharacterStats } from "@/lib/db/schemas/character";
+import {
+  characterBackstorySchema,
+  type CharacterStats,
+} from "@/lib/db/schemas/character";
 import { type Universe } from "@/lib/db/schema";
 
 const openrouter = createOpenRouter({
