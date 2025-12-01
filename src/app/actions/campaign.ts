@@ -81,12 +81,5 @@ export async function createCampaign(data: CreateCampaignInput) {
     })
     .returning();
 
-  redirect(`/campaign/${newCampaign.id}`);
-}
-
-// Deprecated: Use createRun instead
-export async function startCampaign(campaignId: string, characterId: string) {
-  // Redirect to createRun for backward compatibility
-  const { createRun } = await import("./run");
-  return createRun({ campaignId, characterId });
+  redirect(`/campaigns/${newCampaign.id}`);
 }
