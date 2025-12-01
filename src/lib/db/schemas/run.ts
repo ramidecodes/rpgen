@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { campaignStateSchema, type CampaignState } from "./campaign";
+import { type CampaignState } from "./campaign";
 
 // --- Input Schemas ---
 
@@ -11,4 +11,3 @@ export const createRunSchema = z.object({
 // --- Types ---
 export type CreateRunInput = z.infer<typeof createRunSchema>;
 export type { CampaignState };
-

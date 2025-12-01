@@ -208,7 +208,11 @@ function RunCard({ run }: { run: Run }) {
             {new Date(run.updatedAt).toLocaleDateString()}
           </div>
           <Link href={`/runs/${run.id}`}>
-            <Button size="sm" variant={run.status === "active" ? "default" : "secondary"} className="gap-1">
+            <Button
+              size="sm"
+              variant={run.status === "active" ? "default" : "secondary"}
+              className="gap-1"
+            >
               {run.status === "active" ? (
                 <>
                   Continue <Play className="w-3 h-3 ml-1" />
@@ -225,4 +229,3 @@ function RunCard({ run }: { run: Run }) {
     </Card>
   );
 }
-

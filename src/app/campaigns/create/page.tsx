@@ -18,10 +18,10 @@ export default async function CreateCampaignPage() {
   // But for public universes, we don't strictly need it.
   // However, let's assume we fetch user's created universes AND public ones.
   // For MVP, let's just fetch all public universes + user's own private ones.
-  
+
   // Ideally we need to resolve clerkUserId to internal ID first.
   // Or just fetch all public ones for now to simplify or use a query that joins user profile.
-  
+
   // Let's assume we want to show universes the user can play in.
   // This includes:
   // 1. Their own universes
@@ -33,29 +33,29 @@ export default async function CreateCampaignPage() {
 
   // First get internal user id? No, we can join userProfiles to filter by clerkId if needed,
   // but `universes` table uses internal uuid.
-  
+
   // Let's look up the user profile first.
   const userProfile = await db.query.userProfiles.findFirst({
-      where: (userProfiles, { eq }) => eq(userProfiles.clerkUserId, clerkUserId)
+    where: (userProfiles, { eq }) => eq(userProfiles.clerkUserId, clerkUserId),
   });
 
   if (!userProfile) {
-      // Handle case where user profile doesn't exist yet (should exist if they passed auth middleware usually)
-      redirect("/sign-in"); 
+    // Handle case where user profile doesn't exist yet (should exist if they passed auth middleware usually)
+    redirect("/sign-in");
   }
 
   const availableUniverses = await db
     .select({
       id: universes.id,
       name: universes.name,
-      description: universes.description
+      description: universes.description,
     })
     .from(universes)
     .where(
-        eq(universes.userId, userProfile.id)
-        // We can add OR isPublic later
+      eq(universes.userId, userProfile.id)
+      // We can add OR isPublic later
     );
-  
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -68,4 +68,3 @@ export default async function CreateCampaignPage() {
     </div>
   );
 }
-

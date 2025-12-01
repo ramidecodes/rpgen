@@ -4,8 +4,16 @@ import { z } from "zod";
 
 // 1. Narrative Vectors
 export const narrativeVectorsSchema = z.object({
-  hope: z.number().min(0).max(1).describe("0.0 (Despair) to 1.0 (Heroic/Hopeful)"),
-  chaos: z.number().min(0).max(1).describe("0.0 (Order/Stagnation) to 1.0 (Anarchy/Chaos)"),
+  hope: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("0.0 (Despair) to 1.0 (Heroic/Hopeful)"),
+  chaos: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("0.0 (Order/Stagnation) to 1.0 (Anarchy/Chaos)"),
 });
 
 // 2. Active Fronts (PbtA Style)
@@ -13,7 +21,12 @@ export const frontSchema = z.object({
   name: z.string(),
   description: z.string(),
   doomClock: z.number().int().min(0).describe("Current steps advanced"),
-  maxDoom: z.number().int().min(3).max(12).describe("Steps until the impending doom happens"),
+  maxDoom: z
+    .number()
+    .int()
+    .min(3)
+    .max(12)
+    .describe("Steps until the impending doom happens"),
 });
 
 // 3. Quest Threads
@@ -53,7 +66,7 @@ export const campaignStateSchema = z.object({
   questThreads: z.array(questThreadSchema),
   knowledgeGraph: knowledgeGraphSchema,
   // Optional: Summary of the last turn or current situation for context
-  currentContext: z.string().optional(), 
+  currentContext: z.string().optional(),
 });
 
 // --- Input Schemas ---

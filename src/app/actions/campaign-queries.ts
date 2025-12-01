@@ -13,7 +13,8 @@ export async function getUserCampaignsAction() {
     if (!clerkUserId) return { success: false, error: "Unauthorized" };
 
     const userProfile = await getUserProfileByClerkId(clerkUserId);
-    if (!userProfile) return { success: false, error: "User profile not found" };
+    if (!userProfile)
+      return { success: false, error: "User profile not found" };
 
     // Get campaigns with universe info and count of active runs
     const userCampaigns = await db

@@ -93,9 +93,7 @@ export function CampaignStartForm({
       </div>
 
       {error && (
-        <div className="text-sm text-destructive font-medium px-1">
-          {error}
-        </div>
+        <div className="text-sm text-destructive font-medium px-1">{error}</div>
       )}
 
       <Button
@@ -118,4 +116,3 @@ export function CampaignStartForm({
     </form>
   );
 }
-

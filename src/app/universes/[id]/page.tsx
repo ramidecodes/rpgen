@@ -325,11 +325,19 @@ export default async function UniversePage({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {characters && characters.length > 0 ? (
                       characters.map((char: any) => (
-                        <Link href={`/characters/${char.id}`} key={char.id} className="group">
+                        <Link
+                          href={`/characters/${char.id}`}
+                          key={char.id}
+                          className="group"
+                        >
                           <Card className="hover:border-primary/50 transition-all hover:shadow-md h-full">
                             <CardContent className="p-4 flex items-center gap-4">
                               <Avatar className="h-12 w-12 border-2 border-muted group-hover:border-primary/50 transition-colors">
-                                <AvatarImage src={char.imageUrl} alt={char.name} className="object-cover" />
+                                <AvatarImage
+                                  src={char.imageUrl}
+                                  alt={char.name}
+                                  className="object-cover"
+                                />
                                 <AvatarFallback>{char.name[0]}</AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0">
@@ -412,4 +420,3 @@ function OntologyItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

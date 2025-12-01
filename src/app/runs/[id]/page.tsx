@@ -59,9 +59,10 @@ export default async function RunPage({ params }: RunPageProps) {
   }
 
   // Resolve cover image key to URL if needed
-  const coverImageUrl = campaign.coverImage && !campaign.coverImage.startsWith("http")
-    ? await getPublicUrl(campaign.coverImage)
-    : campaign.coverImage;
+  const coverImageUrl =
+    campaign.coverImage && !campaign.coverImage.startsWith("http")
+      ? await getPublicUrl(campaign.coverImage)
+      : campaign.coverImage;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -69,21 +70,26 @@ export default async function RunPage({ params }: RunPageProps) {
       <main className="flex-1 py-12 md:py-20 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="max-w-5xl mx-auto grid gap-8 lg:grid-cols-[2fr_1fr]">
-            
             {/* Left Column: Run Info */}
             <div className="space-y-8">
               <div>
                 <div className="flex items-center gap-2 mb-4">
-                  <Badge variant="outline" className="bg-background/50 backdrop-blur-sm">
+                  <Badge
+                    variant="outline"
+                    className="bg-background/50 backdrop-blur-sm"
+                  >
                     {universe.name}
                   </Badge>
-                  <Badge variant="default">
-                    {run.status}
-                  </Badge>
+                  <Badge variant="default">{run.status}</Badge>
                 </div>
-                <h1 className="text-4xl font-bold tracking-tight mb-2">{campaign.name}</h1>
+                <h1 className="text-4xl font-bold tracking-tight mb-2">
+                  {campaign.name}
+                </h1>
                 <p className="text-lg text-muted-foreground mb-4">
-                  Playing as <span className="font-semibold text-foreground">{character.name}</span>
+                  Playing as{" "}
+                  <span className="font-semibold text-foreground">
+                    {character.name}
+                  </span>
                 </p>
                 <p className="text-xl text-muted-foreground leading-relaxed">
                   {campaign.description}
@@ -107,7 +113,9 @@ export default async function RunPage({ params }: RunPageProps) {
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="bg-muted/50 p-4 rounded-lg">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Active Fronts</h4>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">
+                          Active Fronts
+                        </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
                           {run.state.activeFronts.map((front, i) => (
                             <li key={i}>{front.name}</li>
@@ -115,7 +123,9 @@ export default async function RunPage({ params }: RunPageProps) {
                         </ul>
                       </div>
                       <div className="bg-muted/50 p-4 rounded-lg">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Quest Threads</h4>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">
+                          Quest Threads
+                        </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
                           {run.state.questThreads.map((quest, i) => (
                             <li key={i}>{quest.title}</li>
@@ -125,7 +135,9 @@ export default async function RunPage({ params }: RunPageProps) {
                     </div>
                     {run.state.currentContext && (
                       <div className="mt-4 bg-muted/50 p-4 rounded-lg">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Current Context</h4>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">
+                          Current Context
+                        </h4>
                         <p className="text-sm">{run.state.currentContext}</p>
                       </div>
                     )}
@@ -155,7 +167,10 @@ export default async function RunPage({ params }: RunPageProps) {
                       <div className="flex justify-between">
                         <dt className="text-muted-foreground">Campaign</dt>
                         <dd>
-                          <Link href={`/campaigns/${campaign.id}`} className="text-primary hover:underline">
+                          <Link
+                            href={`/campaigns/${campaign.id}`}
+                            className="text-primary hover:underline"
+                          >
                             {campaign.name}
                           </Link>
                         </dd>
@@ -182,7 +197,6 @@ export default async function RunPage({ params }: RunPageProps) {
                 </CardContent>
               </Card>
             </div>
-
           </div>
         </div>
       </main>
@@ -190,4 +204,3 @@ export default async function RunPage({ params }: RunPageProps) {
     </div>
   );
 }
-

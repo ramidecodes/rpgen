@@ -5,10 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createCharacterAction } from "@/app/actions/character";
-import { type Universe } from "@/lib/db/schema";
+import { type Universe, type Faction } from "@/lib/db/schema";
 import { Loader2, Dices } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -26,7 +38,7 @@ export function CharacterCreationForm({ universe }: Props) {
   const [profession, setProfession] = useState("");
   const [backstoryPrompt, setBackstoryPrompt] = useState("");
   const [factionName, setFactionName] = useState<string>("");
-  
+
   // Stats State
   const [stats, setStats] = useState({
     strength: 10,
@@ -74,9 +86,9 @@ export function CharacterCreationForm({ universe }: Props) {
         // For now, let's assume we go to profile or the character sheet
         // The action revalidates /profile, so redirecting there is safe
         if (result.character) {
-            router.push(`/character/${result.character.id}`);
+          router.push(`/character/${result.character.id}`);
         } else {
-            router.push("/profile");
+          router.push("/profile");
         }
       } else {
         setError(result.error || "Failed to create character");
@@ -112,10 +124,11 @@ export function CharacterCreationForm({ universe }: Props) {
                 onChange={(e) => setProfession(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Choose something that fits the universe ontology ({universe.ontology.timeframe}, {universe.ontology.magicLevel}).
+                Choose something that fits the universe ontology (
+                {universe.ontology.timeframe}, {universe.ontology.magicLevel}).
               </p>
             </div>
-            
+
             {universe.factions && universe.factions.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="faction">Faction Alignment (Optional)</Label>
@@ -124,8 +137,8 @@ export function CharacterCreationForm({ universe }: Props) {
                     <SelectValue placeholder="Select a faction..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {universe.factions.map((faction: any, idx: number) => (
-                      <SelectItem key={idx} value={faction.name}>
+                    {universe.factions.map((faction: Faction) => (
+                      <SelectItem key={faction.name} value={faction.name}>
                         {faction.name}
                       </SelectItem>
                     ))}
@@ -153,7 +166,9 @@ export function CharacterCreationForm({ universe }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Attributes</CardTitle>
-            <CardDescription>Roll the dice to determine your potential.</CardDescription>
+            <CardDescription>
+              Roll the dice to determine your potential.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-center">
@@ -163,10 +178,10 @@ export function CharacterCreationForm({ universe }: Props) {
               <StatDisplay label="Scholarship" value={stats.scholarship} />
               <StatDisplay label="Intuition" value={stats.intuition} />
             </div>
-            
+
             <div className="flex justify-center pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={rollStats}
                 className="w-full"
                 type="button"
@@ -186,8 +201,8 @@ export function CharacterCreationForm({ universe }: Props) {
       )}
 
       <div className="flex justify-end">
-        <Button 
-          onClick={handleSubmit} 
+        <Button
+          onClick={handleSubmit}
           disabled={isPending || !hasRolled}
           size="lg"
         >

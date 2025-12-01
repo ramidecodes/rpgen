@@ -41,4 +41,3 @@ export async function uploadImageAction(
     return { success: false, error: "Failed to upload image" };
   }
 }
-

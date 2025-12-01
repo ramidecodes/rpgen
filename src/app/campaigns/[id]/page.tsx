@@ -210,4 +210,3 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
     </div>
   );
 }
-

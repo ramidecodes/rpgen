@@ -71,13 +71,20 @@ export const generatedUniverseSchema = z.object({
   history: z.string(),
   factions: z.array(factionSchema),
   locations: z.array(locationSchema),
-  visualDescription: z.string().describe("A detailed visual prompt to generate a cover image for this universe"),
+  visualDescription: z
+    .string()
+    .describe(
+      "A detailed visual prompt to generate a cover image for this universe"
+    ),
 });
 
 // Input Schema for Creation Action
 export const createUniverseInputSchema = z.object({
   ontology: ontologySchema,
-  additionalPrompts: z.string().optional().describe("Arbitrary user description to guide the universe generation"),
+  additionalPrompts: z
+    .string()
+    .optional()
+    .describe("Arbitrary user description to guide the universe generation"),
   isPublic: z.boolean().default(false),
 });
 

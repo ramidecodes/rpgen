@@ -218,7 +218,9 @@ export function CampaignCreationForm({ universes }: CampaignCreationFormProps) {
           </Button>
           <Button
             type="submit"
-            disabled={isPending || !selectedUniverseId || selectedGenres.length === 0}
+            disabled={
+              isPending || !selectedUniverseId || selectedGenres.length === 0
+            }
           >
             {isPending ? (
               <>

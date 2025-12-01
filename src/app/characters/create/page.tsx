@@ -22,9 +22,12 @@ export default async function CreateCharacterPage({ searchParams }: PageProps) {
   return (
     <main className="container max-w-4xl py-12 space-y-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Create New Character</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Create New Character
+        </h1>
         <p className="text-muted-foreground">
-          Forge a new destiny in <span className="font-semibold text-primary">{universe.name}</span>
+          Forge a new destiny in{" "}
+          <span className="font-semibold text-primary">{universe.name}</span>
         </p>
       </div>
 
@@ -50,4 +53,3 @@ export default async function CreateCharacterPage({ searchParams }: PageProps) {
     </main>
   );
 }
-

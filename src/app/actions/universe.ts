@@ -10,7 +10,7 @@ import { ensureUserProfile } from "@/lib/db/utils/user-profile";
 import { revalidatePath } from "next/cache";
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 
 export async function createUniverseAction(
   input: z.infer<typeof createUniverseInputSchema>
@@ -23,7 +23,8 @@ export async function createUniverseAction(
     }
 
     // 2. Validate Input
-    const { ontology, additionalPrompts, isPublic } = createUniverseInputSchema.parse(input);
+    const { ontology, additionalPrompts, isPublic } =
+      createUniverseInputSchema.parse(input);
 
     // 3. Generate Universe Content (AI)
     const generatedData = await generateUniverse(ontology, additionalPrompts);
@@ -37,7 +38,7 @@ export async function createUniverseAction(
     // Structure: {userId}/{entityType}/{entityId}/{filename}
     const universeId = randomUUID();
     const imageKey = `${userProfile.id}/universes/${universeId}/cover.webp`;
-    
+
     const { key } = await uploadImage(imageBuffer, imageKey, "image/webp");
 
     // 6. Save to Database
@@ -89,10 +90,7 @@ export async function getPublicUniversesAction(filters?: {
   sort?: "recent" | "popular";
 }) {
   try {
-    let query = db
-      .select()
-      .from(universes)
-      .where(eq(universes.isPublic, true));
+    let query = db.select().from(universes).where(eq(universes.isPublic, true));
 
     // Apply sorting
     if (filters?.sort === "popular") {
@@ -162,20 +160,20 @@ export async function getUniverseAction(id: string) {
     // 2. Check authorization
     let isOwner = false;
     try {
-        const userProfile = await ensureUserProfile();
-        if (userProfile && universe.userId === userProfile.id) {
-            isOwner = true;
-        }
-    } catch(e) {
-        // Ignore auth error for public check
+      const userProfile = await ensureUserProfile();
+      if (userProfile && universe.userId === userProfile.id) {
+        isOwner = true;
+      }
+    } catch (e) {
+      // Ignore auth error for public check
     }
 
     if (!universe.isPublic && !isOwner) {
-        // If not public and not owner, it's unauthorized
-        // But we already tried getting userProfile above. 
-        // If getUniverseAction is called server-side, we might have context.
-        // Let's just return what we have if public, or error.
-        return { success: false, error: "Unauthorized" };
+      // If not public and not owner, it's unauthorized
+      // But we already tried getting userProfile above.
+      // If getUniverseAction is called server-side, we might have context.
+      // Let's just return what we have if public, or error.
+      return { success: false, error: "Unauthorized" };
     }
 
     // 3. Resolve image URL
@@ -185,41 +183,43 @@ export async function getUniverseAction(id: string) {
 
     // 4. Fetch Associated Characters (Public info only)
     // We only show characters that belong to this universe.
-    // If the user is the owner of the universe, maybe show all? 
+    // If the user is the owner of the universe, maybe show all?
     // Or just show public characters? For now, let's show all characters created in this universe
     // But we might want to filter by privacy later. Assuming characters in public universes are visible or at least listed.
-    
+
     const universeCharacters = await db
-        .select({
-            id: characters.id,
-            name: characters.name,
-            profession: characters.properties, // We need profession from JSON
-            imageUrl: characters.properties,   // We need imageUrl from JSON
-            userId: characters.userId,
-        })
-        .from(characters)
-        .where(eq(characters.universeId, id))
-        .orderBy(desc(characters.createdAt))
-        .limit(10); // Limit to 10 for now
+      .select({
+        id: characters.id,
+        name: characters.name,
+        profession: characters.properties, // We need profession from JSON
+        imageUrl: characters.properties, // We need imageUrl from JSON
+        userId: characters.userId,
+      })
+      .from(characters)
+      .where(eq(characters.universeId, id))
+      .orderBy(desc(characters.createdAt))
+      .limit(10); // Limit to 10 for now
 
     // Process characters to extract fields safely and resolve images
-    const processedCharacters = await Promise.all(universeCharacters.map(async (char) => {
-        // @ts-ignore - Drizzle JSON typing is tricky here without explicit mapping, accessing properties directly
+    const processedCharacters = await Promise.all(
+      universeCharacters.map(async (char) => {
+        // @ts-expect-error - Drizzle JSON typing is tricky here without explicit mapping, accessing properties directly
         const props = char.profession as any;
         let imageUrl = props?.imageUrl;
-        
+
         if (imageUrl && !imageUrl.startsWith("http")) {
-            imageUrl = await getPublicUrl(imageUrl);
+          imageUrl = await getPublicUrl(imageUrl);
         }
 
         return {
-            id: char.id,
-            name: char.name,
-            profession: props?.profession || "Unknown",
-            imageUrl: imageUrl,
-            userId: char.userId
+          id: char.id,
+          name: char.name,
+          profession: props?.profession || "Unknown",
+          imageUrl: imageUrl,
+          userId: char.userId,
         };
-    }));
+      })
+    );
 
     return { success: true, universe, characters: processedCharacters };
   } catch (error) {

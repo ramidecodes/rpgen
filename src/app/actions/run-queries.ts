@@ -13,7 +13,8 @@ export async function getUserRunsAction() {
     if (!clerkUserId) return { success: false, error: "Unauthorized" };
 
     const userProfile = await getUserProfileByClerkId(clerkUserId);
-    if (!userProfile) return { success: false, error: "User profile not found" };
+    if (!userProfile)
+      return { success: false, error: "User profile not found" };
 
     // Get runs with campaign, character, and universe info
     const userRuns = await db
@@ -58,4 +59,3 @@ export async function getUserRunsAction() {
     return { success: false, error: "Failed to load runs" };
   }
 }
-

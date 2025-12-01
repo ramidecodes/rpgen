@@ -6,7 +6,7 @@ import { runs, campaigns, characters, universes } from "@/lib/db/schema";
 import { createRunSchema, type CreateRunInput } from "@/lib/db/schemas/run";
 import { generateCampaignState } from "@/lib/ai/campaign-generator";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function createRun(data: CreateRunInput) {
@@ -65,7 +65,9 @@ export async function createRun(data: CreateRunInput) {
 
   // Verify character belongs to the same universe as the campaign
   if (character.universeId !== campaign.universeId) {
-    throw new Error("Character must belong to the same universe as the campaign");
+    throw new Error(
+      "Character must belong to the same universe as the campaign"
+    );
   }
 
   // Generate initial state tailored to the character
@@ -89,4 +91,3 @@ export async function createRun(data: CreateRunInput) {
 
   redirect(`/run/${newRun.id}`);
 }
-
