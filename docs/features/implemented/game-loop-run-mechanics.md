@@ -9,12 +9,14 @@
 - **Functional Requirements**:
 
   - **Campaign (Template)**:
+
     - Campaigns are static definitions that serve as scenario templates.
     - **Static Data**: `id`, `user_id`, `universe_id`, `name`, `description`, `cover_image`, `genres`, `is_public`, `likes_count`, `created_at`, `updated_at`.
     - **Removed Fields**: `character_id`, `campaign_state`, `status` (no longer tracks activity).
     - Campaigns do NOT generate initial state during creation (fast, minimal AI generation).
 
   - **Run (Instance)**:
+
     - Runs are active game instances that combine a Campaign template with a specific Character.
     - **Dynamic Data**:
       - `id` (UUID, PK)
@@ -36,14 +38,21 @@
 - **Data Requirements**:
 
   - **Schema Changes** (`src/lib/db/schema.ts`):
+
     - **`campaigns` Table**: Remove `character_id`, `campaign_state`, `status`.
     - **`runs` Table** (New):
       ```typescript
       export const runs = pgTable("runs", {
         id: uuid("id").defaultRandom().primaryKey(),
-        userId: uuid("user_id").references(() => userProfiles.id).notNull(),
-        campaignId: uuid("campaign_id").references(() => campaigns.id).notNull(),
-        characterId: uuid("character_id").references(() => characters.id).notNull(),
+        userId: uuid("user_id")
+          .references(() => userProfiles.id)
+          .notNull(),
+        campaignId: uuid("campaign_id")
+          .references(() => campaigns.id)
+          .notNull(),
+        characterId: uuid("character_id")
+          .references(() => characters.id)
+          .notNull(),
         state: jsonb("state").$type<CampaignState>().notNull(),
         status: varchar("status", { length: 20 }).default("active").notNull(),
         createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -58,12 +67,14 @@
 - **User Flow**:
 
   1. **Campaign Creation**:
+
      - User selects a Universe.
      - User defines basic metadata (Name, Description, Genres).
      - System generates a cover image.
      - **Output**: A new `Campaign` record (fast, no state generation).
 
   2. **Run Initialization (Start Game)**:
+
      - User selects a Campaign.
      - User selects a Character (from the same Universe).
      - System fetches Campaign and Universe context.
@@ -79,10 +90,12 @@
 - **API / Actions**:
 
   - **`createCampaign`** (`src/app/actions/campaign.ts`):
+
     - Simplified: No longer generates initial state.
     - Only creates Campaign record with metadata and cover image.
 
   - **`createRun`** (`src/app/actions/run.ts` - New):
+
     - Handles the heavy lifting of generating the initial Narrative Graph.
     - Takes `campaignId` and `characterId` as input.
     - Generates state using `generateCampaignState` (updated to include Character context).
@@ -95,17 +108,20 @@
 - **UI Changes**:
 
   - **Campaign Creation Form** (`src/components/campaign/campaign-creation-form.tsx`):
+
     - No changes needed (already doesn't require character).
 
-  - **Campaign Detail Page** (`src/app/campaign/[id]/page.tsx`):
+  - **Campaign Detail Page** (`src/app/campaigns/[id]/page.tsx`):
+
     - Change "Start Campaign" to "Start Run".
     - Use `createRun` instead of `startCampaign`.
 
   - **Campaign Start Form** (`src/components/campaign/campaign-start-form.tsx`):
+
     - Rename to `RunStartForm` or keep name but update action.
     - Call `createRun` instead of `startCampaign`.
 
-  - **New: Run Detail Page** (`src/app/run/[id]/page.tsx`):
+  - **New: Run Detail Page** (`src/app/runs/[id]/page.tsx`):
     - Display Run state, character, campaign info.
     - Entry point for gameplay.
 
