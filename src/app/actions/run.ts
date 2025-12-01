@@ -89,5 +89,5 @@ export async function createRun(data: CreateRunInput) {
     })
     .returning();
 
-  redirect(`/run/${newRun.id}`);
+  redirect(`/runs/${newRun.id}`);
 }

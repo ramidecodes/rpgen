@@ -86,7 +86,7 @@ export function CharacterCreationForm({ universe }: Props) {
         // For now, let's assume we go to profile or the character sheet
         // The action revalidates /profile, so redirecting there is safe
         if (result.character) {
-          router.push(`/character/${result.character.id}`);
+          router.push(`/characters/${result.character.id}`);
         } else {
           router.push("/profile");
         }

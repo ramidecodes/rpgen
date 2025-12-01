@@ -117,7 +117,7 @@ export async function createCharacterAction(
       })
       .returning();
 
-    revalidatePath(`/universe/${universeId}`);
+    revalidatePath(`/universes/${universeId}`);
     revalidatePath("/profile");
     return { success: true, character: newCharacter };
   } catch (error) {
@@ -172,7 +172,7 @@ export async function updateCharacterAction(
       .where(eq(characters.id, characterId))
       .returning();
 
-    revalidatePath(`/character/${characterId}`);
+    revalidatePath(`/characters/${characterId}`);
     revalidatePath("/profile");
     return { success: true, character: updated };
   } catch (error) {
@@ -208,7 +208,9 @@ export async function regenerateCharacterPortraitAction(characterId: string) {
     // Upload to R2 (overwrite or new key? R2 overwrite is fine if key is same, but let's use timestamp to bust cache if needed)
     // Actually R2 keys are usually immutable in CDN caches, better to maybe append a timestamp or random string
     // Or just keep simple key and rely on client side cache busting
-    const key = `${userProfile.id}/characters/${characterId}/portrait-${Date.now()}.webp`;
+    const key = `${
+      userProfile.id
+    }/characters/${characterId}/portrait-${Date.now()}.webp`;
     const uploadResult = await uploadImage(imageBuffer, key, "image/webp");
 
     // Update DB
@@ -223,7 +225,7 @@ export async function regenerateCharacterPortraitAction(characterId: string) {
       })
       .where(eq(characters.id, characterId));
 
-    revalidatePath(`/character/${characterId}`);
+    revalidatePath(`/characters/${characterId}`);
     return { success: true, imageUrl: await getPublicUrl(uploadResult.key) };
   } catch (error) {
     console.error("Regenerate portrait failed:", error);
