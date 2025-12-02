@@ -68,6 +68,15 @@ This document provides an overview of the project's directory structure and guid
 - Only add `"use client"` when using hooks, browser APIs, or event handlers
 - Place server actions in `actions/` directory, organized by domain
 
+**Message Loading for Runs**:
+
+- Messages are loaded from the database in server components (e.g., `runs/[id]/play/page.tsx`)
+- Messages are stored in JSONB format with support for both `content` and `parts` fields
+- Messages are converted from database format to `UIMessage[]` format (AI SDK v6 UI message type)
+- `UIMessage` differs from `CoreMessage`: `UIMessage` is for UI display, `CoreMessage` is for model input
+- Messages are passed as `initialMessages` to client components, which pass them to `useChat` hook
+- The `useChat` hook from `@ai-sdk/react` initializes with these messages for display
+
 ### `/src/components`
 
 **Purpose**: React components organized by feature domain.
@@ -122,6 +131,13 @@ This document provides an overview of the project's directory structure and guid
 
 - Create reusable hooks here
 - Follow React hooks naming convention (`use*`)
+
+**Game Chat Hook** (`use-game-chat.ts`):
+
+- Wraps `useChat` from `@ai-sdk/react` for game-specific chat functionality
+- Accepts `initialMessages` as `UIMessage[]` (not `CoreMessage[]`)
+- Handles skill check tool calls and HITL (Human-In-The-Loop) interactions
+- Manages game state updates through the game store
 
 ### `/src/types`
 
