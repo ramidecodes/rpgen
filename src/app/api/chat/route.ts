@@ -14,7 +14,7 @@ import {
   universes,
   messages,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import type { UIMessage } from "ai";
@@ -431,6 +431,120 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
       }
     }
 
+    // Save assistant messages from incoming messages that have tool output
+    // (These come from the client after addToolOutput updates them with output)
+    // This ensures tool results with output are persisted correctly
+    for (const msg of typedMessages) {
+      if (msg.role === "assistant" && msg.parts) {
+        // Check if this message has tool parts with output-available state
+        const toolPartsWithOutput = msg.parts.filter((part: unknown) => {
+          if (
+            typeof part === "object" &&
+            part !== null &&
+            "type" in part &&
+            ("state" in part || "output" in part)
+          ) {
+            const typedPart = part as {
+              type?: string;
+              state?: string;
+              output?: unknown;
+              toolCallId?: string;
+            };
+            // Check for tool parts with output (HITL tool results)
+            return (
+              (typedPart.state === "output-available" ||
+                typedPart.state === "result") &&
+              typedPart.output !== undefined &&
+              typedPart.toolCallId
+            );
+          }
+          return false;
+        });
+
+        if (toolPartsWithOutput.length > 0) {
+          try {
+            // Extract toolCallIds from tool parts with output
+            const toolCallIds = toolPartsWithOutput
+              .map((part: unknown) => {
+                const typedPart = part as { toolCallId?: string };
+                return typedPart.toolCallId;
+              })
+              .filter((id): id is string => typeof id === "string");
+
+            // Find existing messages that contain these toolCallIds
+            const existingMessages = await db
+              .select()
+              .from(messages)
+              .where(and(eq(messages.runId, run.id), eq(messages.role, "assistant")));
+
+            // Check if any existing message has matching toolCallIds
+            let messageUpdated = false;
+            for (const existingMsg of existingMessages) {
+              const existingContent = existingMsg.content as
+                | { parts?: unknown[] }
+                | null
+                | undefined;
+              const existingParts = Array.isArray(existingContent?.parts)
+                ? existingContent.parts
+                : [];
+
+              const hasMatchingToolCall = existingParts.some(
+                (part: unknown) => {
+                  if (
+                    typeof part === "object" &&
+                    part !== null &&
+                    "toolCallId" in part
+                  ) {
+                    const typedPart = part as { toolCallId?: string };
+                    return (
+                      typedPart.toolCallId &&
+                      toolCallIds.includes(typedPart.toolCallId)
+                    );
+                  }
+                  return false;
+                }
+              );
+
+              if (hasMatchingToolCall) {
+                // Update existing message with tool output
+                const assistantMessageData = {
+                  content: "content" in msg ? msg.content : undefined,
+                  parts: msg.parts,
+                };
+                await db
+                  .update(messages)
+                  .set({
+                    content: assistantMessageData as unknown,
+                  })
+                  .where(eq(messages.id, existingMsg.id));
+                messageUpdated = true;
+                break;
+              }
+            }
+
+            // If no existing message was found, insert new one
+            if (!messageUpdated) {
+              const assistantMessageData = {
+                content: "content" in msg ? msg.content : undefined,
+                parts: msg.parts,
+              };
+              await db.insert(messages).values({
+                runId: run.id,
+                role: "assistant",
+                content: assistantMessageData as unknown,
+              });
+            }
+          } catch (error) {
+            console.error(
+              "[API] Error saving assistant message with tool output:",
+              error
+            );
+            // Continue even if saving fails - don't block the stream
+          }
+        }
+      }
+    }
+
     const stream = createUIMessageStream({
       originalMessages: typedMessages,
       execute: async ({ writer }) => {
@@ -457,7 +571,9 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
             onFinish: async ({ text, toolCalls, toolResults }) => {
               try {
                 // Save assistant message using the text and tool calls from onFinish
-                // Convert toolCalls to parts format for storage
+                // Note: For HITL tools like requestSkillCheck, tool output comes from the client
+                // via addToolOutput and will be saved/updated when the client sends the next message.
+                // We save the message here without tool output, then update it later when tool output arrives.
                 const parts: unknown[] = [];
                 if (text) {
                   parts.push({
@@ -476,9 +592,15 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
                 }
                 if (toolResults) {
                   for (const toolResult of toolResults) {
+                    // For server-executed tools, include result if available
+                    const typedResult = toolResult as {
+                      toolCallId: string;
+                      result?: unknown;
+                    };
                     parts.push({
                       type: "tool-result",
-                      toolCallId: toolResult.toolCallId,
+                      toolCallId: typedResult.toolCallId,
+                      result: typedResult.result,
                     });
                   }
                 }
