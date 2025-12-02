@@ -1,0 +1,234 @@
+---
+description: Canonical AI SDK v6 (beta) usage and HITL tooling patterns for this project
+alwaysApply: false
+---
+
+# AI SDK v6 (Beta) & HITL Usage Rule
+
+## When to Apply This Rule
+
+Apply this rule whenever:
+
+- Working on `src/app/api/chat/route.ts`, `src/hooks/use-game-chat.ts`, or `src/components/game/chat-interface.tsx`
+- Adding or modifying AI tools in `src/lib/ai/tools.ts`
+- Changing how messages or tool calls/results are:
+  - Constructed
+  - Sent to `/api/chat`
+  - Persisted in the database
+  - Mapped to UI components
+
+Do **not** apply this rule for completely unrelated features (e.g., layout, hero animations, storage, etc.).
+
+---
+
+## Core Concepts & Types
+
+- **Use AI SDK v6 UI types**:
+  - Prefer `UIMessage` / `UIMessagePart` and `createUIMessageStream` for UI-centric flows.
+  - Treat `UIMessage` as the source of truth for what the client renders.
+
+- **HITL tool pattern** (e.g. `requestSkillCheck`):
+  - Tool UI parts use:
+    - `state: "input-available"` for tool arguments awaiting user action.
+    - `state: "output-available"` for tool results provided by the user.
+  - The canonical payload field for HITL results is **`output`**.
+    - `result` may exist but is considered legacy / non‑canonical.
+
+- **Skill check tool type**:
+  - Keep the shared type aligned with v6:
+
+```ts
+export type SkillCheckToolPart = UIMessagePart & {
+  toolCallId?: string;
+  state?: string; // "input-available" | "output-available" | ...
+  input?: {
+    attribute:
+      | "strength"
+      | "agility"
+      | "intelligence"
+      | "scholarship"
+      | "intuition";
+    difficulty: number;
+    reason: string;
+  };
+  output?: unknown; // canonical HITL payload
+  result?: unknown; // optional fallback for older data
+};
+```
+
+- **Skill check type guard**:
+  - Always use `isToolUIPart` + `getToolName` to identify the HITL tool:
+
+```ts
+export function isSkillCheckPart(
+  part: UIMessagePart
+): part is SkillCheckToolPart {
+  if (!isToolUIPart(part)) {
+    return false;
+  }
+  return getToolName(part) === "requestSkillCheck";
+}
+```
+
+---
+
+## Client‑Side Best Practices (HITL Flow)
+
+### 1. use-game-chat
+
+- Use `useChat` from `@ai-sdk/react` with:
+  - `transport: new DefaultChatTransport({ api: "/api/chat", body: { runId } })`
+  - `messages: initialMessages as never` (AI SDK v6 uses `messages`, not `initialMessages`).
+- Never bypass `useChat` for message sending; always send via the hook so the SDK can:
+  - Track tool calls
+  - Emit tool UI parts for HITL
+
+### 2. Submitting HITL Tool Output
+
+- For our HITL skill check tool, always:
+
+```ts
+addToolOutput({
+  tool: "requestSkillCheck",
+  toolCallId,
+  output: toolOutput, // computed roll+stat+dc, message, success flag, etc.
+});
+```
+
+- After `addToolOutput`, it is acceptable to send a lightweight user message (e.g. `" "`) to trigger the next model step, **but**:
+  - The server must filter truly empty messages before calling the model.
+  - The client should not rely on `content` for HITL; the tool output lives on `output`.
+
+### 3. Rendering in ChatInterface
+
+- **Input state** (`state === "input-available"`):
+  - Use `SkillCheckInteractive` with `input.attribute`, `input.difficulty`, `input.reason`.
+  - Only render when the input structure is valid (types/values checked).
+
+- **Result state** (`state === "output-available"` or `"result"`):
+  - Always prefer `output` over `result`:
+
+```ts
+const rawResult =
+  "output" in skillCheckPart
+    ? (skillCheckPart as { output?: unknown }).output
+    : "result" in skillCheckPart
+    ? (skillCheckPart as { result?: unknown }).result
+    : undefined;
+```
+
+  - Only render the result card when:
+    - `rawResult` is an object.
+    - It has a string `message` field.
+  - Extract and display structured fields (roll, stat, total, difficulty, success) with defensive type checks.
+
+---
+
+## Server‑Side Best Practices (`/api/chat` route)
+
+### 1. Message Validation
+
+- Treat incoming `messages` as `UIMessage[]`:
+  - Verify each has a `role` string.
+  - Drop messages that have **neither**:
+    - Meaningful `content` (non‑empty string/array), **nor**
+    - Non‑empty `parts` array.
+
+### 2. Synthetic Initial Message
+
+- When no prior messages exist and the first user message is effectively empty:
+  - Insert a synthetic UI message:
+
+```ts
+typedMessages.push({
+  id: "synthetic-initial-message",
+  role: "user",
+  parts: [
+    {
+      type: "text",
+      text: " ",
+    },
+  ],
+});
+```
+
+### 3. Campaign State Typing
+
+- Always cast and normalize `run.state` to `CampaignState`:
+  - Ensure:
+    - `activeFronts` is an array.
+    - `narrativeVectors.hope` / `.chaos` are numbers (default `0.5`).
+    - `questThreads` is an array.
+    - `knowledgeGraph.nodes` / `.edges` are arrays.
+    - `currentContext` is a string or `undefined`.
+- When non‑HITL tools run (world mutation tools), persist the updated state to `runs.state`.
+
+### 4. Tool Configuration with streamText
+
+- Use `streamText` with:
+  - `model: openrouter.chat(MODEL_NAME)`
+  - `messages: [{ role: "system", content: systemPrompt }, ...modelMessages]`
+  - `tools: createGameMasterTools(validatedState)`
+  - Avoid deprecated/unsupported options (e.g. top‑level `maxSteps`) unless confirmed by AI SDK v6 docs.
+
+### 5. Persisting Messages
+
+- **User messages**:
+  - Save the last meaningful user message **before** streaming, with:
+    - `content`: original `content` (if present).
+    - `parts`: original `parts` (if present).
+  - Skip messages that are effectively empty (only whitespace or empty text parts).
+
+- **Assistant messages from streamText.onFinish**:
+  - Build `parts` with:
+    - A `text` part when `text` is non‑empty.
+    - `tool-call` parts for each tool call.
+    - `tool-result` parts for server‑executed tools, including `result` when available.
+  - Insert a new assistant message with:
+
+```ts
+await db.insert(messages).values({
+  runId: run.id,
+  role: "assistant",
+  content: assistantMessageData as unknown,
+});
+```
+
+- **Assistant messages with HITL tool output**:
+  - When a subsequent request comes in (after `addToolOutput`), scan `typedMessages` for assistant messages whose parts contain:
+    - `state === "output-available"` (or `"result"`) **and**
+    - Non‑undefined `output` **and**
+    - A `toolCallId`.
+  - Match these parts to existing persisted messages by `toolCallId` inside stored `parts`:
+    - If a message with a matching toolCallId exists:
+      - Update its `content` JSON with the full `parts` (including `output`).
+    - If no message exists:
+      - Insert a new assistant message with the full `parts`.
+  - This ensures:
+    - Initial HITL prompt and the final result share the same run history.
+    - Skill check results render correctly after page reload.
+
+### 6. Do NOT
+
+- Do **not**:
+  - Invent your own tool part shapes; always rely on AI SDK v6 conventions (`state`, `input`, `output`, `toolCallId`).
+  - Strip `output` from tool result parts when persisting.
+  - Rely solely on `content` for HITL results; canonical data is in `output`.
+  - Modify Drizzle **schema** or migrations just to adapt to message shapes; use flexible JSONB.
+
+---
+
+## Testing Expectations
+
+When modifying any of the above:
+
+- Start a fresh run and trigger a `requestSkillCheck`.
+- Confirm:
+  - An assistant message with `state: "input-available"` renders the dice UI.
+  - After rolling and submitting:
+    - `addToolOutput` is called once with the expected `output`.
+    - A follow‑up message with `state: "output-available"` and `output` is visible in `messages`.
+  - After refreshing `runs/[id]/play`:
+    - The skill check **result card** renders with the same summary and metadata (roll, stat, total, DC, success).
+- Ensure `pnpm lint` passes on all touched files.
+
