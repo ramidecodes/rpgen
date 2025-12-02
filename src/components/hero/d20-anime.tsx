@@ -15,7 +15,7 @@ type Face = {
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number },
+    Point2D & { z: number }
   ];
   center: Point2D & { z: number };
   isVisible: boolean;
@@ -29,30 +29,40 @@ type Face = {
 const PHI = (1 + Math.sqrt(5)) / 2;
 const VIEWPORT = { width: 400, height: 430, centerX: 200, centerY: 215 };
 const SCALE = 160;
-const INITIAL_ROTATION = { x: 0.6, y: 0.2, z: 0 };
+const LOOP_DURATION = 20000; // 20 seconds in milliseconds
+
+// Initial rotation to balance die on a vertex (vertex 2 pointing downward)
+// Vertex 2: { x: -1, y: -PHI, z: 0 } normalized ≈ { x: -0.5257, y: -0.8507, z: 0 }
+// To align this vertex with negative Y (pointing down), we need Z rotation
+// Rotation order is Z → Y → X (see rotate3D function), so:
+// - Z: calculated to orient vertex 2 downward (applied first, fixed)
+// - Y: will be animated for spinning (vertical axis, applied second)
+// - X: 0 (no X rotation needed, applied last)
+// Calculated Z rotation: ~0.5536 radians (31.7 degrees)
+const INITIAL_ROTATION = { x: 0, y: 0, z: 0.5536 };
 
 // Full symbol set for all 20 faces - Mixed numbers and runes
 const FACE_SYMBOLS: Array<{ label: string; isHighlighted?: boolean }> = [
   { label: "20", isHighlighted: true }, // Face 0
-  { label: "ᚠ" }, // Face 1
+  { label: "ᚠ" }, // Face 1 (rune)
   { label: "2" }, // Face 2
-  { label: "ᚢ" }, // Face 3
+  { label: "ᚢ" }, // Face 3 (rune)
   { label: "4" }, // Face 4
-  { label: "ᚦ" }, // Face 5
+  { label: "ᚦ" }, // Face 5 (rune)
   { label: "6" }, // Face 6
-  { label: "ᚨ" }, // Face 7
+  { label: "ᚨ" }, // Face 7 (rune)
   { label: "8" }, // Face 8
-  { label: "ᚱ" }, // Face 9
+  { label: "ᚱ" }, // Face 9 (rune)
   { label: "10" }, // Face 10
-  { label: "ᚲ" }, // Face 11
+  { label: "ᚲ" }, // Face 11 (rune)
   { label: "12" }, // Face 12
-  { label: "ᚷ" }, // Face 13
+  { label: "ᚷ" }, // Face 13 (rune)
   { label: "14" }, // Face 14
-  { label: "ᚹ" }, // Face 15
+  { label: "ᚹ" }, // Face 15 (rune)
   { label: "16" }, // Face 16
-  { label: "ᚺ" }, // Face 17
+  { label: "ᚺ" }, // Face 17 (rune)
   { label: "18" }, // Face 18
-  { label: "ᚾ" }, // Face 19
+  { label: "ᚾ" }, // Face 19 (rune)
 ];
 
 // Extended rune set for variety
@@ -120,13 +130,18 @@ const rotateZ = (p: Point3D, theta: number): Point3D => {
 };
 
 // Apply all rotations in order
+// For vertex-balanced spinning: Z (orientation) → Y (spinning) → X (none)
+// This ensures the vertex stays oriented downward while spinning on Y-axis
 const rotate3D = (
   p: Point3D,
   rot: { x: number; y: number; z: number }
 ): Point3D => {
-  let result = rotateX(p, rot.x);
+  // Apply Z rotation first to orient the vertex
+  let result = rotateZ(p, rot.z);
+  // Then Y rotation to spin around vertical axis
   result = rotateY(result, rot.y);
-  result = rotateZ(result, rot.z);
+  // X rotation last (currently 0, but kept for consistency)
+  result = rotateX(result, rot.x);
   return result;
 };
 
@@ -142,7 +157,7 @@ const faceCenter = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number },
+    Point2D & { z: number }
   ]
 ): Point2D & { z: number } => ({
   x: (points[0].x + points[1].x + points[2].x) / 3,
@@ -155,7 +170,7 @@ const isFaceVisible = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number },
+    Point2D & { z: number }
   ]
 ): boolean => {
   const [a, b, c] = points;
@@ -187,7 +202,7 @@ const calculateTextRotation = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number },
+    Point2D & { z: number }
   ]
 ): number => {
   // Use the first edge (vertex 0 to vertex 1) as the reference direction
@@ -210,23 +225,10 @@ const calculateTextRotation = (
 
 // Animation configs
 const ANIMATIONS = {
-  edge: {
-    strokeDashoffset: [300, 0],
-    opacity: [0, 1],
-    delay: stagger(40),
-    duration: 2000,
-    easing: "easeOutExpo" as const,
-  },
   face: {
     opacity: [0, 1],
-    delay: stagger(50, { start: 400 }),
-    duration: 1000,
-    easing: "easeOutQuad" as const,
-  },
-  detail: {
-    opacity: [0, 1],
-    delay: stagger(50, { start: 500 }),
-    duration: 1000,
+    delay: stagger(40),
+    duration: 1200,
     easing: "easeOutQuad" as const,
   },
   label: {
@@ -260,20 +262,25 @@ export function D20Anime({ className }: D20AnimeProps) {
     y: INITIAL_ROTATION.y,
     z: INITIAL_ROTATION.z,
   });
-  const isInitializedRef = useRef(false);
   const facesRef = useRef<SVGPathElement[]>([]);
-  const edgesRef = useRef<SVGLineElement[]>([]);
-  const detailGroupsRef = useRef<SVGGElement[]>([]);
   const labelsRef = useRef<SVGTextElement[]>([]);
   const verticesRef = useRef<SVGCircleElement[]>([]);
   const animationRef = useRef<ReturnType<typeof animate> | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number | null>(null);
+  const progressRef = useRef<number>(0);
+  const rafIdRef = useRef<number | null>(null);
   const backgroundRingRef = useRef<SVGGElement | null>(null);
 
   // Recalculate geometry and update DOM
   const updateGeometry = useCallback(() => {
     if (!svgRef.current) return;
+
+    // Calculate rotation: only Y-axis spins, X and Z remain fixed for vertex balance
+    // Rotation order is Z → Y → X (see rotate3D function)
+    // Z rotation orients vertex downward (fixed), Y rotation spins (animated), X is 0 (fixed)
+    const TWO_PI = Math.PI * 2;
+    rotationRef.current.x = INITIAL_ROTATION.x; // Fixed: 0 (no X rotation)
+    rotationRef.current.y = INITIAL_ROTATION.y + progressRef.current * TWO_PI; // Animated: spins on vertical axis
+    rotationRef.current.z = INITIAL_ROTATION.z; // Fixed: orients vertex 2 downward
 
     // Rotate and project vertices
     const projectedVertices = BASE_VERTICES.map((v) =>
@@ -285,7 +292,7 @@ export function D20Anime({ className }: D20AnimeProps) {
       const points: [
         Point2D & { z: number },
         Point2D & { z: number },
-        Point2D & { z: number },
+        Point2D & { z: number }
       ] = [
         projectedVertices[indices[0]],
         projectedVertices[indices[1]],
@@ -315,27 +322,6 @@ export function D20Anime({ className }: D20AnimeProps) {
       .filter((f) => f.isVisible)
       .sort((a, b) => a.center.z - b.center.z);
 
-    // Extract unique edges from visible faces
-    const edgeSet = new Set<string>();
-    const edges: Array<{ p1: Point2D; p2: Point2D; id: string }> = [];
-
-    visibleFaces.forEach((face) => {
-      for (let j = 0; j < 3; j++) {
-        const idx1 = face.indices[j];
-        const idx2 = face.indices[(j + 1) % 3];
-        const edgeId = idx1 < idx2 ? `${idx1}-${idx2}` : `${idx2}-${idx1}`;
-
-        if (!edgeSet.has(edgeId)) {
-          edgeSet.add(edgeId);
-          edges.push({
-            p1: face.points[j],
-            p2: face.points[(j + 1) % 3],
-            id: edgeId,
-          });
-        }
-      }
-    });
-
     // Visible vertices (part of visible faces)
     const visibleVertexIndices = new Set<number>();
     for (const face of visibleFaces) {
@@ -344,72 +330,22 @@ export function D20Anime({ className }: D20AnimeProps) {
       }
     }
 
-    // Update face paths
+    // Update face wireframe paths
     visibleFaces.forEach((face) => {
       const pathEl = facesRef.current[face.id];
       if (pathEl) {
         pathEl.setAttribute("d", trianglePath(face.points));
         pathEl.style.opacity = "1";
-        pathEl.setAttribute(
-          "fill",
-          face.isHighlighted
-            ? "url(#faceGradientLight)"
-            : "url(#faceGradientDark)"
-        );
       }
     });
 
-    // Update details (Tech Ring & Spokes)
-    visibleFaces.forEach((face) => {
-      const group = detailGroupsRef.current[face.id];
-      if (group) {
-        group.style.opacity = "1";
-
-        // Update ring
-        const ring = group.querySelector("circle");
-        if (ring) {
-          ring.setAttribute("cx", String(face.center.x));
-          ring.setAttribute("cy", String(face.center.y));
-        }
-
-        // Update spokes
-        const spokes = group.querySelectorAll("line");
-        face.points.forEach((p, idx) => {
-          if (spokes[idx]) {
-            spokes[idx].setAttribute("x1", String(face.center.x));
-            spokes[idx].setAttribute("y1", String(face.center.y));
-            spokes[idx].setAttribute("x2", String(p.x));
-            spokes[idx].setAttribute("y2", String(p.y));
-          }
-        });
-      }
-    });
-
-    // Hide non-visible faces and details
+    // Hide non-visible faces
     allFaces.forEach((face) => {
       if (!face.isVisible) {
         const pathEl = facesRef.current[face.id];
         if (pathEl) {
           pathEl.style.opacity = "0";
         }
-        const group = detailGroupsRef.current[face.id];
-        if (group) {
-          group.style.opacity = "0";
-        }
-      }
-    });
-
-    // Update edges - show visible ones, hide others
-    edgesRef.current.forEach((lineEl, idx) => {
-      if (idx < edges.length) {
-        const edge = edges[idx];
-        lineEl.setAttribute("x1", String(edge.p1.x));
-        lineEl.setAttribute("y1", String(edge.p1.y));
-        lineEl.setAttribute("x2", String(edge.p2.x));
-        lineEl.setAttribute("y2", String(edge.p2.y));
-        lineEl.style.opacity = "1";
-      } else {
-        lineEl.style.opacity = "0";
       }
     });
 
@@ -464,12 +400,6 @@ export function D20Anime({ className }: D20AnimeProps) {
     facesRef.current = Array.from(
       svg.querySelectorAll<SVGPathElement>(".d20-face")
     );
-    edgesRef.current = Array.from(
-      svg.querySelectorAll<SVGLineElement>(".d20-edge")
-    );
-    detailGroupsRef.current = Array.from(
-      svg.querySelectorAll<SVGGElement>(".d20-detail-group")
-    );
     labelsRef.current = Array.from(
       svg.querySelectorAll<SVGTextElement>(".d20-label")
     );
@@ -490,48 +420,40 @@ export function D20Anime({ className }: D20AnimeProps) {
     });
 
     // Intro animations
-    animate(svg.querySelectorAll(".d20-edge"), ANIMATIONS.edge);
     animate(svg.querySelectorAll(".d20-face"), ANIMATIONS.face);
-    animate(svg.querySelectorAll(".d20-detail-group"), ANIMATIONS.detail);
     animate(svg.querySelectorAll(".d20-label"), ANIMATIONS.label);
 
-    // Continuous rotation animation using requestAnimationFrame for smooth infinite rotation
-    const ROTATION_SPEEDS = {
-      x: (Math.PI * 2) / 23000, // Full rotation in ~23 seconds (radians per ms)
-      y: (Math.PI * 2) / 17000, // Full rotation in ~17 seconds
-      z: (Math.PI * 2) / 31000, // Full rotation in ~31 seconds
-    };
+    // Seamless rotation animation using Anime.js progress-based approach
+    // Use an object property that Anime.js can animate without creating DOM artifacts
+    const progressTarget = { value: 0 };
 
-    const animateRotation = (currentTime: number) => {
-      if (lastTimeRef.current === null) {
-        lastTimeRef.current = currentTime;
-        // First frame - ensure geometry is updated before starting rotation
+    // Initialize progress to 0 to match initial rotation state
+    progressRef.current = 0;
+    updateGeometry();
+
+    animationRef.current = animate(progressTarget, {
+      value: [0, 1],
+      duration: LOOP_DURATION,
+      easing: "linear",
+      loop: true,
+    });
+
+    // Use requestAnimationFrame to continuously read animation progress
+    // This ensures smooth updates even during loop transitions
+    const updateLoop = () => {
+      if (animationRef.current) {
+        // Get normalized progress (0-1) from animation instance
+        // The progress property goes from 0-100, so we normalize it
+        const rawProgress = animationRef.current.progress / 100;
+        // Use modulo to wrap progress to [0, 1) for seamless looping
+        // This ensures that when progress reaches 1.0, it wraps to 0.0 smoothly
+        const normalizedProgress = ((rawProgress % 1) + 1) % 1;
+        progressRef.current = normalizedProgress;
         updateGeometry();
-        isInitializedRef.current = true;
-        rafRef.current = requestAnimationFrame(animateRotation);
-        return;
       }
-
-      const deltaTime = currentTime - lastTimeRef.current;
-      lastTimeRef.current = currentTime;
-
-      // Update rotation angles incrementally based on deltaTime
-      rotationRef.current.x += deltaTime * ROTATION_SPEEDS.x;
-      rotationRef.current.y += deltaTime * ROTATION_SPEEDS.y;
-      rotationRef.current.z += deltaTime * ROTATION_SPEEDS.z;
-
-      // Normalize angles to prevent overflow (not strictly necessary but good practice)
-      const TWO_PI = Math.PI * 2;
-      rotationRef.current.x = rotationRef.current.x % TWO_PI;
-      rotationRef.current.y = rotationRef.current.y % TWO_PI;
-      rotationRef.current.z = rotationRef.current.z % TWO_PI;
-
-      updateGeometry();
-
-      rafRef.current = requestAnimationFrame(animateRotation);
+      rafIdRef.current = requestAnimationFrame(updateLoop);
     };
-
-    rafRef.current = requestAnimationFrame(animateRotation);
+    rafIdRef.current = requestAnimationFrame(updateLoop);
 
     // Loop animations
     animate(svg, ANIMATIONS.float);
@@ -612,14 +534,13 @@ export function D20Anime({ className }: D20AnimeProps) {
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
       if (animationRef.current) {
         animationRef.current.pause();
       }
-      lastTimeRef.current = null;
     };
   }, [updateGeometry]);
 
@@ -646,7 +567,7 @@ export function D20Anime({ className }: D20AnimeProps) {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          {/* Enhanced neon glow for edges and details */}
+          {/* Enhanced neon glow for wireframe and vertices */}
           <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="1.5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -790,11 +711,15 @@ export function D20Anime({ className }: D20AnimeProps) {
                 const rad = (angle * Math.PI) / 180;
                 const radius = 100;
                 // Round to 4 decimal places to prevent hydration mismatch between server and client
-                const x = Number.parseFloat((radius * Math.cos(rad)).toFixed(4));
-                const y = Number.parseFloat((radius * Math.sin(rad)).toFixed(4));
+                const x = Number.parseFloat(
+                  (radius * Math.cos(rad)).toFixed(4)
+                );
+                const y = Number.parseFloat(
+                  (radius * Math.sin(rad)).toFixed(4)
+                );
                 return (
                   <text
-                    key={`rune-${i}`}
+                    key={`rune-${rune}`}
                     x={x}
                     y={y}
                     textAnchor="middle"
@@ -814,7 +739,8 @@ export function D20Anime({ className }: D20AnimeProps) {
           </g>
         </g>
 
-        <g className="d20-layer-front">
+        <g className="d20-layer-front" filter="url(#neonGlow)">
+          {/* Wireframe faces as neon triangles */}
           <g>
             {BASE_FACES.map((faceIndices, i) => {
               const { isHighlighted } = getFaceLabel(i);
@@ -823,92 +749,12 @@ export function D20Anime({ className }: D20AnimeProps) {
                 <path
                   key={faceKey}
                   d="M0 0 L0 0 L0 0 Z"
-                  fill={
-                    isHighlighted
-                      ? "url(#faceGradientLight)"
-                      : "url(#faceGradientDark)"
-                  }
                   className="d20-face"
-                  style={{ opacity: 0 }}
-                />
-              );
-            })}
-          </g>
-
-          <g>
-            {BASE_FACES.map((faceIndices) => {
-              const detailKey = `detail-${faceIndices[0]}-${faceIndices[1]}-${faceIndices[2]}`;
-              return (
-                <g
-                  key={detailKey}
-                  className="d20-detail-group"
-                  style={{ opacity: 0 }}
-                  filter="url(#neonGlow)"
-                >
-                  <circle
-                    cx="0"
-                    cy="0"
-                    r="10"
-                    fill="none"
-                    stroke="hsl(var(--glow))"
-                    strokeWidth="1"
-                    className="opacity-60"
-                    style={{ opacity: 0 }}
-                  />
-                  <line
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="0"
-                    stroke="hsl(var(--glow))"
-                    strokeWidth="0.5"
-                    className="opacity-40"
-                    style={{ opacity: 0 }}
-                  />
-                  <line
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="0"
-                    stroke="hsl(var(--glow))"
-                    strokeWidth="0.5"
-                    className="opacity-40"
-                    style={{ opacity: 0 }}
-                  />
-                  <line
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="0"
-                    stroke="hsl(var(--glow))"
-                    strokeWidth="0.5"
-                    className="opacity-40"
-                    style={{ opacity: 0 }}
-                  />
-                </g>
-              );
-            })}
-          </g>
-
-          <g>
-            {/* Create enough edges for all possible visible edges (max ~30 for icosahedron) */}
-            {Array.from({ length: 30 }, (_, i) => {
-              // Create stable key based on edge pool position
-              const edgeId = `d20-edge-pool-${String(i).padStart(2, "0")}`;
-              return (
-                <line
-                  key={edgeId}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="0"
-                  stroke="url(#edgeGradient)"
-                  strokeWidth="2.5"
+                  stroke="hsl(var(--glow))"
+                  strokeWidth={isHighlighted ? 2.4 : 1.6}
                   strokeLinecap="round"
-                  strokeDasharray="300"
-                  strokeDashoffset="300"
-                  className="d20-edge"
-                  filter="url(#neonGlow)"
+                  strokeLinejoin="round"
+                  fill="none"
                   style={{ opacity: 0 }}
                 />
               );
@@ -948,6 +794,7 @@ export function D20Anime({ className }: D20AnimeProps) {
             })}
           </g>
 
+          {/* Vertices as subtle glowing points */}
           <g>
             {BASE_VERTICES.map((vertex) => {
               const vertexKey = `v-${vertex.x.toFixed(2)}-${vertex.y.toFixed(
