@@ -171,7 +171,7 @@ export const logEventTool = tool({
 export const requestSkillCheckTool = tool({
   description:
     "Request a skill check from the player. This pauses the narrative until the player rolls the dice.",
-  parameters: z.object({
+  inputSchema: z.object({
     attribute: z
       .enum(["strength", "agility", "intelligence", "scholarship", "intuition"])
       .describe("The character attribute to check"),
@@ -184,7 +184,7 @@ export const requestSkillCheckTool = tool({
     reason: z.string().describe("Why this skill check is needed"),
   }),
   // No execute function - this is a HITL tool that requires client-side handling
-});
+} as const);
 
 // Factory function to create tools with state context
 export function createGameMasterTools(state: CampaignState) {

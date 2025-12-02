@@ -8,11 +8,11 @@ import {
 } from "@/lib/db/schema";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { auth } from "@clerk/nextjs/server";
-import { eq, desc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { GamePlayClient } from "./game-play-client";
 import { getPublicUrl } from "@/lib/storage/r2";
-import type { CoreMessage } from "ai";
+import type { UIMessage } from "ai";
 
 interface PlayPageProps {
   params: Promise<{
@@ -69,7 +69,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
     );
   }
 
-  // Load message history
+  // Load message history in chronological order (oldest first)
   const messageHistory = await db
     .select({
       id: messages.id,
@@ -80,21 +80,25 @@ export default async function PlayPage({ params }: PlayPageProps) {
     })
     .from(messages)
     .where(eq(messages.runId, run.id))
-    .orderBy(desc(messages.createdAt))
+    .orderBy(asc(messages.createdAt))
     .limit(100);
 
-  // Convert to AI SDK message format - reconstruct full message structure
-  const initialMessages: CoreMessage[] = messageHistory.reverse().map((msg) => {
+  // Convert to AI SDK UIMessage format - reconstruct full message structure
+  // UIMessage is the format expected by useChat hook for display
+  const uiMessages: UIMessage[] = messageHistory.map((msg) => {
     // msg.content is stored as JSONB with potentially both content and parts
     const contentData = msg.content as
       | { content?: unknown; parts?: unknown[] }
       | string
-      | unknown[];
+      | unknown[]
+      | null
+      | undefined;
 
     // Handle different storage formats
-    let content: string | unknown[];
+    let content: string | unknown[] | undefined;
     let parts: unknown[] | undefined;
 
+    // Check if contentData is an object with content/parts structure
     if (
       typeof contentData === "object" &&
       contentData !== null &&
@@ -102,24 +106,85 @@ export default async function PlayPage({ params }: PlayPageProps) {
       ("content" in contentData || "parts" in contentData)
     ) {
       // New format: { content: ..., parts: ... }
-      content =
-        (contentData as { content?: unknown }).content ??
-        (Array.isArray(contentData) ? contentData : []);
-      parts = (contentData as { parts?: unknown[] }).parts;
+      const dataObj = contentData as {
+        content?: unknown;
+        parts?: unknown[];
+      };
+      content = dataObj.content;
+      parts = Array.isArray(dataObj.parts) ? dataObj.parts : undefined;
+    } else if (Array.isArray(contentData)) {
+      // Legacy format: array (treated as content)
+      content = contentData;
+      parts = undefined;
+    } else if (typeof contentData === "string") {
+      // Legacy format: string content
+      content = contentData;
+      parts = undefined;
     } else {
-      // Legacy format: just content (string or array)
-      content = contentData as string | unknown[];
+      // Null, undefined, or unknown format
+      content = undefined;
       parts = undefined;
     }
 
-    const message: CoreMessage = {
+    // Build UIMessage with proper structure
+    // Ensure message has required fields: id, role, and either content or parts
+    const message: UIMessage = {
       id: msg.id,
       role: msg.role as "system" | "user" | "assistant" | "tool" | "data",
-      content,
     };
 
+    // Priority: parts > meaningful content
+    // If parts exist and are valid, use them (even if content is empty string)
     if (parts && Array.isArray(parts) && parts.length > 0) {
-      (message as { parts: unknown[] }).parts = parts;
+      // Validate parts structure - ensure each part is an object with a type
+      const validParts = parts.filter(
+        (part): part is Record<string, unknown> =>
+          typeof part === "object" &&
+          part !== null &&
+          !Array.isArray(part) &&
+          "type" in part &&
+          typeof part.type === "string"
+      );
+
+      if (validParts.length > 0) {
+        message.parts = validParts;
+        // Only set content if it's a meaningful string (not empty)
+        // Parts take priority, so content is optional when parts exist
+        if (
+          content !== undefined &&
+          content !== null &&
+          typeof content === "string" &&
+          content.trim().length > 0
+        ) {
+          message.content = content;
+        } else if (Array.isArray(content) && content.length > 0) {
+          message.content = content;
+        }
+        // If we have valid parts, we don't need to set empty content
+        return message;
+      }
+    }
+
+    // If no valid parts, handle content
+    if (content !== undefined && content !== null) {
+      if (typeof content === "string") {
+        // For strings, only set if non-empty (after trimming)
+        // Empty strings will be filtered out by the chat interface
+        if (content.trim().length > 0) {
+          message.content = content;
+        }
+        // Don't set empty string content - let the message have no content
+        // This prevents messages from being incorrectly filtered
+      } else if (Array.isArray(content) && content.length > 0) {
+        message.content = content;
+      }
+    }
+
+    // Ensure message has either content or parts (required by UIMessage)
+    // If neither exists, set empty content to maintain message structure
+    // but note that empty content messages may be filtered by the UI
+    if (!message.parts && !message.content) {
+      message.content = "";
     }
 
     return message;
@@ -131,7 +196,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       character={character}
       campaign={campaign}
       universe={universe}
-      initialMessages={initialMessages}
+      messages={uiMessages}
     />
   );
 }

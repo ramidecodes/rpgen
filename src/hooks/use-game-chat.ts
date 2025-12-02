@@ -1,38 +1,40 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
+import { DefaultChatTransport } from "ai";
 import { useGameStore } from "@/lib/store/game-store";
 import { useCallback, useEffect } from "react";
-import type { CoreMessage, UIMessage } from "ai";
-import { isSkillCheckPart } from "@/types/skill-check";
+import type { UIMessage } from "ai";
+import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
 
 type UseGameChatOptions = {
   runId: string;
-  initialMessages?: CoreMessage[];
+  messages?: UIMessage[];
 };
 
-export function useGameChat({
-  runId,
-  initialMessages = [],
-}: UseGameChatOptions) {
-  const { setPendingSkillCheck, setIsRolling, currentCharacter } =
-    useGameStore();
+export function useGameChat({ runId, messages = [] }: UseGameChatOptions) {
+  const { setPendingSkillCheck, currentCharacter } = useGameStore();
 
   const chat = useChat({
+    id: runId, // Use runId as chat id to ensure each run gets a fresh chat instance
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: {
         runId,
       },
-    }),
-    // @ts-expect-error - initialMessages is not in the type definition but is supported by useChat
-    initialMessages: initialMessages as unknown as UIMessage[],
+    }) as never,
+    messages: messages as never, // AI SDK v6 uses 'messages' instead of 'initialMessages'
+    // Type assertions needed due to version mismatch between AI SDK v6 beta and @ai-sdk/react v2
   });
 
-  const { addToolResult } = chat;
+  const { addToolOutput, sendMessage } = chat;
+  const isLoading =
+    "isLoading" in chat && typeof chat.isLoading === "boolean"
+      ? chat.isLoading
+      : false;
 
   // Monitor messages for tool calls that need HITL
+  // We still track pendingSkillCheck for input area disabling
   useEffect(() => {
     const lastMessage = chat.messages[chat.messages.length - 1];
     if (!lastMessage || lastMessage.role !== "assistant") {
@@ -42,30 +44,40 @@ export function useGameChat({
     const toolParts = lastMessage.parts || [];
     for (const part of toolParts) {
       // Check for skill check tool part using typed part pattern
-      if (isSkillCheckPart(part) && part.state === "input-available") {
-        const { input } = part;
-        if (input?.attribute && input?.difficulty && input?.reason) {
-          setPendingSkillCheck({
-            toolCallId: part.toolCallId,
-            attribute: input.attribute,
-            difficulty: input.difficulty,
-            reason: input.reason,
-          });
-          setIsRolling(true);
+      if (isSkillCheckPart(part)) {
+        const skillCheckPart = part as SkillCheckToolPart;
+        if (
+          skillCheckPart.state === "input-available" &&
+          skillCheckPart.input
+        ) {
+          const { input } = skillCheckPart;
+          if (
+            input.attribute &&
+            typeof input.difficulty === "number" &&
+            typeof input.reason === "string"
+          ) {
+            setPendingSkillCheck({
+              toolCallId: skillCheckPart.toolCallId,
+              attribute: input.attribute,
+              difficulty: input.difficulty,
+              reason: input.reason,
+            });
+          }
         }
       }
     }
-  }, [chat.messages, setPendingSkillCheck, setIsRolling]);
+  }, [chat.messages, setPendingSkillCheck]);
 
   const submitSkillCheckResult = useCallback(
-    async (rollValue: number) => {
-      const { pendingSkillCheck } = useGameStore.getState();
-      if (!pendingSkillCheck) {
+    async (rollValue: number, toolCallId: string) => {
+      // Calculate total (roll + character stat modifier)
+      if (!currentCharacter) {
         return;
       }
 
-      // Calculate total (roll + character stat modifier)
-      if (!currentCharacter) {
+      // Get the pending skill check to get attribute and difficulty
+      const { pendingSkillCheck } = useGameStore.getState();
+      if (!pendingSkillCheck || pendingSkillCheck.toolCallId !== toolCallId) {
         return;
       }
 
@@ -76,31 +88,42 @@ export function useGameChat({
       const checkSuccess = total >= pendingSkillCheck.difficulty;
 
       // Create tool result object
-      const toolResult = {
+      const toolOutput = {
         rollValue,
         statValue,
         total,
         success: checkSuccess,
         attribute: pendingSkillCheck.attribute,
         difficulty: pendingSkillCheck.difficulty,
-        message: `Rolled ${rollValue} + ${statValue} (${pendingSkillCheck.attribute}) = ${total} vs DC ${pendingSkillCheck.difficulty}. ${checkSuccess ? "Success!" : "Failure."}`,
+        message: `Rolled ${rollValue} + ${statValue} (${
+          pendingSkillCheck.attribute
+        }) = ${total} vs DC ${pendingSkillCheck.difficulty}. ${
+          checkSuccess ? "Success!" : "Failure."
+        }`,
       };
 
-      // Submit tool result to complete the HITL flow
-      await addToolResult({
-        toolCallId: pendingSkillCheck.toolCallId,
-        toolName: "requestSkillCheck",
-        result: toolResult,
+      // Submit tool output to complete the HITL flow using AI SDK v6 API
+      addToolOutput({
+        tool: "requestSkillCheck",
+        toolCallId,
+        output: toolOutput,
       });
 
-      // Clear pending check and reset rolling state after submitting result
+      // Clear pending check after submitting result
       useGameStore.getState().clearPendingSkillCheck();
+
+      // Trigger the agent to continue processing with the new tool result.
+      // We send a lightweight, effectively empty user message to trigger the
+      // next model call. This message is filtered from the visible chat UI and
+      // from the sanitized model messages on the server.
+      void sendMessage({ text: " " });
     },
-    [addToolResult, currentCharacter]
+    [addToolOutput, currentCharacter, sendMessage]
   );
 
   return {
     ...chat,
+    isLoading,
     submitSkillCheckResult,
   };
 }

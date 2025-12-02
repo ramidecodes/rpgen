@@ -3,7 +3,6 @@
 import { Header } from "@/components/layout/header";
 import { ChatInterface } from "@/components/game/chat-interface";
 import { InputArea } from "@/components/game/input-area";
-import { DiceRoller } from "@/components/game/dice-roller";
 import { CharacterDetailsDialog } from "@/components/game/character-details-dialog";
 import { CampaignDetailsDialog } from "@/components/game/campaign-details-dialog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +11,7 @@ import { useGameStore } from "@/lib/store/game-store";
 import { useGameChat } from "@/hooks/use-game-chat";
 import { useEffect, useRef, useState } from "react";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
-import type { CoreMessage } from "ai";
+import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
 
 type GamePlayClientProps = {
@@ -20,7 +19,7 @@ type GamePlayClientProps = {
   character: Character;
   campaign: Campaign;
   universe: Universe;
-  initialMessages: CoreMessage[];
+  messages: UIMessage[];
 };
 
 export function GamePlayClient({
@@ -28,12 +27,12 @@ export function GamePlayClient({
   character,
   campaign,
   universe,
-  initialMessages,
+  messages,
 }: GamePlayClientProps) {
   const { setCurrentRun, setCurrentCharacter } = useGameStore();
   const gameChat = useGameChat({
     runId: run.id,
-    initialMessages,
+    messages,
   });
   const hasTriggeredInitialMessage = useRef(false);
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
@@ -45,10 +44,11 @@ export function GamePlayClient({
   }, [run, character, setCurrentRun, setCurrentCharacter]);
 
   // Trigger initial GM introduction when campaign has no messages
+  // Only trigger if there are truly no messages (neither messages prop nor chat messages)
   useEffect(() => {
     if (
       !hasTriggeredInitialMessage.current &&
-      initialMessages.length === 0 &&
+      messages.length === 0 &&
       gameChat.messages.length === 0 &&
       !gameChat.isLoading
     ) {
@@ -61,14 +61,18 @@ export function GamePlayClient({
       });
     }
   }, [
-    initialMessages.length,
+    messages.length,
     gameChat.messages.length,
     gameChat.isLoading,
-    gameChat,
+    gameChat.sendMessage,
   ]);
 
   const handleSendMessage = (message: string) => {
-    gameChat.sendMessage({ text: message });
+    const trimmed = message.trim();
+    if (!trimmed) {
+      return;
+    }
+    gameChat.sendMessage({ text: trimmed });
   };
 
   return (
@@ -79,7 +83,7 @@ export function GamePlayClient({
           <div className="grid gap-4 lg:grid-cols-[1fr_300px] flex-1 min-h-0 overflow-hidden">
             {/* Main Chat Area */}
             <div className="flex flex-col min-h-0 bg-background rounded-lg border shadow-sm overflow-hidden">
-              <div className="p-4 border-b flex-shrink-0">
+              <div className="p-4 border-b shrink-0">
                 <h1 className="text-2xl font-bold">{campaign.name}</h1>
                 <p className="text-sm text-muted-foreground">
                   Playing as{" "}
@@ -90,7 +94,7 @@ export function GamePlayClient({
               <div className="flex-1 min-h-0 overflow-hidden">
                 <ChatInterface gameChat={gameChat} />
               </div>
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 <InputArea
                   onSendMessage={handleSendMessage}
                   isLoading={gameChat.isLoading}
@@ -110,7 +114,7 @@ export function GamePlayClient({
               >
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2">
-                    <Avatar className="h-10 w-10 flex-shrink-0">
+                    <Avatar className="h-10 w-10 shrink-0">
                       <AvatarImage
                         src={character.properties?.imageUrl}
                         alt={character.name}
@@ -167,9 +171,6 @@ export function GamePlayClient({
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Dice Roller - At Bottom */}
-              <DiceRoller onSubmitRoll={gameChat.submitSkillCheckResult} />
             </div>
           </div>
         </div>

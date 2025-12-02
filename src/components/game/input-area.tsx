@@ -13,11 +13,11 @@ type InputAreaProps = {
 
 export function InputArea({ onSendMessage, isLoading }: InputAreaProps) {
   const [input, setInput] = useState("");
-  const { isRolling, pendingSkillCheck } = useGameStore();
+  const { pendingSkillCheck } = useGameStore();
 
   const handleSubmit = () => {
     const trimmedInput = input.trim();
-    if (!trimmedInput || isLoading || isRolling) {
+    if (!trimmedInput || isLoading) {
       return;
     }
 
@@ -32,7 +32,7 @@ export function InputArea({ onSendMessage, isLoading }: InputAreaProps) {
     }
   };
 
-  const isDisabled = isLoading || isRolling || !!pendingSkillCheck;
+  const isDisabled = isLoading || !!pendingSkillCheck;
 
   return (
     <div className="border-t bg-background p-4">

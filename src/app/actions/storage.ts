@@ -36,7 +36,7 @@ export async function uploadImageAction(
   } catch (error) {
     console.error("Upload action failed:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: error.errors[0].message };
+      return { success: false, error: error.message };
     }
     return { success: false, error: "Failed to upload image" };
   }

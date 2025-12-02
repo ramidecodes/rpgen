@@ -18,6 +18,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import type { UIMessage } from "ai";
+import type { CampaignState } from "@/lib/db/schemas/campaign";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -95,21 +96,8 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      // AI SDK v6 messages can have either 'content' OR 'parts' (or both)
-      // If neither exists, it's invalid
-      const hasContent = "content" in msg;
-      const hasParts =
-        "parts" in msg && Array.isArray(msg.parts) && msg.parts.length > 0;
-      if (!hasContent && !hasParts) {
-        console.error(
-          `[API] Message at index ${i} missing both content and parts:`,
-          msg
-        );
-        return new Response(
-          `Message at index ${i} must have either 'content' or 'parts' field`,
-          { status: 400 }
-        );
-      }
+      // AI SDK v6 messages can have either 'content' OR 'parts' (or both).
+      // Detailed validation of \"meaningful\" content is handled later before model conversion.
     }
 
     // Fetch run with related data
@@ -160,14 +148,26 @@ export async function POST(req: Request) {
       .pop();
 
     // Check if this is an empty initial message (first message with empty/whitespace content or empty parts)
-    const isEmptyInitialMessage =
-      isFirstMessage &&
-      (!lastUserMessage ||
-        (typeof lastUserMessage.content === "string" &&
-          lastUserMessage.content.trim() === "") ||
-        (Array.isArray(lastUserMessage.content) &&
-          lastUserMessage.content.length === 0) ||
-        (Array.isArray(lastUserMessage.parts) &&
+    let isEmptyInitialMessage = false;
+    if (isFirstMessage) {
+      if (!lastUserMessage) {
+        isEmptyInitialMessage = true;
+      } else {
+        const arrayContent =
+          "content" in lastUserMessage
+            ? (lastUserMessage as { content?: unknown[] }).content
+            : undefined;
+
+        const hasEmptyContent =
+          ("content" in lastUserMessage &&
+            typeof (lastUserMessage as { content?: unknown }).content ===
+              "string" &&
+            ((lastUserMessage as { content?: string }).content || "").trim() ===
+              "") ||
+          (Array.isArray(arrayContent) && arrayContent.length === 0);
+
+        const hasOnlyEmptyTextParts =
+          Array.isArray(lastUserMessage.parts) &&
           lastUserMessage.parts.every((part: unknown) => {
             if (
               typeof part === "object" &&
@@ -181,54 +181,65 @@ export async function POST(req: Request) {
               );
             }
             return false;
-          })));
+          });
 
-    // For empty initial messages, ensure we have at least one user message to trigger the opening scene
-    // The client sends " " (single space) which we treat as empty
+        isEmptyInitialMessage = hasEmptyContent || hasOnlyEmptyTextParts;
+      }
+    }
+
+    // For empty initial messages, ensure we have at least one user message to trigger the opening scene.
+    // We synthesize a minimal text part instead of using the deprecated/unsupported `content` field.
     if (isEmptyInitialMessage && typedMessages.length === 0) {
-      // If no messages at all, add an empty user message to trigger opening scene
       typedMessages.push({
+        id: "synthetic-initial-message",
         role: "user",
-        content: " ",
+        parts: [
+          {
+            type: "text",
+            text: " ",
+          },
+        ],
       });
     }
 
-    // Create mutable state copy for tool execution
-    let campaignState: unknown;
+    // Create mutable state copy for tool execution and ensure it matches CampaignState
+    let validatedState: CampaignState;
     try {
-      campaignState = JSON.parse(JSON.stringify(run.state));
+      const rawState = JSON.parse(JSON.stringify(run.state)) as CampaignState;
+
+      validatedState = {
+        activeFronts: Array.isArray(rawState.activeFronts)
+          ? rawState.activeFronts
+          : [],
+        narrativeVectors: {
+          hope:
+            typeof rawState.narrativeVectors?.hope === "number"
+              ? rawState.narrativeVectors.hope
+              : 0.5,
+          chaos:
+            typeof rawState.narrativeVectors?.chaos === "number"
+              ? rawState.narrativeVectors.chaos
+              : 0.5,
+        },
+        questThreads: Array.isArray(rawState.questThreads)
+          ? rawState.questThreads
+          : [],
+        knowledgeGraph: {
+          nodes: Array.isArray(rawState.knowledgeGraph?.nodes)
+            ? rawState.knowledgeGraph.nodes
+            : [],
+          edges: Array.isArray(rawState.knowledgeGraph?.edges)
+            ? rawState.knowledgeGraph.edges
+            : [],
+        },
+        currentContext:
+          typeof rawState.currentContext === "string"
+            ? rawState.currentContext
+            : undefined,
+      };
     } catch (error) {
       console.error("[API] Error parsing campaign state:", error);
       return new Response("Invalid campaign state", { status: 500 });
-    }
-
-    // Validate campaign state structure
-    if (!campaignState || typeof campaignState !== "object") {
-      console.error("[API] Campaign state is invalid:", campaignState);
-      return new Response("Invalid campaign state structure", { status: 500 });
-    }
-
-    // Ensure campaign state has required properties with defaults
-    const validatedState = campaignState as {
-      activeFronts?: unknown[];
-      narrativeVectors?: { hope?: number; chaos?: number };
-      questThreads?: unknown[];
-      knowledgeGraph?: { nodes?: unknown[]; edges?: unknown[] };
-      currentContext?: string;
-    };
-
-    // Set defaults for missing properties
-    if (!validatedState.activeFronts) {
-      validatedState.activeFronts = [];
-    }
-    if (!validatedState.narrativeVectors) {
-      validatedState.narrativeVectors = { hope: 0.5, chaos: 0.5 };
-    }
-    if (!validatedState.questThreads) {
-      validatedState.questThreads = [];
-    }
-    if (!validatedState.knowledgeGraph) {
-      validatedState.knowledgeGraph = { nodes: [], edges: [] };
     }
 
     // Build system prompt with context
@@ -246,9 +257,15 @@ CAMPAIGN CONTEXT:
 - Genres: ${campaign.genres.join(", ")}
 - Current State:
   - Active Fronts: ${JSON.stringify(validatedState.activeFronts)}
-  - Narrative Vectors: Hope=${(validatedState.narrativeVectors?.hope ?? 0.5).toFixed(2)}, Chaos=${(validatedState.narrativeVectors?.chaos ?? 0.5).toFixed(2)}
+  - Narrative Vectors: Hope=${(
+    validatedState.narrativeVectors?.hope ?? 0.5
+  ).toFixed(2)}, Chaos=${(
+      validatedState.narrativeVectors?.chaos ?? 0.5
+    ).toFixed(2)}
   - Quest Threads: ${validatedState.questThreads?.length ?? 0} active
-  - Knowledge Graph: ${validatedState.knowledgeGraph?.nodes?.length ?? 0} nodes, ${validatedState.knowledgeGraph?.edges?.length ?? 0} edges
+  - Knowledge Graph: ${
+    validatedState.knowledgeGraph?.nodes?.length ?? 0
+  } nodes, ${validatedState.knowledgeGraph?.edges?.length ?? 0} edges
   - Current Context: ${validatedState.currentContext || "Beginning of campaign"}
 
 CHARACTER CONTEXT:
@@ -260,7 +277,10 @@ CHARACTER CONTEXT:
   - Intelligence: ${character.stats.intelligence}
   - Scholarship: ${character.stats.scholarship}
   - Intuition: ${character.stats.intuition}
-- Backstory: ${character.properties?.backstory?.substring(0, 300) || "No backstory provided"}...
+- Backstory: ${
+      character.properties?.backstory?.substring(0, 300) ||
+      "No backstory provided"
+    }...
 
 GAME MASTER INSTRUCTIONS:
 1. You are a living world simulator. Use tools to update the campaign state dynamically.
@@ -317,13 +337,17 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     } catch (error) {
       console.error("[API] Error creating tools:", error);
       return new Response(
-        `Error creating game tools: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Error creating game tools: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
         { status: 500 }
       );
     }
 
-    // Validate and sanitize messages before conversion
-    // AI SDK v6 messages can have 'content', 'parts', or both
+    // Validate and sanitize messages before conversion.
+    // AI SDK v6 messages can have 'content', 'parts', or both.
+    // Providers like xAI require that each message has at least one content element,
+    // so we drop messages that are effectively empty (no meaningful content or parts).
     const sanitizedMessages = typedMessages.filter((msg): msg is UIMessage => {
       if (!msg || typeof msg !== "object") {
         return false;
@@ -331,7 +355,27 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
       if (!("role" in msg)) {
         return false;
       }
-      // Accept messages with content, parts, or both
+
+      const rawContent =
+        "content" in msg ? (msg as { content?: unknown }).content : undefined;
+      const hasContent =
+        typeof rawContent === "string"
+          ? rawContent.trim().length > 0
+          : Array.isArray(rawContent)
+          ? rawContent.length > 0
+          : false;
+
+      const rawParts = "parts" in msg ? msg.parts : undefined;
+      // Treat any non-empty parts array as meaningful content. This ensures that
+      // tool calls and tool results (which often have no text content) are kept
+      // in the conversation history so HITL flows continue to work correctly.
+      const hasParts = Array.isArray(rawParts) && rawParts.length > 0;
+
+      if (!hasContent && !hasParts) {
+        console.warn("[API] Dropping empty message before model call:", msg);
+        return false;
+      }
+
       return true;
     });
 
@@ -339,7 +383,10 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     // Reuse lastUserMessage that was already declared above
     if (lastUserMessage && !isEmptyInitialMessage) {
       // Handle both content and parts formats
-      const userContent = lastUserMessage.content;
+      const userContent =
+        "content" in lastUserMessage
+          ? (lastUserMessage as { content?: unknown }).content
+          : undefined;
       const userParts = lastUserMessage.parts;
 
       // Check if message has meaningful content
@@ -347,18 +394,14 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
         typeof userContent === "string"
           ? userContent.trim().length > 0
           : Array.isArray(userContent)
-            ? userContent.length > 0
-            : false;
+          ? userContent.length > 0
+          : false;
 
       const hasParts =
         Array.isArray(userParts) &&
         userParts.length > 0 &&
         userParts.some((part: unknown) => {
-          if (
-            typeof part === "object" &&
-            part !== null &&
-            "type" in part
-          ) {
+          if (typeof part === "object" && part !== null && "type" in part) {
             if (
               "text" in part &&
               typeof (part as { text: unknown }).text === "string"
@@ -399,7 +442,9 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
           } catch (error) {
             console.error("[API] Error converting messages:", error);
             throw new Error(
-              `Message conversion failed: ${error instanceof Error ? error.message : "Unknown error"}`
+              `Message conversion failed: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`
             );
           }
           const result = streamText({
@@ -409,7 +454,6 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
               ...modelMessages,
             ],
             tools: toolsWithState,
-            maxSteps: 5,
             onFinish: async ({ text, toolCalls, toolResults }) => {
               try {
                 // Save assistant message using the text and tool calls from onFinish
@@ -427,7 +471,6 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
                       type: "tool-call",
                       toolCallId: toolCall.toolCallId,
                       toolName: toolCall.toolName,
-                      args: toolCall.args,
                     });
                   }
                 }
@@ -436,7 +479,6 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
                     parts.push({
                       type: "tool-result",
                       toolCallId: toolResult.toolCallId,
-                      result: toolResult.result,
                     });
                   }
                 }
@@ -493,9 +535,6 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
             "[API] Error stack:",
             error instanceof Error ? error.stack : "No stack trace"
           );
-          writer.writeText(
-            `Error: ${error instanceof Error ? error.message : "Unknown error occurred"}`
-          );
           throw error;
         }
       },
@@ -510,7 +549,9 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
       error instanceof Error ? error.stack : "No stack trace"
     );
     return new Response(
-      `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Internal server error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       { status: 500 }
     );
   }
