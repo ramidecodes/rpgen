@@ -283,12 +283,43 @@ CHARACTER CONTEXT:
     }...
 
 GAME MASTER INSTRUCTIONS:
-1. You are a living world simulator. Use tools to update the campaign state dynamically.
-2. Check Active Fronts every turn. If the player ignores a Front, advance it by 1 step.
-3. When a player action requires a skill check, use the requestSkillCheck tool with the appropriate attribute and difficulty.
-4. After tool execution, narrate the consequences naturally, incorporating state changes into your description.
-5. Keep narrative engaging and responsive to player choices.
-6. Use maxSteps: 5 to allow multi-step reasoning (Reason -> Act -> Narrate).
+1. You are a living world simulator. Use tools thoughtfully to update the campaign state dynamically.
+2. FRONT MANAGEMENT:
+   - Review Active Fronts each turn, but only advance Fronts that are relevant to the current situation
+   - Advance a Front by 1-2 steps if the player ignores it or if time passes without addressing it
+   - Don't advance all Fronts every turn - be selective and meaningful
+   - When a Front reaches maxDoom, narrate the doom event dramatically
+3. SKILL CHECKS:
+   - Use requestSkillCheck when player actions require a skill check
+   - Choose appropriate attribute and difficulty based on the action
+   - Wait for player to roll before continuing
+4. QUEST CREATION:
+   - Create quests when players discover new objectives or accept missions
+   - Use clear, descriptive titles and detailed descriptions
+   - Don't create duplicate quests - check existing questThreads first
+5. EVENT LOGGING:
+   - Log significant events that impact the world or story
+   - Use appropriate importance levels (most events are 'medium' or 'high')
+   - Reserve 'critical' for truly game-changing moments
+6. NARRATIVE VECTORS:
+   - Adjust Hope/Chaos when player actions significantly impact the world
+   - Make meaningful changes (0.1-0.3 deltas), not tiny adjustments every turn
+   - Hope increases with heroic successes, decreases with failures/despair
+   - Chaos increases when order breaks down, decreases when stability is restored
+7. KNOWLEDGE GRAPH:
+   - Update relationships when NPCs interact meaningfully
+   - Track alliances, enmities, and connections between entities
+   - Only update when relationships meaningfully change
+8. NARRATION:
+   - After tool execution, narrate the consequences naturally
+   - Incorporate state changes into your description seamlessly
+   - Keep narrative engaging and responsive to player choices
+   - Use maxSteps: 5 to allow multi-step reasoning (Reason -> Act -> Narrate)
+9. TOOL USAGE GUIDELINES:
+   - Use tools thoughtfully, not automatically
+   - Each tool call should represent a meaningful change
+   - Don't call tools just because you can - ensure they add value
+   - If a tool call doesn't make sense, skip it and just narrate
 
 ${
   isEmptyInitialMessage
@@ -475,7 +506,9 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
             const existingMessages = await db
               .select()
               .from(messages)
-              .where(and(eq(messages.runId, run.id), eq(messages.role, "assistant")));
+              .where(
+                and(eq(messages.runId, run.id), eq(messages.role, "assistant"))
+              );
 
             // Check if any existing message has matching toolCallIds
             let messageUpdated = false;
@@ -617,8 +650,9 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
                 });
 
                 // Check if any tools modified state (excluding requestSkillCheck)
+                // Tools mutate validatedState directly, so we need to save it if any non-HITL tools were called
                 let stateUpdated = false;
-                if (toolCalls) {
+                if (toolCalls && toolCalls.length > 0) {
                   for (const toolCall of toolCalls) {
                     if (toolCall.toolName !== "requestSkillCheck") {
                       stateUpdated = true;
@@ -628,14 +662,27 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
                 }
 
                 // Persist updated state if tools modified it
+                // validatedState is mutated in-place by tools, so we save the same reference
                 if (stateUpdated) {
-                  await db
-                    .update(runs)
-                    .set({
-                      state: validatedState,
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(runs.id, run.id));
+                  try {
+                    // Deep clone to ensure we're saving a clean copy
+                    const stateToSave = JSON.parse(
+                      JSON.stringify(validatedState)
+                    ) as CampaignState;
+                    await db
+                      .update(runs)
+                      .set({
+                        state: stateToSave,
+                        updatedAt: new Date(),
+                      })
+                      .where(eq(runs.id, run.id));
+                    console.log(
+                      "[API] State updated successfully after tool execution"
+                    );
+                  } catch (error) {
+                    console.error("[API] Error saving updated state:", error);
+                    // Don't throw - allow message to be saved even if state save fails
+                  }
                 }
               } catch (error) {
                 console.error("[API] Error in streamText.onFinish:", error);
