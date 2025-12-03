@@ -80,7 +80,6 @@ export function CampaignCreationForm({ universes }: CampaignCreationFormProps) {
         await createCampaign({
           name,
           description: description || undefined,
-          characterId: "", // Not used anymore in creation
           universeId: selectedUniverseId,
           genres: selectedGenres,
           isPublic,
