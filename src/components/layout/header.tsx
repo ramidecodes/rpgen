@@ -30,7 +30,7 @@ export function Header() {
             className="flex items-center gap-2 font-semibold font-title text-xl tracking-tight"
           >
             <Logo className="h-8 w-8" />
-            Gen DnD
+            RPGen
           </Link>
           <nav className="hidden gap-4 md:flex">
             {navItems.map((item) => {

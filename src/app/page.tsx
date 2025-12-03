@@ -20,19 +20,27 @@ export default function Home() {
         {/* Hero Section - Full viewport Technomancy scene */}
         <HeroScene />
 
-        {/* Game Overview */}
+        {/* Hero Copy */}
         <section className="border-glow/20 border-y bg-muted/30 py-16">
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
-              <h2 className="mb-4 font-semibold text-3xl md:text-4xl">
-                A Living Universe
+              <h1 className="mb-4 font-semibold text-3xl md:text-4xl">
+                RPGen — Infinite Worlds, Boundless Choices
+              </h1>
+              <h2 className="mb-4 font-semibold text-2xl md:text-3xl">
+                A Living Universe That Reacts to You
               </h2>
-              <p className="text-muted-foreground">
-                Experience the magic of procedural generation combined with
-                intelligent storytelling. A Game Master Agent analyzes every
-                action, reshaping the campaign parameters to create a truly
-                dynamic narrative. No two campaigns are ever the same.
-              </p>
+              <div className="space-y-4 text-muted-foreground">
+                <p>
+                  Step into a world shaped by your decisions. RPGen combines
+                  procedural worldbuilding, AI-driven narration, and a Game
+                  Master Agent that adapts to every action you take.
+                </p>
+                <p>
+                  Every run is its own universe — unique, reactive, and
+                  impossible to repeat.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -49,14 +57,14 @@ export default function Home() {
                   <CardHeader>
                     <CardTitle>Fantasy</CardTitle>
                     <CardDescription>
-                      Classical fantasy with magic, elves, and dark forces
+                      Magic, ancient lore, enchanted lands, and factions locked
+                      in an eternal struggle.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm">
-                      A pseudo-medieval world where magic flows through the
-                      land, factions vie for power, and ancient evils stir in
-                      the shadows.
+                      Face dark forces rising from forgotten realms, forge
+                      alliances, or rewrite destiny with your own hand.
                     </p>
                   </CardContent>
                 </Card>
@@ -64,14 +72,15 @@ export default function Home() {
                   <CardHeader>
                     <CardTitle>Sci-fi</CardTitle>
                     <CardDescription>
-                      Cyberpunk dystopia with corporations and technology
+                      A cyberpunk world of megacorporations, neon-lit streets,
+                      and humanity stretched thin by rapid technological
+                      evolution.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm">
-                      Navigate a world where corporations rule, technology
-                      advances rapidly, and humanity struggles to adapt. Spy
-                      thrillers meet trans-humanism.
+                      Navigate intrigue, espionage, trans-humanism, and the
+                      shadowy edges of machine intelligence.
                     </p>
                   </CardContent>
                 </Card>
@@ -79,14 +88,14 @@ export default function Home() {
                   <CardHeader>
                     <CardTitle>Horror</CardTitle>
                     <CardDescription>
-                      Psychological pressure meets cosmic darkness
+                      Psychological tension meets cosmic dread.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm">
-                      Face the unknown and forbidden. Dark creatures manifest in
-                      everyday life, and cosmic horrors beyond mortal
-                      comprehension lurk in the shadows.
+                      Walk the thin line between sanity and the supernatural as
+                      unseen forces shape your path and entities from other
+                      dimensions seep into everyday life.
                     </p>
                   </CardContent>
                 </Card>
@@ -94,14 +103,14 @@ export default function Home() {
                   <CardHeader>
                     <CardTitle>Slice-of-life</CardTitle>
                     <CardDescription>
-                      Everyday stories of normal people seeking balance
+                      Stories grounded in the human experience — connection,
+                      struggle, belonging, and quiet transformation.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm">
-                      Navigate the human condition through friendships, love,
-                      and community. Find harmony in the ordinary moments that
-                      shape our lives.
+                      Find harmony in ordinary moments or confront the subtle
+                      challenges of community, love, and identity.
                     </p>
                   </CardContent>
                 </Card>
@@ -126,9 +135,10 @@ export default function Home() {
                     Universe Generation
                   </h3>
                   <p className="text-muted-foreground">
-                    Choose from pre-made universes or create your own. The
-                    system generates playable locations, world factions, and
-                    rich history that shapes your adventure.
+                    Start from curated universes or craft your own from scratch.
+                    RPGen builds out regions, factions, histories, and
+                    mini-dungeons — creating a world with depth, logic, and
+                    narrative potential.
                   </p>
                 </div>
                 <div className="group">
@@ -139,9 +149,10 @@ export default function Home() {
                     Dynamic Campaigns
                   </h3>
                   <p className="text-muted-foreground">
-                    Each campaign features main conflicts, factions, allies, and
-                    enemies. Random events reshape the universe based on your
-                    decisions, creating unique endings.
+                    Every campaign unfolds differently. Main conflicts evolve,
+                    factions shift alliances, enemies adapt, and random events
+                    reshape the universe as you progress. Your actions influence
+                    every outcome — including how (and when) your story ends.
                   </p>
                 </div>
                 <div className="group">
@@ -152,10 +163,11 @@ export default function Home() {
                     Character Creation
                   </h3>
                   <p className="text-muted-foreground">
-                    Build your character with DnD-style skill rolls. Define
-                    backstory, profession, and physicality. Skills like
-                    Strength, Intelligence, Agility, Scholarship, and Intuition
-                    shape your journey.
+                    Create your hero in classic role-play fashion. Roll for
+                    skills, define your origins, profession, and physical
+                    traits. Your attributes — Strength, Intelligence, Agility,
+                    Scholarship, Intuition — shape both story paths and
+                    dice-based challenges.
                   </p>
                 </div>
               </div>
@@ -168,7 +180,7 @@ export default function Home() {
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="mb-8 font-semibold text-3xl md:text-4xl">
-                What Makes It Unique
+                What Makes RPGen Different
               </h2>
               <div className="space-y-6 text-left">
                 <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
@@ -176,9 +188,9 @@ export default function Home() {
                     Text-Based Narration
                   </h3>
                   <p className="text-muted-foreground">
-                    Immerse yourself in poetic, clear descriptions that unfold
-                    step by step. Every action triggers events that reshape your
-                    world.
+                    A refined, story-first experience. Beautifully crafted
+                    descriptions respond to every decision, bringing each moment
+                    to life with clarity and tone.
                   </p>
                 </div>
                 <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
@@ -186,9 +198,9 @@ export default function Home() {
                     Dice-Based Actions
                   </h3>
                   <p className="text-muted-foreground">
-                    Roll dice correlated to your skill levels. Your character's
-                    abilities determine success in physical, intellectual, and
-                    social challenges.
+                    Your abilities matter. Roll dice scaled to your skills to
+                    resolve challenges — from combat to persuasion to
+                    deciphering ancient lore.
                   </p>
                 </div>
                 <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
@@ -196,19 +208,21 @@ export default function Home() {
                     Visual Scene Generation
                   </h3>
                   <p className="text-muted-foreground">
-                    See your environment rendered as images that update with
-                    each significant event. Zoom in on characters during
-                    conversations or explore your surroundings.
+                    See your world come alive. RPGen renders each environment as
+                    a fresh image whenever a major event unfolds. Zoom into
+                    characters, inspect objects, or explore a moment in richer
+                    detail.
                   </p>
                 </div>
                 <div className="rounded-lg border border-glow/10 bg-card/30 p-6 backdrop-blur-sm transition-all hover:border-glow/20">
                   <h3 className="mb-2 font-semibold text-xl">
-                    Game Master Agent
+                    The AI Game Master
                   </h3>
                   <p className="text-muted-foreground">
-                    An AI Game Master analyzes every action, adjusting campaign
-                    parameters to create a responsive, living universe that
-                    adapts to your choices.
+                    At the heart of RPGen is a Game Master Agent that listens,
+                    interprets, and adapts. It reshapes campaign conditions,
+                    adjusts world parameters, and keeps every run coherent,
+                    surprising, and alive.
                   </p>
                 </div>
               </div>
@@ -221,12 +235,13 @@ export default function Home() {
           <div className="container">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="mb-4 font-semibold text-3xl md:text-4xl">
-                Ready to Begin?
+                Begin Your Adventure
               </h2>
-              <p className="mb-8 text-muted-foreground">
-                Start your unique adventure today. Every campaign is a new story
-                waiting to be told.
-              </p>
+              <div className="mb-8 space-y-2 text-muted-foreground">
+                <p>Every campaign is a new story waiting to be lived.</p>
+                <p>Every run opens the door to another universe.</p>
+                <p>Start your campaign today.</p>
+              </div>
               <SignedOut>
                 <Button
                   asChild

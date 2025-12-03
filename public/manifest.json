@@ -1,6 +1,6 @@
 {
-  "name": "Generative Deep Neural Dungeon",
-  "short_name": "Gen DnD",
+  "name": "RPGen",
+  "short_name": "RPGen",
   "description": "AI-driven RPG campaign with procedurally generated worlds",
   "start_url": "/",
   "display": "standalone",

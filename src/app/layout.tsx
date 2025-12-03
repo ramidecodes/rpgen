@@ -20,7 +20,7 @@ const jersey25 = Jersey_25({
 });
 
 export const metadata: Metadata = {
-  title: "Generative Deep Neural Dungeon",
+  title: "RPGen",
   description: "AI-driven RPG campaign with procedurally generated worlds",
   icons: {
     icon: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Gen DnD",
+    title: "RPGen",
   },
   manifest: "/manifest.json",
 };

@@ -35,10 +35,11 @@ export function HeroScene() {
         {/* Top text */}
         <div className="pointer-events-none text-center">
           <h1 className="glow-text mb-4 font-bold text-4xl tracking-wider md:text-5xl lg:text-6xl">
-            Generative Deep Neural Dungeon
+            RPGen
           </h1>
           <p className="mx-auto max-w-xl text-lg text-muted-foreground md:text-xl">
-            An infinite universe, hand-crafted by an AI Game Master.
+            Your choices shape an infinite universe, powered by an AI Game
+            Master.
           </p>
         </div>
 
@@ -54,7 +55,7 @@ export function HeroScene() {
               className="glow-border group relative overflow-hidden border-2 border-glow bg-background/80 px-8 py-6 font-title text-foreground text-xl tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20 hover:text-glow-foreground"
             >
               <Link href="/sign-up" className="flex items-center gap-3">
-                <span>ENTER THE DUNGEON</span>
+                <span>BEGIN YOUR ADVENTURE</span>
                 <DungeonIcon className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
               </Link>
             </Button>
@@ -66,7 +67,7 @@ export function HeroScene() {
               className="glow-border group relative overflow-hidden border-2 border-glow bg-background/80 px-8 py-6 font-title text-foreground text-xl tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20 hover:text-glow-foreground"
             >
               <Link href="/profile" className="flex items-center gap-3">
-                <span>ROLL YOUR ADVENTURE</span>
+                <span>CONTINUE YOUR ADVENTURE</span>
                 <DungeonIcon className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
               </Link>
             </Button>

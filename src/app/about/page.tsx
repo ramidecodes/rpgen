@@ -20,12 +20,12 @@ export default function AboutPage() {
             {/* Introduction */}
             <section className="mb-16">
               <p className="mb-4">
-                Generative Deep Neural Dungeon is a web-based text RPG that
-                combines the best elements of classic adventure games. Inspired
-                by old-school text-based dungeons, traditional Dungeons &
-                Dragons mechanics, and point-and-click adventure games, it
-                offers a unique experience where every campaign is procedurally
-                generated and dynamically shaped by your decisions.
+                RPGen is a web-based text RPG that combines the best elements of
+                classic adventure games. Inspired by old-school text-based
+                dungeons, traditional Dungeons & Dragons mechanics, and
+                point-and-click adventure games, it offers a unique experience
+                where every campaign is procedurally generated and dynamically
+                shaped by your decisions.
               </p>
               <p className="text-muted-foreground">
                 A Game Master Agent analyzes every action you take, reshaping

@@ -13,7 +13,7 @@ export function Logo({ className }: LogoProps) {
       aria-labelledby="logo-title"
       role="img"
     >
-      <title id="logo-title">Gen DnD Logo</title>
+      <title id="logo-title">RPGen Logo</title>
       {/* Left Half - D20 Dice */}
       <path
         className="fill-foreground"
