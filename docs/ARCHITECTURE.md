@@ -1,4 +1,4 @@
-# Generative Deep Neural Dungeon — Architecture Overview
+# RPGen — Architecture Overview
 
 ## 1. Project Summary
 

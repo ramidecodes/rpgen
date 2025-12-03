@@ -332,8 +332,8 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
         {shouldShowLoader && (
           <div className="flex justify-start">
             <Card className="relative overflow-hidden bg-muted">
-              <CardContent className="relative z-10 flex items-center gap-4 p-4 min-h-[5rem]">
-                <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center">
+              <CardContent className="relative z-10 flex items-center gap-4 p-4 min-h-5rem">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center">
                   <D20Anime className="h-20 w-20" />
                 </div>
                 <span
