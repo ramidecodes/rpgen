@@ -11,10 +11,40 @@ import { animate } from "animejs";
 import { SkillCheckInteractive } from "@/components/game/skill-check-interactive";
 import { useGameStore } from "@/lib/store/game-store";
 import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
+import type { UIMessage } from "ai";
 
 type ChatInterfaceProps = {
   gameChat: ReturnType<typeof useGameChat>;
 };
+
+/**
+ * Check if a message has meaningful content.
+ * Returns true if the message has:
+ * - Non-empty string content, OR
+ * - Non-empty array content, OR
+ * - Text parts with non-empty text
+ */
+function hasMessageContent(message: UIMessage): boolean {
+  // Check content field (string or array)
+  const content = "content" in message ? message.content : undefined;
+  if (typeof content === "string") {
+    return content.trim().length > 0;
+  }
+  if (Array.isArray(content)) {
+    return content.length > 0;
+  }
+
+  // Check parts for text content
+  if (message.parts && Array.isArray(message.parts)) {
+    const textParts = message.parts.filter((p) => p.type === "text");
+    return textParts.some(
+      (p) =>
+        "text" in p && typeof p.text === "string" && p.text.trim().length > 0
+    );
+  }
+
+  return false;
+}
 
 export function ChatInterface({ gameChat }: ChatInterfaceProps) {
   const { messages } = gameChat;
@@ -25,6 +55,15 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
   const error =
     "error" in gameChat && gameChat.error ? gameChat.error : undefined;
   const { currentCharacter } = useGameStore();
+
+  // Check if the last assistant message has content
+  // Only show loader if isLoading is true AND the last assistant message has no content
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageHasContent =
+    lastMessage && lastMessage.role === "assistant"
+      ? hasMessageContent(lastMessage)
+      : false;
+  const shouldShowLoader = isLoading && !lastMessageHasContent;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loaderRef = useRef<HTMLDivElement>(null);
   const diceContainerRef = useRef<HTMLDivElement>(null);
@@ -48,7 +87,7 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    if (!isLoading) {
+    if (!shouldShowLoader) {
       // Cleanup animations when not loading
       loaderAnimationRefs.current.forEach((anim) => {
         if (anim) {
@@ -191,7 +230,7 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
       });
       loaderAnimationRefs.current = [];
     };
-  }, [isLoading]);
+  }, [shouldShowLoader]);
 
   return (
     <div className="flex flex-col h-full">
@@ -202,9 +241,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                typeof (error as { message?: unknown }).message === "string"
-              ? (error as { message?: string }).message ?? ""
-              : "The Game Master ran into an error. Please try again."}
+                  typeof (error as { message?: unknown }).message === "string"
+                ? ((error as { message?: string }).message ?? "")
+                : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -332,12 +371,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                                   }
                                 ).output
                               : "result" in skillCheckPart
-                              ? (
-                                  skillCheckPart as {
-                                    result?: unknown;
-                                  }
-                                ).result
-                              : undefined;
+                                ? (
+                                    skillCheckPart as {
+                                      result?: unknown;
+                                    }
+                                  ).result
+                                : undefined;
 
                           let summaryMessage: string | null = null;
                           let detailMeta: {
@@ -447,7 +486,7 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             );
           })}
 
-        {isLoading && (
+        {shouldShowLoader && (
           <div className="flex justify-start">
             <Card className="bg-muted relative overflow-hidden" ref={loaderRef}>
               {/* Background Glow Effect */}

@@ -134,8 +134,8 @@ export function CharacterDetailsDialog({
                   Personality Traits
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {character.properties.personalityTraits.map((trait, i) => (
-                    <Badge key={i} variant="secondary">
+                  {character.properties.personalityTraits.map((trait) => (
+                    <Badge key={trait} variant="secondary">
                       {trait}
                     </Badge>
                   ))}

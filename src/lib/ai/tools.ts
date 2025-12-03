@@ -2,170 +2,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 
-// --- World Mutation Tools (Server-side execution) ---
-
-export const updateNarrativeVectorTool = tool({
-  description:
-    "Shift the abstract mood of the campaign by adjusting Hope and Chaos levels",
-  parameters: z.object({
-    hopeDelta: z
-      .number()
-      .min(-1)
-      .max(1)
-      .describe("Change to Hope level (-1 to 1)"),
-    chaosDelta: z
-      .number()
-      .min(-1)
-      .max(1)
-      .describe("Change to Chaos level (-1 to 1)"),
-  }),
-  execute: async ({ hopeDelta, chaosDelta }, { state }) => {
-    const campaignState = state as CampaignState;
-    const newHope = Math.max(
-      0,
-      Math.min(1, campaignState.narrativeVectors.hope + hopeDelta)
-    );
-    const newChaos = Math.max(
-      0,
-      Math.min(1, campaignState.narrativeVectors.chaos + chaosDelta)
-    );
-    campaignState.narrativeVectors.hope = newHope;
-    campaignState.narrativeVectors.chaos = newChaos;
-    return {
-      success: true,
-      newHope,
-      newChaos,
-      message: `Narrative vectors updated: Hope=${newHope.toFixed(2)}, Chaos=${newChaos.toFixed(2)}`,
-    };
-  },
-});
-
-export const manageRelationshipTool = tool({
-  description:
-    "Update or create an edge in the Knowledge Graph representing a relationship between entities",
-  parameters: z.object({
-    sourceId: z.string().describe("ID of the source node"),
-    targetId: z.string().describe("ID of the target node"),
-    relationType: z
-      .string()
-      .describe("Type of relationship (e.g., 'hates', 'loves', 'allied_with')"),
-    value: z
-      .number()
-      .min(0)
-      .max(1)
-      .describe("Strength/weight of the relationship (0-1)"),
-  }),
-  execute: async ({ sourceId, targetId, relationType, value }, { state }) => {
-    const campaignState = state as CampaignState;
-    const existingEdgeIndex = campaignState.knowledgeGraph.edges.findIndex(
-      (e) => e.source === sourceId && e.target === targetId
-    );
-    if (existingEdgeIndex >= 0) {
-      campaignState.knowledgeGraph.edges[existingEdgeIndex].relation =
-        relationType;
-      campaignState.knowledgeGraph.edges[existingEdgeIndex].weight = value;
-    } else {
-      campaignState.knowledgeGraph.edges.push({
-        source: sourceId,
-        target: targetId,
-        relation: relationType,
-        weight: value,
-      });
-    }
-    return {
-      success: true,
-      message: `Relationship ${relationType} between ${sourceId} and ${targetId} set to ${value}`,
-    };
-  },
-});
-
-export const advanceFrontTool = tool({
-  description: "Move a plot threat (Front) forward by advancing its doom clock",
-  parameters: z.object({
-    frontId: z.string().describe("ID or name of the Front to advance"),
-    steps: z
-      .number()
-      .int()
-      .min(1)
-      .max(3)
-      .describe("Number of steps to advance the doom clock"),
-  }),
-  execute: async ({ frontId, steps }, { state }) => {
-    const campaignState = state as CampaignState;
-    const front = campaignState.activeFronts.find(
-      (f) =>
-        f.name === frontId ||
-        f.name.toLowerCase().includes(frontId.toLowerCase())
-    );
-    if (!front) {
-      return {
-        success: false,
-        message: `Front "${frontId}" not found`,
-      };
-    }
-    front.doomClock = Math.min(front.maxDoom, front.doomClock + steps);
-    const isDoomed = front.doomClock >= front.maxDoom;
-    return {
-      success: true,
-      newDoomClock: front.doomClock,
-      isDoomed,
-      message: `Front "${front.name}" advanced to ${front.doomClock}/${front.maxDoom}${isDoomed ? " - DOOM TRIGGERED!" : ""}`,
-    };
-  },
-});
-
-export const createQuestTool = tool({
-  description: "Open a new narrative thread or objective",
-  parameters: z.object({
-    title: z.string().describe("Title of the quest"),
-    description: z.string().describe("Description of the quest objective"),
-    type: z
-      .string()
-      .optional()
-      .describe("Type of quest (e.g., 'main', 'side', 'mystery')"),
-  }),
-  execute: async ({ title, description, type }, { state }) => {
-    const campaignState = state as CampaignState;
-    campaignState.questThreads.push({
-      title,
-      description,
-      status: "active",
-      clues: [],
-    });
-    return {
-      success: true,
-      message: `Quest "${title}" created`,
-    };
-  },
-});
-
-export const logEventTool = tool({
-  description: "Record a significant event in the campaign history",
-  parameters: z.object({
-    description: z.string().describe("Description of the event"),
-    type: z
-      .string()
-      .optional()
-      .describe("Type of event (e.g., 'combat', 'social', 'discovery')"),
-    importance: z
-      .enum(["low", "medium", "high", "critical"])
-      .optional()
-      .describe("Importance level of the event"),
-  }),
-  execute: async ({ description, type, importance }, { state }) => {
-    // For now, we'll store events in the currentContext or could extend the schema
-    const campaignState = state as CampaignState;
-    const eventLog = `[${type || "general"}] ${description} (${importance || "medium"})`;
-    campaignState.currentContext = campaignState.currentContext
-      ? `${campaignState.currentContext}\n\n${eventLog}`
-      : eventLog;
-    return {
-      success: true,
-      message: `Event logged: ${description}`,
-    };
-  },
-});
-
 // --- Interactive Tools (HITL - Client triggers) ---
 
 export const requestSkillCheckTool = tool({
@@ -223,8 +59,13 @@ export function createGameMasterTools(state: CampaignState) {
 
   return {
     updateNarrativeVector: tool({
-      description:
-        "Shift the abstract mood of the campaign by adjusting Hope and Chaos levels",
+      description: `Adjust the campaign's narrative mood by changing Hope and Chaos levels. Use this when:
+- Player actions significantly impact the world's state
+- Major victories or defeats occur
+- The tone of the campaign shifts meaningfully
+- Hope: Increase when players succeed heroically, save lives, or restore order. Decrease when they fail critically or despair grows.
+- Chaos: Increase when things spiral out of control, violence escalates, or order breaks down. Decrease when stability is restored.
+Make meaningful changes (0.1-0.3 deltas) - small shifts matter. Don't adjust every turn.`,
       parameters: z.object({
         hopeDelta: z
           .number()
@@ -237,15 +78,41 @@ export function createGameMasterTools(state: CampaignState) {
           .max(1)
           .describe("Change to Chaos level (-1 to 1)"),
       }),
-      execute: async (params) => {
-        return await updateNarrativeVectorTool.execute(params, {
-          state: validatedState,
-        });
+      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
+      execute: async ({
+        hopeDelta,
+        chaosDelta,
+      }: {
+        hopeDelta: number;
+        chaosDelta: number;
+      }) => {
+        const newHope = Math.max(
+          0,
+          Math.min(1, validatedState.narrativeVectors.hope + hopeDelta)
+        );
+        const newChaos = Math.max(
+          0,
+          Math.min(1, validatedState.narrativeVectors.chaos + chaosDelta)
+        );
+        validatedState.narrativeVectors.hope = newHope;
+        validatedState.narrativeVectors.chaos = newChaos;
+        return {
+          success: true,
+          newHope,
+          newChaos,
+          message: `Narrative vectors updated: Hope=${newHope.toFixed(
+            2
+          )}, Chaos=${newChaos.toFixed(2)}`,
+        };
       },
     }),
     manageRelationship: tool({
-      description:
-        "Update or create an edge in the Knowledge Graph representing a relationship between entities",
+      description: `Update or create relationships in the Knowledge Graph. Use this when:
+- NPCs interact meaningfully with the player or each other
+- Alliances form or break
+- Reputations change significantly
+- New connections are discovered
+The Knowledge Graph tracks relationships between entities (NPCs, factions, locations, etc.). Only update when relationships meaningfully change, not for every interaction.`,
       parameters: z.object({
         sourceId: z.string().describe("ID of the source node"),
         targetId: z.string().describe("ID of the target node"),
@@ -260,15 +127,46 @@ export function createGameMasterTools(state: CampaignState) {
           .max(1)
           .describe("Strength/weight of the relationship (0-1)"),
       }),
-      execute: async (params) => {
-        return await manageRelationshipTool.execute(params, {
-          state: validatedState,
-        });
+      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
+      execute: async ({
+        sourceId,
+        targetId,
+        relationType,
+        value,
+      }: {
+        sourceId: string;
+        targetId: string;
+        relationType: string;
+        value: number;
+      }) => {
+        const existingEdgeIndex = validatedState.knowledgeGraph.edges.findIndex(
+          (e) => e.source === sourceId && e.target === targetId
+        );
+        if (existingEdgeIndex >= 0) {
+          validatedState.knowledgeGraph.edges[existingEdgeIndex].relation =
+            relationType;
+          validatedState.knowledgeGraph.edges[existingEdgeIndex].weight = value;
+        } else {
+          validatedState.knowledgeGraph.edges.push({
+            source: sourceId,
+            target: targetId,
+            relation: relationType,
+            weight: value,
+          });
+        }
+        return {
+          success: true,
+          message: `Relationship ${relationType} between ${sourceId} and ${targetId} set to ${value}`,
+        };
       },
     }),
     advanceFront: tool({
-      description:
-        "Move a plot threat (Front) forward by advancing its doom clock",
+      description: `Advance a plot threat (Front) by moving its doom clock forward. Use this when:
+- The player ignores or fails to address a Front
+- Time passes without player intervention
+- A Front's conditions naturally progress
+- The player makes choices that indirectly advance a threat
+Only advance Fronts that are relevant to the current situation. Don't advance all Fronts every turn - be selective and meaningful.`,
       parameters: z.object({
         frontId: z.string().describe("ID or name of the Front to advance"),
         steps: z
@@ -278,14 +176,44 @@ export function createGameMasterTools(state: CampaignState) {
           .max(3)
           .describe("Number of steps to advance the doom clock"),
       }),
-      execute: async (params) => {
-        return await advanceFrontTool.execute(params, {
-          state: validatedState,
-        });
+      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
+      execute: async ({
+        frontId,
+        steps,
+      }: {
+        frontId: string;
+        steps: number;
+      }) => {
+        const front = validatedState.activeFronts.find(
+          (f) =>
+            f.name === frontId ||
+            f.name.toLowerCase().includes(frontId.toLowerCase())
+        );
+        if (!front) {
+          return {
+            success: false,
+            message: `Front "${frontId}" not found`,
+          };
+        }
+        front.doomClock = Math.min(front.maxDoom, front.doomClock + steps);
+        const isDoomed = front.doomClock >= front.maxDoom;
+        return {
+          success: true,
+          newDoomClock: front.doomClock,
+          isDoomed,
+          message: `Front "${front.name}" advanced to ${front.doomClock}/${
+            front.maxDoom
+          }${isDoomed ? " - DOOM TRIGGERED!" : ""}`,
+        };
       },
     }),
     createQuest: tool({
-      description: "Open a new narrative thread or objective",
+      description: `Create a new quest thread when the player discovers or accepts a new objective. Use this for:
+- Main story objectives that drive the campaign forward
+- Side quests that offer optional content
+- Mystery threads that need investigation
+- Player-initiated goals that become quests
+Only create quests that are meaningful and relevant. Don't create duplicate quests.`,
       parameters: z.object({
         title: z.string().describe("Title of the quest"),
         description: z.string().describe("Description of the quest objective"),
@@ -294,12 +222,33 @@ export function createGameMasterTools(state: CampaignState) {
           .optional()
           .describe("Type of quest (e.g., 'main', 'side', 'mystery')"),
       }),
-      execute: async (params) => {
-        return await createQuestTool.execute(params, { state: validatedState });
+      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
+      execute: async ({
+        title,
+        description,
+      }: {
+        title: string;
+        description: string;
+      }) => {
+        validatedState.questThreads.push({
+          title,
+          description,
+          status: "active",
+          clues: [],
+        });
+        return {
+          success: true,
+          message: `Quest "${title}" created`,
+        };
       },
     }),
     logEvent: tool({
-      description: "Record a significant event in the campaign history",
+      description: `Log significant events that impact the world or story. Use this for:
+- Major story beats and plot developments
+- Important NPC interactions or revelations
+- World-changing events (not routine actions)
+- Discoveries that affect future gameplay
+Use 'critical' sparingly - only for truly game-changing moments. Most events should be 'medium' or 'high'.`,
       parameters: z.object({
         description: z.string().describe("Description of the event"),
         type: z
@@ -311,22 +260,28 @@ export function createGameMasterTools(state: CampaignState) {
           .optional()
           .describe("Importance level of the event"),
       }),
-      execute: async (params) => {
-        return await logEventTool.execute(params, { state: validatedState });
+      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
+      execute: async ({
+        description,
+        type,
+        importance,
+      }: {
+        description: string;
+        type?: string;
+        importance?: "low" | "medium" | "high" | "critical";
+      }) => {
+        const eventLog = `[${type || "general"}] ${description} (${
+          importance || "medium"
+        })`;
+        validatedState.currentContext = validatedState.currentContext
+          ? `${validatedState.currentContext}\n\n${eventLog}`
+          : eventLog;
+        return {
+          success: true,
+          message: `Event logged: ${description}`,
+        };
       },
     }),
     requestSkillCheck: requestSkillCheckTool, // HITL tool - no execute
   };
 }
-
-// Export all tools as a tools object for use with streamText (without state - for reference)
-export const gameMasterTools = {
-  updateNarrativeVector: updateNarrativeVectorTool,
-  manageRelationship: manageRelationshipTool,
-  advanceFront: advanceFrontTool,
-  createQuest: createQuestTool,
-  logEvent: logEventTool,
-  requestSkillCheck: requestSkillCheckTool,
-};
-
-export type GameMasterTools = typeof gameMasterTools;
