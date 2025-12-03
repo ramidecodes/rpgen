@@ -138,7 +138,7 @@ GAME MASTER INSTRUCTIONS:
 3. When a player action requires a skill check, use the requestSkillCheck tool with the appropriate attribute and difficulty.
 4. After tool execution, narrate the consequences naturally, incorporating state changes into your description.
 5. Keep narrative engaging and responsive to player choices.
-6. Use maxSteps: 5 to allow multi-step reasoning (Reason -> Act -> Narrate).
+6. You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations.
 
 IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.`;
 

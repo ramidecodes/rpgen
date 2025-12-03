@@ -314,7 +314,7 @@ GAME MASTER INSTRUCTIONS:
    - After tool execution, narrate the consequences naturally
    - Incorporate state changes into your description seamlessly
    - Keep narrative engaging and responsive to player choices
-   - Use maxSteps: 5 to allow multi-step reasoning (Reason -> Act -> Narrate)
+   - You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations
 9. TOOL USAGE GUIDELINES:
    - Use tools thoughtfully, not automatically
    - Each tool call should represent a meaningful change
