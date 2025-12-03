@@ -15,7 +15,7 @@ type Face = {
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number }
+    Point2D & { z: number },
   ];
   center: Point2D & { z: number };
   isVisible: boolean;
@@ -157,7 +157,7 @@ const faceCenter = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number }
+    Point2D & { z: number },
   ]
 ): Point2D & { z: number } => ({
   x: (points[0].x + points[1].x + points[2].x) / 3,
@@ -170,7 +170,7 @@ const isFaceVisible = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number }
+    Point2D & { z: number },
   ]
 ): boolean => {
   const [a, b, c] = points;
@@ -202,7 +202,7 @@ const calculateTextRotation = (
   points: [
     Point2D & { z: number },
     Point2D & { z: number },
-    Point2D & { z: number }
+    Point2D & { z: number },
   ]
 ): number => {
   // Use the first edge (vertex 0 to vertex 1) as the reference direction
@@ -292,7 +292,7 @@ export function D20Anime({ className }: D20AnimeProps) {
       const points: [
         Point2D & { z: number },
         Point2D & { z: number },
-        Point2D & { z: number }
+        Point2D & { z: number },
       ] = [
         projectedVertices[indices[0]],
         projectedVertices[indices[1]],

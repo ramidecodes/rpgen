@@ -162,17 +162,10 @@ function CampaignCard({
 
   return (
     <Card className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full relative">
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         className="relative aspect-video w-full bg-muted overflow-hidden cursor-pointer"
         onClick={handleCardClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleCardClick();
-          }
-        }}
       >
         {campaign.coverImage ? (
           <Image
@@ -236,19 +229,11 @@ function CampaignCard({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </button>
 
       <CardContent
-        role="button"
-        tabIndex={0}
         className="flex flex-col flex-1 p-4 pt-5 cursor-pointer"
         onClick={handleCardClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleCardClick();
-          }
-        }}
       >
         <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
           {campaign.description}

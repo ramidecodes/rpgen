@@ -15,6 +15,14 @@ import type { Faction, Location } from "@/lib/db/schema";
 import { BookOpen, Crown, MapPin, Users } from "lucide-react";
 import Link from "next/link";
 
+type UniverseCharacter = {
+  id: string;
+  name: string;
+  profession: string;
+  imageUrl?: string | null;
+  userId: string;
+};
+
 interface UniverseTabsProps {
   universe: {
     history: string;
@@ -22,7 +30,7 @@ interface UniverseTabsProps {
   };
   factions: Faction[];
   locations: Location[];
-  characters: any[];
+  characters: UniverseCharacter[];
   universeId: string;
 }
 
@@ -159,7 +167,7 @@ export function UniverseTabs({
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {characters && characters.length > 0 ? (
-            characters.map((char: any) => (
+            characters.map((char: UniverseCharacter) => (
               <Link
                 href={`/characters/${char.id}`}
                 key={char.id}

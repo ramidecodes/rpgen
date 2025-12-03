@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { Calendar, Play } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 interface RunPageProps {
   params: Promise<{
@@ -98,10 +99,11 @@ export default async function RunPage({ params }: RunPageProps) {
 
               {coverImageUrl && (
                 <div className="relative aspect-video rounded-xl overflow-hidden shadow-xl border-border/50">
-                  <img
+                  <Image
                     src={coverImageUrl}
                     alt={campaign.name}
-                    className="object-cover w-full h-full"
+                    fill
+                    className="object-cover"
                   />
                   <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                 </div>
@@ -117,8 +119,8 @@ export default async function RunPage({ params }: RunPageProps) {
                           Active Fronts
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.activeFronts.map((front, i) => (
-                            <li key={i}>{front.name}</li>
+                          {run.state.activeFronts.map((front) => (
+                            <li key={front.name}>{front.name}</li>
                           ))}
                         </ul>
                       </div>
@@ -127,8 +129,8 @@ export default async function RunPage({ params }: RunPageProps) {
                           Quest Threads
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.questThreads.map((quest, i) => (
-                            <li key={i}>{quest.title}</li>
+                          {run.state.questThreads.map((quest) => (
+                            <li key={quest.title}>{quest.title}</li>
                           ))}
                         </ul>
                       </div>

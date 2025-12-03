@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { characters, universes } from "@/lib/db/schema";
+import type { Universe } from "@/lib/db/schema";
 import { createUniverseInputSchema } from "@/lib/db/schemas/universe";
 import { generateUniverse } from "@/lib/ai/universe-generator";
 import { generateUniverseImage } from "@/lib/ai/image-generator";
@@ -79,7 +80,7 @@ export async function createUniverseAction(
 /**
  * Helper to resolve image URLs for a list of universes
  */
-async function mapUniversesWithImages(universesList: any[]) {
+async function mapUniversesWithImages(universesList: Universe[]) {
   return Promise.all(
     universesList.map(async (u) => {
       if (u.coverImage && !u.coverImage.startsWith("http")) {
@@ -95,15 +96,17 @@ export async function getPublicUniversesAction(filters?: {
   sort?: "recent" | "popular";
 }) {
   try {
-    let query = db.select().from(universes).where(eq(universes.isPublic, true));
+    // Build base query
+    const baseQuery = db
+      .select()
+      .from(universes)
+      .where(eq(universes.isPublic, true));
 
     // Apply sorting
-    if (filters?.sort === "popular") {
-      query = query.orderBy(desc(universes.likesCount));
-    } else {
-      // Default to recent
-      query = query.orderBy(desc(universes.createdAt));
-    }
+    const query =
+      filters?.sort === "popular"
+        ? baseQuery.orderBy(desc(universes.likesCount))
+        : baseQuery.orderBy(desc(universes.createdAt));
 
     const results = await query.limit(20); // Pagination can be added later
 
@@ -169,7 +172,7 @@ export async function getUniverseAction(id: string) {
       if (userProfile && universe.userId === userProfile.id) {
         isOwner = true;
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore auth error for public check
     }
 
@@ -208,8 +211,10 @@ export async function getUniverseAction(id: string) {
     // Process characters to extract fields safely and resolve images
     const processedCharacters = await Promise.all(
       universeCharacters.map(async (char) => {
-        // @ts-expect-error - Drizzle JSON typing is tricky here without explicit mapping, accessing properties directly
-        const props = char.profession as any;
+        const props = char.profession as unknown as {
+          imageUrl?: string;
+          profession?: string;
+        };
         let imageUrl = props?.imageUrl;
 
         if (imageUrl && !imageUrl.startsWith("http")) {
