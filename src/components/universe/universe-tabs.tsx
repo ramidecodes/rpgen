@@ -177,7 +177,7 @@ export function UniverseTabs({
                   <CardContent className="p-4 flex items-center gap-4">
                     <Avatar className="h-12 w-12 border-2 border-muted group-hover:border-primary/50 transition-colors">
                       <AvatarImage
-                        src={char.imageUrl}
+                        src={char?.imageUrl || ""}
                         alt={char.name}
                         className="object-cover"
                       />
