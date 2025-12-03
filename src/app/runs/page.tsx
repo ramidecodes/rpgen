@@ -235,46 +235,40 @@ function RunCard({
             <span>{run.universeName}</span>
           </div>
         </div>
+      </button>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-3 right-3 h-8 w-8 bg-background/20 backdrop-blur-md border-white/20 text-white hover:bg-destructive/90 hover:text-white"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute top-3 right-3 h-8 w-8 bg-background/20 backdrop-blur-md border-white/20 text-white hover:bg-destructive/90 hover:text-white"
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Run</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this run? This action cannot be
+              undone. All messages and game state associated with this run will
+              be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Run</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete this run? This action cannot be
-                undone. All messages and game state associated with this run
-                will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete();
-                }}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </button>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <CardContent
         className="flex flex-col flex-1 p-4 pt-5 cursor-pointer"

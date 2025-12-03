@@ -28,7 +28,7 @@ export function SkillCheckInteractive({
   const containerRef = useRef<HTMLDivElement>(null);
   const badgeRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
-  const diceContainerRef = useRef<HTMLDivElement>(null);
+  const diceContainerRef = useRef<HTMLButtonElement>(null);
   const [isRolling, setIsRolling] = useState(false);
   const rollAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
 
@@ -47,32 +47,22 @@ export function SkillCheckInteractive({
     });
 
     // Pulse animation for the badge
-    const pulseAnim = animate(
-      badgeRef.current,
-      {
-        scale: [1, 1.05, 1],
-        duration: 1500,
-        easing: "easeInOutSine",
-      },
-      {
-        loop: true,
-      }
-    );
+    const pulseAnim = animate(badgeRef.current, {
+      scale: [1, 1.05, 1],
+      duration: 1500,
+      easing: "easeInOutSine",
+      loop: true,
+    });
 
     // Glow animation if glow element exists
     if (glowRef.current) {
-      const _glowAnim = animate(
-        glowRef.current,
-        {
-          opacity: [0.3, 0.6, 0.3],
-          scale: [1, 1.02, 1],
-          duration: 2000,
-          easing: "easeInOutSine",
-        },
-        {
-          loop: true,
-        }
-      );
+      const _glowAnim = animate(glowRef.current, {
+        opacity: [0.3, 0.6, 0.3],
+        scale: [1, 1.02, 1],
+        duration: 2000,
+        easing: "easeInOutSine",
+        loop: true,
+      });
     }
 
     return () => {
@@ -108,12 +98,14 @@ export function SkillCheckInteractive({
       rollAnimationRef.current.pause();
     }
 
-    rollAnimationRef.current = animate(diceContainerRef.current, {
-      rotate: [0, 360, 720],
-      scale: [1, 1.2, 1],
-      duration: 1500,
-      easing: "easeOutElastic(1, 0.5)",
-    });
+    if (diceContainerRef.current) {
+      rollAnimationRef.current = animate(diceContainerRef.current, {
+        rotate: [0, 360, 720],
+        scale: [1, 1.2, 1],
+        duration: 1500,
+        easing: "easeOutElastic(1, 0.5)",
+      });
+    }
 
     // Wait for animation to complete, then roll
     setTimeout(async () => {

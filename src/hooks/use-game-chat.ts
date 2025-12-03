@@ -57,7 +57,7 @@ export function useGameChat({ runId, messages = [] }: UseGameChatOptions) {
             typeof input.reason === "string"
           ) {
             setPendingSkillCheck({
-              toolCallId: skillCheckPart.toolCallId,
+              toolCallId: skillCheckPart.toolCallId ?? "",
               attribute: input.attribute,
               difficulty: input.difficulty,
               reason: input.reason,

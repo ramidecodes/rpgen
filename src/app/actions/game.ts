@@ -85,10 +85,14 @@ export async function continueGame(input: z.infer<typeof continueGameSchema>) {
     .limit(50);
 
   // Reverse chronological message history for AI SDK
-  const messageHistory = recentMessages.reverse().map((msg) => ({
-    role: msg.role as "system" | "user" | "assistant" | "tool" | "data",
-    content: msg.content as string | unknown[],
-  }));
+  // Filter out "data" role messages as they're not valid for ModelMessage
+  const messageHistory = recentMessages
+    .reverse()
+    .filter((msg) => msg.role !== "data")
+    .map((msg) => ({
+      role: msg.role as "system" | "user" | "assistant" | "tool",
+      content: msg.content as string | unknown[],
+    }));
 
   // Build system prompt with context
   const systemPrompt = `You are the Game Master Agent (GMA) for a text-based RPG campaign.
@@ -105,9 +109,13 @@ CAMPAIGN CONTEXT:
 - Genres: ${campaign.genres.join(", ")}
 - Current State:
   - Active Fronts: ${JSON.stringify(run.state.activeFronts)}
-  - Narrative Vectors: Hope=${run.state.narrativeVectors.hope.toFixed(2)}, Chaos=${run.state.narrativeVectors.chaos.toFixed(2)}
+  - Narrative Vectors: Hope=${run.state.narrativeVectors.hope.toFixed(
+    2
+  )}, Chaos=${run.state.narrativeVectors.chaos.toFixed(2)}
   - Quest Threads: ${run.state.questThreads.length} active
-  - Knowledge Graph: ${run.state.knowledgeGraph.nodes.length} nodes, ${run.state.knowledgeGraph.edges.length} edges
+  - Knowledge Graph: ${run.state.knowledgeGraph.nodes.length} nodes, ${
+    run.state.knowledgeGraph.edges.length
+  } edges
   - Current Context: ${run.state.currentContext || "Beginning of campaign"}
 
 CHARACTER CONTEXT:
@@ -119,7 +127,10 @@ CHARACTER CONTEXT:
   - Intelligence: ${character.stats.intelligence}
   - Scholarship: ${character.stats.scholarship}
   - Intuition: ${character.stats.intuition}
-- Backstory: ${character.properties?.backstory?.substring(0, 300) || "No backstory provided"}...
+- Backstory: ${
+    character.properties?.backstory?.substring(0, 300) ||
+    "No backstory provided"
+  }...
 
 GAME MASTER INSTRUCTIONS:
 1. You are a living world simulator. Use tools to update the campaign state dynamically.
@@ -138,6 +149,7 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
   const toolsWithState = createGameMasterTools(campaignState);
 
   // Prepare messages array for AI SDK
+  // Don't type explicitly - let TypeScript infer, then assert when passing to streamText
   const aiMessages = [
     { role: "system" as const, content: systemPrompt },
     ...messageHistory,
@@ -168,11 +180,12 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
   }
 
   // Stream text with tools
+  // Type assertion is safe because we've filtered out "data" role messages
+  // and properly structured all messages with valid roles
   const result = streamText({
     model: openrouter.chat(MODEL_NAME),
-    messages: aiMessages,
+    messages: aiMessages as never,
     tools: toolsWithState,
-    maxSteps: 5,
     onFinish: async ({ text, toolCalls, toolResults }) => {
       // Save assistant message
       await db.insert(messages).values({

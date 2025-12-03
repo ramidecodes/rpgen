@@ -110,7 +110,16 @@ export default async function PlayPage({ params }: PlayPageProps) {
         content?: unknown;
         parts?: unknown[];
       };
-      content = dataObj.content;
+
+      const rawContent = dataObj.content;
+      if (typeof rawContent === "string") {
+        content = rawContent;
+      } else if (Array.isArray(rawContent)) {
+        content = rawContent;
+      } else {
+        content = undefined;
+      }
+
       parts = Array.isArray(dataObj.parts) ? dataObj.parts : undefined;
     } else if (Array.isArray(contentData)) {
       // Legacy format: array (treated as content)
@@ -128,9 +137,16 @@ export default async function PlayPage({ params }: PlayPageProps) {
 
     // Build UIMessage with proper structure
     // Ensure message has required fields: id, role, and either content or parts
-    const message: UIMessage = {
+    // UIMessage only supports system, user, and assistant roles. Map any other
+    // stored roles (e.g. \"tool\", \"data\") to \"assistant\" for safe display.
+    const baseRole =
+      msg.role === "system" || msg.role === "user" || msg.role === "assistant"
+        ? msg.role
+        : "assistant";
+
+    const message: Record<string, unknown> = {
       id: msg.id,
-      role: msg.role as "system" | "user" | "assistant" | "tool" | "data",
+      role: baseRole,
     };
 
     // Priority: parts > meaningful content
@@ -147,7 +163,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       );
 
       if (validParts.length > 0) {
-        message.parts = validParts;
+        message.parts = validParts as UIMessage["parts"];
         // Only set content if it's a meaningful string (not empty)
         // Parts take priority, so content is optional when parts exist
         if (
@@ -161,7 +177,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
           message.content = content;
         }
         // If we have valid parts, we don't need to set empty content
-        return message;
+        return message as unknown as UIMessage;
       }
     }
 
@@ -187,7 +203,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       message.content = "";
     }
 
-    return message;
+    return message as unknown as UIMessage;
   });
 
   return (

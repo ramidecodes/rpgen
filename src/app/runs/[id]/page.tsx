@@ -119,8 +119,8 @@ export default async function RunPage({ params }: RunPageProps) {
                           Active Fronts
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.activeFronts.map((front) => (
-                            <li key={front.name}>{front.name}</li>
+                          {run.state.activeFronts.map((front, index) => (
+                            <li key={`${front.name}-${index}`}>{front.name}</li>
                           ))}
                         </ul>
                       </div>
@@ -129,8 +129,10 @@ export default async function RunPage({ params }: RunPageProps) {
                           Quest Threads
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.questThreads.map((quest) => (
-                            <li key={quest.title}>{quest.title}</li>
+                          {run.state.questThreads.map((quest, index) => (
+                            <li key={`${quest.title}-${index}`}>
+                              {quest.title}
+                            </li>
                           ))}
                         </ul>
                       </div>

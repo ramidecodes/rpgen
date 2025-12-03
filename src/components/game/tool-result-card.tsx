@@ -42,18 +42,13 @@ export function ToolResultCard({
 
     // Glow animation if glow element exists
     if (glowRef.current) {
-      const glowAnim = animate(
-        glowRef.current,
-        {
-          opacity: [0.2, 0.4, 0.2],
-          scale: [1, 1.02, 1],
-          duration: 2000,
-          easing: "easeInOutSine",
-        },
-        {
-          loop: true,
-        }
-      );
+      const glowAnim = animate(glowRef.current, {
+        opacity: [0.2, 0.4, 0.2],
+        scale: [1, 1.02, 1],
+        duration: 2000,
+        easing: "easeInOutSine",
+        loop: true,
+      });
 
       return () => {
         entranceAnim.pause();

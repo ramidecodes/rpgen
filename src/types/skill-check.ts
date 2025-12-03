@@ -1,11 +1,11 @@
-import type { UIMessagePart } from "ai";
+import type { UIMessagePart, UIDataTypes, UITools } from "ai";
 import { isToolUIPart, getToolName } from "ai";
 
 /**
  * Skill check tool part structure for AI SDK v6 HITL
  * Tool parts with state "input-available" contain the tool arguments in the input property
  */
-export type SkillCheckToolPart = UIMessagePart & {
+export type SkillCheckToolPart = UIMessagePart<UIDataTypes, UITools> & {
   // Tool UI parts always have a toolCallId, but we keep this optional at the
   // type level to avoid over-constraining the runtime shape.
   toolCallId?: string;
@@ -33,7 +33,7 @@ export type SkillCheckToolPart = UIMessagePart & {
  * Uses AI SDK's isToolUIPart and checks the tool name, then verifies state and input structure
  */
 export function isSkillCheckPart(
-  part: UIMessagePart
+  part: UIMessagePart<UIDataTypes, UITools>
 ): part is SkillCheckToolPart {
   if (!isToolUIPart(part)) {
     return false;
