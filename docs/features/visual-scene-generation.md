@@ -47,7 +47,7 @@
     - Version scenes based on narrative state
     - Store scene metadata (generation prompt, timestamp) in database
   - Prompt engineering:
-    - Convert narrative environment descriptions to image generation prompts using OpenRouter (`google/gemma-3-27b-it:free`)
+    - Convert narrative environment descriptions to image generation prompts using OpenRouter (`nvidia/nemotron-nano-12b-v2-vl:free`)
     - Include genre/style information in prompts
     - Include character descriptions for portraits
     - Optimize prompts for quality results

@@ -23,7 +23,7 @@
     - **AI Assist**: "Generate Backstory" button that uses the Universe History + Character Stats to write a cohesive origin.
   - **AI Tool Specifications**:
     - **Provider**: OpenRouter
-    - **Model**: `google/gemma-3-27b-it:free` (for initial implementation)
+    - **Model**: `nvidia/nemotron-nano-12b-v2-vl:free` (for initial implementation)
     - **`generateBackstory` Tool**:
       - _Input_: `{ universeContext, characterStats, profession }`
       - _Output_: `{ backstory: string, personalityTraits: string[] }`
