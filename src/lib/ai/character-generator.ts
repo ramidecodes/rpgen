@@ -11,7 +11,7 @@ const openrouter = createOpenRouter({
 });
 
 // Model to use - adhering to FReD specification
-const MODEL_NAME = "google/gemma-3-27b-it:free";
+const MODEL_NAME = "nvidia/nemotron-nano-12b-v2-vl:free";
 
 export async function generateCharacterBackstory(
   universe: Universe,

@@ -21,7 +21,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const MODEL_NAME = "google/gemma-3-27b-it:free";
+const MODEL_NAME = "nvidia/nemotron-nano-12b-v2-vl:free";
 
 const continueGameSchema = z.object({
   runId: z.string().uuid(),

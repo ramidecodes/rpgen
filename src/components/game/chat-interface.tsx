@@ -85,14 +85,20 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
     "error" in gameChat && gameChat.error ? gameChat.error : undefined;
   const { currentCharacter } = useGameStore();
 
-  // Check if the last assistant message has visible content
-  // Only show loader if isLoading is true AND the last assistant message has no visible content
-  const lastMessage = messages[messages.length - 1];
-  const { hasVisibleContent: lastMessageHasContent } =
-    lastMessage && lastMessage.role === "assistant"
-      ? extractNarration(lastMessage)
-      : { hasVisibleContent: false };
-  const shouldShowLoader = isLoading && !lastMessageHasContent && !error;
+  // Find the last assistant message (not just the last message overall)
+  // This ensures we correctly detect when we're waiting for a NEW assistant response
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((msg) => msg.role === "assistant");
+  const { hasVisibleContent: lastAssistantHasContent } = lastAssistantMessage
+    ? extractNarration(lastAssistantMessage)
+    : { hasVisibleContent: false };
+
+  // Show loader if loading and either:
+  // - No assistant message exists yet, OR
+  // - Last assistant message has no visible content (still streaming initial response)
+  const shouldShowLoader =
+    isLoading && (!lastAssistantMessage || !lastAssistantHasContent) && !error;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -132,6 +138,35 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             if (message.role === "user") {
               const { hasVisibleContent } = extractNarration(message);
               return hasVisibleContent;
+            }
+            // Filter out empty assistant messages that are currently being streamed
+            // This prevents showing an empty card while the loader is displayed
+            if (message.role === "assistant" && isLoading) {
+              const { hasVisibleContent } = extractNarration(message);
+              // Check if message has any visible tool parts (like skill checks)
+              const hasVisibleToolParts = message.parts?.some((part) => {
+                if (isSkillCheckPart(part)) {
+                  const skillCheckPart = part as SkillCheckToolPart;
+                  // Show if it's in input-available state (needs user interaction)
+                  if (
+                    skillCheckPart.state === "input-available" &&
+                    skillCheckPart.input
+                  ) {
+                    return true;
+                  }
+                  // Show if it has a result/output
+                  if (
+                    (skillCheckPart.state === "result" ||
+                      skillCheckPart.state === "output-available") &&
+                    ("output" in skillCheckPart || "result" in skillCheckPart)
+                  ) {
+                    return true;
+                  }
+                }
+                return false;
+              });
+              // Only filter out if it has no visible content AND no visible tool parts
+              return hasVisibleContent || hasVisibleToolParts || false;
             }
             return true;
           })

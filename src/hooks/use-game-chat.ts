@@ -28,10 +28,11 @@ export function useGameChat({ runId, messages = [] }: UseGameChatOptions) {
   });
 
   const { addToolOutput, sendMessage } = chat;
-  const isLoading =
-    "isLoading" in chat && typeof chat.isLoading === "boolean"
-      ? chat.isLoading
-      : false;
+  // AI SDK v6 uses 'status' property, not 'isLoading'
+  // Status can be: 'submitted', 'streaming', 'ready', or 'error'
+  const status =
+    "status" in chat && typeof chat.status === "string" ? chat.status : "ready";
+  const isLoading = status === "submitted" || status === "streaming";
 
   // Monitor messages for tool calls that need HITL
   // We still track pendingSkillCheck for input area disabling
