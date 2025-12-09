@@ -6,13 +6,14 @@
 
 - **User Story**: As a player, I want the world to react to me intelligently—if I insult the King, the "Relationship Edge" should change to "Hostile," and the "Royal Guard Hunt" Front should advance—so that my choices feel impactful.
 
-- **Functional Requirements**: 
+- **Functional Requirements**:
+
   - **AI Configuration**:
     - Use `streamText` from Vercel AI SDK.
     - **Provider**: OpenRouter.
-    - **Model**: `x-ai/grok-4.1-fast:free` (for initial implementation, replacing specific models like Claude 3.5 Sonnet for now).
+    - **Model**: `google/gemma-3-27b-it:free` (for initial implementation, replacing specific models like Claude 3.5 Sonnet for now).
   - **Context Management**:
-    - **Input**: 
+    - **Input**:
       - Player Action.
       - `Universe Ontology` (The Rules).
       - `Campaign Genres` (The Tone).
@@ -21,20 +22,20 @@
     - The GMA **MUST** have tools to manipulate the state. It cannot just "speak".
     - **Tool Specifications (Zod Schemas)**:
       - **`updateNarrativeVector`**:
-        - *Description*: Shift the abstract mood of the campaign.
-        - *Schema*: `{ hopeDelta: number, chaosDelta: number }`
+        - _Description_: Shift the abstract mood of the campaign.
+        - _Schema_: `{ hopeDelta: number, chaosDelta: number }`
       - **`manageRelationship`**:
-        - *Description*: Update or create an edge in the Knowledge Graph.
-        - *Schema*: `{ sourceId: string, targetId: string, relationType: string, value: number }`
+        - _Description_: Update or create an edge in the Knowledge Graph.
+        - _Schema_: `{ sourceId: string, targetId: string, relationType: string, value: number }`
       - **`advanceFront`**:
-        - *Description*: Move a plot threat forward (e.g., "The bomb timer ticks down").
-        - *Schema*: `{ frontId: string, steps: number }`
+        - _Description_: Move a plot threat forward (e.g., "The bomb timer ticks down").
+        - _Schema_: `{ frontId: string, steps: number }`
       - **`createQuest`**:
-        - *Description*: Open a new narrative thread or objective.
-        - *Schema*: `{ title: string, description: string, type: string }`
+        - _Description_: Open a new narrative thread or objective.
+        - _Schema_: `{ title: string, description: string, type: string }`
       - **`logEvent`**:
-        - *Description*: Record a significant event in history.
-        - *Schema*: `{ description: string, type: string, importance: string }`
+        - _Description_: Record a significant event in history.
+        - _Schema_: `{ description: string, type: string, importance: string }`
   - **Logic Flow (AI SDK `maxSteps` Loop)**:
     1. **Perceive & Reason (Step 1)**:
        - Model receives Player Input + Current Graph.
@@ -47,7 +48,8 @@
        - Model receives tool results (confirmation of state changes).
        - Model streams the descriptive text response to the player, incorporating the consequences of the state changes.
 
-- **Data Requirements**: 
+- **Data Requirements**:
+
   - **Tool Schemas (Zod)**:
     - Defined in `src/lib/ai/tools.ts`.
     - Must match the `campaignState` structure defined in Campaign Generation.
@@ -55,8 +57,9 @@
     - System Prompt must explicitly instruct the AI to **check Active Fronts** every turn.
     - "If the player ignores the [Zombie Horde] Front, advance it by 1 step."
 
-- **User Flow**: 
-  - (Invisible to User): 
+- **User Flow**:
+
+  - (Invisible to User):
     1. User types: "I punch the goblin."
     2. Server retrieves Campaign State.
     3. AI decides: "Roll Strength." -> Success.
@@ -64,15 +67,17 @@
     5. AI calls `update_narrative_vector({ chaos: +0.1 })`.
     6. AI narrates: "You connect a solid blow..."
 
-- **Acceptance Criteria**: 
+- **Acceptance Criteria**:
+
   - GMA uses Tools to modify the `campaignState` in the database.
   - Streaming responses work with Tool calls (Server-side execution).
   - The "Narrative Graph" updates persist between turns.
 
-- **Edge Cases**: 
+- **Edge Cases**:
+
   - **Hallucination**: GMA adds a node that doesn't make sense. (Mitigation: Strict Zod validation on tool inputs).
   - **Tool Loop**: GMA tries to call too many tools. (Limit: Max 5 tool calls per turn).
 
-- **Dependencies**: 
+- **Dependencies**:
   - Campaign Generation (State Structure).
   - Vercel AI SDK.

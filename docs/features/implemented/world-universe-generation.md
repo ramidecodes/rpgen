@@ -24,7 +24,7 @@
   - **Universe Generation**:
     - Use AI SDK `generateObject` to create a cohesive world based on the selected ontology.
     - **Provider**: OpenRouter.
-    - **Model**: `x-ai/grok-4.1-fast:free` (for initial implementation).
+    - **Model**: `google/gemma-3-27b-it:free` (for initial implementation).
     - **Schema Requirement**: The `generateObject` call MUST use the Zod schemas defined in `src/lib/db/schemas/universe.ts`.
       - `ontologySchema`, `factionSchema`, `locationSchema`, `historySchema`.
       - This ensures the generated output matches the JSONB columns in the database perfectly.

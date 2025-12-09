@@ -2,7 +2,7 @@
 
 - **Feature Name**: Base Next.js Implementation
 
-- **Goal**: Establish the foundational Next.js project structure with TypeScript, App Router, and basic configuration to serve as the base for all subsequent features. This feature provides the development environment and project scaffolding needed to build the Generative Deep Neural Dungeon application.
+- **Goal**: Establish the foundational Next.js project structure with TypeScript, App Router, and basic configuration to serve as the base for all subsequent features. This feature provides the development environment and project scaffolding needed to build the RPGen application.
 
 - **User Story**: As a developer, I want a properly configured Next.js project with TypeScript and App Router structure, so that I can build the game application with type safety, modern React patterns, and server-side capabilities.
 

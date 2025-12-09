@@ -24,7 +24,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const MODEL_NAME = "x-ai/grok-4.1-fast:free";
+const MODEL_NAME = "google/gemma-3-27b-it:free";
 
 export async function POST(req: Request) {
   try {

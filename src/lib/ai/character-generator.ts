@@ -11,7 +11,7 @@ const openrouter = createOpenRouter({
 });
 
 // Model to use - adhering to FReD specification
-const MODEL_NAME = "x-ai/grok-4.1-fast:free";
+const MODEL_NAME = "google/gemma-3-27b-it:free";
 
 export async function generateCharacterBackstory(
   universe: Universe,

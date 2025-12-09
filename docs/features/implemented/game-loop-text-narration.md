@@ -26,7 +26,7 @@
     - Validate input with Zod schema (not empty, reasonable length)
     - Convert UI messages to Core messages using `convertToCoreMessages` (AI SDK v5)
     - Send to server action `processPlayerActionAction` with campaign context
-    - Server action uses AI SDK `streamText()` with OpenRouter provider (`x-ai/grok-4.1-fast:free`) and `maxSteps: 5` to allow multi-step reasoning (Reason -> Act -> Narrate)
+    - Server action uses AI SDK `streamText()` with OpenRouter provider (`google/gemma-3-27b-it:free`) and `maxSteps: 5` to allow multi-step reasoning (Reason -> Act -> Narrate)
     - Stream response back to client via `useChat` hook
     - Display player action in narrative history immediately (optimistic update)
     - Stream GMA response in real-time via `useChat` messages

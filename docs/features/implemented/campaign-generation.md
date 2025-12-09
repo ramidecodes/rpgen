@@ -21,11 +21,11 @@
 
     - Select `Universe` (Private or Community) + `Character`.
     - Select `Genres`.
-    - AI generates initial **"Guiding Principles"** (Themes, Tone, Pacing) using OpenRouter (`x-ai/grok-4.1-fast:free`).
+    - AI generates initial **"Guiding Principles"** (Themes, Tone, Pacing) using OpenRouter (`google/gemma-3-27b-it:free`).
     - AI generates `Cover Image` reflecting the genre and universe.
     - **AI Tool Specifications**:
       - **Provider**: OpenRouter
-      - **Model**: `x-ai/grok-4.1-fast:free` (for initial implementation)
+      - **Model**: `google/gemma-3-27b-it:free` (for initial implementation)
       - **`initializeCampaign` Tool**:
         - _Input_: `{ universeData, characterData, genres[] }`
         - _Output Schema_: `CampaignState` (matching the JSONB structure below).

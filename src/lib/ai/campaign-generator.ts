@@ -11,7 +11,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const MODEL_NAME = "x-ai/grok-4.1-fast:free";
+const MODEL_NAME = "google/gemma-3-27b-it:free";
 
 export async function generateCampaignState(
   universe: Universe,
@@ -23,10 +23,10 @@ export async function generateCampaignState(
     3. Character: "${character.name}"
        - Profession: ${character.properties?.profession || "Unknown"}
        - Stats: Strength ${character.stats.strength}, Agility ${
-         character.stats.agility
-       }, Intelligence ${character.stats.intelligence}, Scholarship ${
-         character.stats.scholarship
-       }, Intuition ${character.stats.intuition}
+        character.stats.agility
+      }, Intelligence ${character.stats.intelligence}, Scholarship ${
+        character.stats.scholarship
+      }, Intuition ${character.stats.intuition}
        - Backstory: ${
          character.properties?.backstory?.substring(0, 300) ||
          "No backstory provided"
