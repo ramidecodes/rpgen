@@ -1,17 +1,14 @@
-import Replicate from "replicate";
+import { getImageModel, getReplicateClient } from "@/lib/ai/provider";
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
+const replicate = getReplicateClient();
+const imageModel = getImageModel();
 
 /**
  * Generates an image using Replicate based on a text prompt.
  * Uses a fast, high-quality model suitable for fantasy/sci-fi landscapes.
  */
 export async function generateUniverseImage(prompt: string): Promise<Buffer> {
-  // Using Flux dev or similar high quality model
-  // Model: black-forest-labs/flux-schnell (fast & good)
-  const model = "black-forest-labs/flux-schnell";
+  const model = imageModel;
 
   const input = {
     prompt: `Epic, cinematic, highly detailed concept art: ${prompt}. 8k resolution, trending on artstation.`,
@@ -49,7 +46,7 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
 export async function generateCharacterPortrait(
   prompt: string
 ): Promise<Buffer> {
-  const model = "black-forest-labs/flux-schnell";
+  const model = imageModel;
 
   const input = {
     prompt: `Character portrait, highly detailed, expressive face, cinematic lighting: ${prompt}. 8k resolution, trending on artstation, centered composition.`,
@@ -84,7 +81,7 @@ export async function generateCharacterPortrait(
  * Focuses on mood, atmosphere, and genre-blending.
  */
 export async function generateCampaignCover(prompt: string): Promise<Buffer> {
-  const model = "black-forest-labs/flux-schnell";
+  const model = imageModel;
 
   const input = {
     prompt: `Movie poster style, campaign cover art, highly detailed, atmospheric: ${prompt}. Titleless, cinematic composition, 8k resolution, dramatic lighting.`,

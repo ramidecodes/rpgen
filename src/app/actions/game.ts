@@ -12,19 +12,16 @@ import {
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq, desc } from "drizzle-orm";
 import { streamText } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createGameMasterTools } from "@/lib/ai/tools";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import { z } from "zod";
+import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const MODEL_NAME = "nvidia/nemotron-nano-12b-v2-vl:free";
+const openrouter = getOpenRouterClient();
+const MODEL_NAME = getTextModel("base");
 
 const continueGameSchema = z.object({
-  runId: z.string().uuid(),
+  runId: z.uuid(),
   userMessage: z.string().min(1),
   toolResults: z
     .array(

@@ -1,17 +1,12 @@
 import { generateObject } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   generatedUniverseSchema,
   type Ontology,
 } from "@/lib/db/schemas/universe";
+import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 
-// Configure OpenRouter using the official provider
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-// Model to use - adhering to FReD specification
-const MODEL_NAME = "nvidia/nemotron-nano-12b-v2-vl:free";
+const openrouter = getOpenRouterClient();
+const MODEL_NAME = getTextModel("base");
 
 export async function generateUniverse(
   ontology: Ontology,

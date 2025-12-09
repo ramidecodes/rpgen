@@ -4,7 +4,6 @@ import {
   streamText,
   convertToModelMessages,
 } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createGameMasterTools } from "@/lib/ai/tools";
 import { db } from "@/lib/db";
 import {
@@ -19,21 +18,13 @@ import { auth } from "@clerk/nextjs/server";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import type { UIMessage } from "ai";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
+import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const MODEL_NAME = "nvidia/nemotron-nano-12b-v2-vl:free";
+const openrouter = getOpenRouterClient();
+const MODEL_NAME = getTextModel("base");
 
 export async function POST(req: Request) {
   try {
-    // Validate API key
-    if (!process.env.OPENROUTER_API_KEY) {
-      console.error("[API] OPENROUTER_API_KEY is not configured");
-      return new Response("Server configuration error", { status: 500 });
-    }
-
     const { userId: clerkUserId } = await auth();
 
     if (!clerkUserId) {
