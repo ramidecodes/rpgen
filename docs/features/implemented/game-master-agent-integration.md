@@ -11,7 +11,7 @@
   - **AI Configuration**:
     - Use `streamText` from Vercel AI SDK.
     - **Provider**: OpenRouter.
-    - **Model**: `nvidia/nemotron-nano-12b-v2-vl:free` (for initial implementation, replacing specific models like Claude 3.5 Sonnet for now).
+    - **Model**: `qwen/qwen3-vl-8b-instruct` (for initial implementation, replacing specific models like Claude 3.5 Sonnet for now).
   - **Context Management**:
     - **Input**:
       - Player Action.
