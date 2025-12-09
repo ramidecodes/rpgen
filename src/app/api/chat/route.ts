@@ -3,6 +3,7 @@ import {
   createUIMessageStream,
   streamText,
   convertToModelMessages,
+  stepCountIs,
 } from "ai";
 import { createGameMasterTools } from "@/lib/ai/tools";
 import { db } from "@/lib/db";
@@ -226,7 +227,7 @@ export async function POST(req: Request) {
         currentContext:
           typeof rawState.currentContext === "string"
             ? rawState.currentContext
-            : undefined,
+            : null,
       };
     } catch (error) {
       console.error("[API] Error parsing campaign state:", error);
@@ -370,36 +371,79 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     // AI SDK v6 messages can have 'content', 'parts', or both.
     // Providers like xAI require that each message has at least one content element,
     // so we drop messages that are effectively empty (no meaningful content or parts).
-    const sanitizedMessages = typedMessages.filter((msg): msg is UIMessage => {
-      if (!msg || typeof msg !== "object") {
-        return false;
-      }
-      if (!("role" in msg)) {
-        return false;
-      }
+    // Deduplicate tool results by toolCallId to prevent OpenAI duplicate ID errors.
+    // When addToolOutput updates messages, the same tool result can appear multiple times.
+    const seenToolCallIds = new Set<string>();
 
-      const rawContent =
-        "content" in msg ? (msg as { content?: unknown }).content : undefined;
-      const hasContent =
-        typeof rawContent === "string"
-          ? rawContent.trim().length > 0
-          : Array.isArray(rawContent)
-          ? rawContent.length > 0
-          : false;
+    const sanitizedMessages = typedMessages
+      .filter((msg): msg is UIMessage => {
+        if (!msg || typeof msg !== "object") {
+          return false;
+        }
+        if (!("role" in msg)) {
+          return false;
+        }
 
-      const rawParts = "parts" in msg ? msg.parts : undefined;
-      // Treat any non-empty parts array as meaningful content. This ensures that
-      // tool calls and tool results (which often have no text content) are kept
-      // in the conversation history so HITL flows continue to work correctly.
-      const hasParts = Array.isArray(rawParts) && rawParts.length > 0;
+        const rawContent =
+          "content" in msg ? (msg as { content?: unknown }).content : undefined;
+        const hasContent =
+          typeof rawContent === "string"
+            ? rawContent.trim().length > 0
+            : Array.isArray(rawContent)
+            ? rawContent.length > 0
+            : false;
 
-      if (!hasContent && !hasParts) {
-        console.warn("[API] Dropping empty message before model call:", msg);
-        return false;
-      }
+        const rawParts = "parts" in msg ? msg.parts : undefined;
+        // Treat any non-empty parts array as meaningful content. This ensures that
+        // tool calls and tool results (which often have no text content) are kept
+        // in the conversation history so HITL flows continue to work correctly.
+        const hasParts = Array.isArray(rawParts) && rawParts.length > 0;
 
-      return true;
-    });
+        if (!hasContent && !hasParts) {
+          console.warn("[API] Dropping empty message before model call:", msg);
+          return false;
+        }
+
+        return true;
+      })
+      .map((msg) => {
+        // Deduplicate tool-result parts by toolCallId
+        // Each tool call should only have one result in the conversation
+        if (msg.parts && Array.isArray(msg.parts)) {
+          const deduplicatedParts = msg.parts.filter((part: unknown) => {
+            if (
+              typeof part === "object" &&
+              part !== null &&
+              "type" in part &&
+              part.type === "tool-result"
+            ) {
+              const toolResult = part as { toolCallId?: string };
+              if (
+                toolResult.toolCallId &&
+                typeof toolResult.toolCallId === "string"
+              ) {
+                if (seenToolCallIds.has(toolResult.toolCallId)) {
+                  console.warn(
+                    "[API] Dropping duplicate tool result for toolCallId:",
+                    toolResult.toolCallId
+                  );
+                  return false;
+                }
+                seenToolCallIds.add(toolResult.toolCallId);
+              }
+            }
+            return true;
+          });
+
+          if (deduplicatedParts.length !== msg.parts.length) {
+            return {
+              ...msg,
+              parts: deduplicatedParts,
+            };
+          }
+        }
+        return msg;
+      });
 
     // Save user message upfront (before streaming) to ensure persistence
     // Reuse lastUserMessage that was already declared above
@@ -570,7 +614,7 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     }
 
     const stream = createUIMessageStream({
-      originalMessages: typedMessages,
+      originalMessages: sanitizedMessages, // Use sanitized (deduplicated) messages for consistency
       execute: async ({ writer }) => {
         try {
           // Convert messages safely
@@ -585,6 +629,7 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
               }`
             );
           }
+          console.log("[API] Starting streamText with model:", MODEL_NAME);
           const result = streamText({
             model: openrouter.chat(MODEL_NAME),
             messages: [
@@ -592,7 +637,14 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
               ...modelMessages,
             ],
             tools: toolsWithState,
+            stopWhen: stepCountIs(5), // Allow up to 5 tool/thought steps before stopping
             onFinish: async ({ text, toolCalls, toolResults }) => {
+              console.log("[API] streamText.onFinish called", {
+                hasText: !!text,
+                textLength: text?.length || 0,
+                toolCallsCount: toolCalls?.length || 0,
+                toolResultsCount: toolResults?.length || 0,
+              });
               try {
                 // Save assistant message using the text and tool calls from onFinish
                 // Note: For HITL tools like requestSkillCheck, tool output comes from the client
@@ -686,9 +738,11 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
             },
           });
 
-          writer.merge(
-            result.toUIMessageStream({ originalMessages: typedMessages })
+          console.log("[API] Merging stream result into writer");
+          await writer.merge(
+            result.toUIMessageStream({ originalMessages: sanitizedMessages })
           );
+          console.log("[API] Stream merge completed");
         } catch (error) {
           console.error("[API] Error in stream execution:", error);
           console.error(

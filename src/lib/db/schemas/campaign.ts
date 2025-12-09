@@ -42,8 +42,8 @@ export const graphNodeSchema = z.object({
   id: z.string(),
   type: z.enum(["npc", "location", "item", "event", "faction", "concept"]),
   label: z.string(),
-  description: z.string().optional(),
-  data: z.record(z.string(), z.unknown()).optional(),
+  description: z.string().nullable(),
+  data: z.object({}).nullable(),
 });
 
 export const graphEdgeSchema = z.object({
@@ -66,7 +66,7 @@ export const campaignStateSchema = z.object({
   questThreads: z.array(questThreadSchema),
   knowledgeGraph: knowledgeGraphSchema,
   // Optional: Summary of the last turn or current situation for context
-  currentContext: z.string().optional(),
+  currentContext: z.string().nullable(),
 });
 
 // --- Input Schemas ---

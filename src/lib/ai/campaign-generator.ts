@@ -88,13 +88,13 @@ ${characterContext}
   `;
 
   try {
-    const { object } = await generateObject({
+    const result = await generateObject({
       model: openrouter.chat(MODEL_NAME),
       schema: campaignStateSchema,
       prompt,
     });
 
-    return object;
+    return result.object as CampaignState;
   } catch (error) {
     console.error("Error generating campaign state:", error);
     throw new Error("Failed to generate initial campaign state");

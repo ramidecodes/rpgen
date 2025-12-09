@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq, desc } from "drizzle-orm";
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { createGameMasterTools } from "@/lib/ai/tools";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import { z } from "zod";
@@ -183,6 +183,7 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     model: openrouter.chat(MODEL_NAME),
     messages: aiMessages as never,
     tools: toolsWithState,
+    stopWhen: stepCountIs(5), // Allow up to 5 tool/thought steps before stopping
     onFinish: async ({ text, toolCalls, toolResults }) => {
       // Save assistant message
       await db.insert(messages).values({

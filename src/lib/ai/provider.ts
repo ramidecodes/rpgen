@@ -25,9 +25,9 @@ export type ModelRegistry = {
 // ============================================================================
 
 const TEXT_MODELS: TextModelRegistry = {
-  free: "qwen/qwen3-vl-8b-instruct",
-  base: "qwen/qwen3-vl-8b-instruct",
-  reasoning: "qwen/qwen3-vl-8b-instruct",
+  free: "mistralai/mistral-small-3.1-24b-instruct:free",
+  base: "openai/gpt-5-nano",
+  reasoning: "openai/gpt-5-nano",
 };
 
 const IMAGE_MODELS: ImageModelRegistry = {
@@ -67,6 +67,15 @@ let replicateClient: Replicate | null = null;
 /**
  * Returns a singleton OpenRouter client configured with the project API key.
  * Throws if `OPENROUTER_API_KEY` is missing to surface configuration issues early.
+ * Includes required headers for paid models (HTTP-Referer and X-Title).
+ *
+ * Required environment variable:
+ * - OPENROUTER_API_KEY: Your OpenRouter API key
+ *
+ * Optional environment variable (for paid models):
+ * - NEXT_PUBLIC_SITE_URL: Production site URL for HTTP-Referer header (defaults to "https://rpgen-ai.vercel.app" in production)
+ *
+ * In development, HTTP-Referer defaults to "http://localhost:3000".
  */
 export const getOpenRouterClient = (): ReturnType<typeof createOpenRouter> => {
   if (openRouterClient) {
@@ -77,7 +86,23 @@ export const getOpenRouterClient = (): ReturnType<typeof createOpenRouter> => {
     process.env.OPENROUTER_API_KEY,
     "OPENROUTER_API_KEY"
   );
-  openRouterClient = createOpenRouter({ apiKey });
+  const referer =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen-ai.vercel.app";
+
+  openRouterClient = createOpenRouter({
+    apiKey,
+    headers: {
+      "HTTP-Referer": referer,
+      "X-Title": "RPG Generator",
+    },
+    // Configure provider routing at the client level to avoid Azure routing issues
+    // This applies to all requests made through this client
+    extraBody: {
+      provider: {
+        ignore: ["azure"],
+      },
+    },
+  });
 
   return openRouterClient;
 };

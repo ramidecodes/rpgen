@@ -66,7 +66,7 @@ export function createGameMasterTools(state: CampaignState) {
 - Hope: Increase when players succeed heroically, save lives, or restore order. Decrease when they fail critically or despair grows.
 - Chaos: Increase when things spiral out of control, violence escalates, or order breaks down. Decrease when stability is restored.
 Make meaningful changes (0.1-0.3 deltas) - small shifts matter. Don't adjust every turn.`,
-      parameters: z.object({
+      inputSchema: z.object({
         hopeDelta: z
           .number()
           .min(-1)
@@ -78,7 +78,6 @@ Make meaningful changes (0.1-0.3 deltas) - small shifts matter. Don't adjust eve
           .max(1)
           .describe("Change to Chaos level (-1 to 1)"),
       }),
-      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
       execute: async ({
         hopeDelta,
         chaosDelta,
@@ -113,7 +112,7 @@ Make meaningful changes (0.1-0.3 deltas) - small shifts matter. Don't adjust eve
 - Reputations change significantly
 - New connections are discovered
 The Knowledge Graph tracks relationships between entities (NPCs, factions, locations, etc.). Only update when relationships meaningfully change, not for every interaction.`,
-      parameters: z.object({
+      inputSchema: z.object({
         sourceId: z.string().describe("ID of the source node"),
         targetId: z.string().describe("ID of the target node"),
         relationType: z
@@ -127,7 +126,6 @@ The Knowledge Graph tracks relationships between entities (NPCs, factions, locat
           .max(1)
           .describe("Strength/weight of the relationship (0-1)"),
       }),
-      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
       execute: async ({
         sourceId,
         targetId,
@@ -167,7 +165,7 @@ The Knowledge Graph tracks relationships between entities (NPCs, factions, locat
 - A Front's conditions naturally progress
 - The player makes choices that indirectly advance a threat
 Only advance Fronts that are relevant to the current situation. Don't advance all Fronts every turn - be selective and meaningful.`,
-      parameters: z.object({
+      inputSchema: z.object({
         frontId: z.string().describe("ID or name of the Front to advance"),
         steps: z
           .number()
@@ -176,7 +174,6 @@ Only advance Fronts that are relevant to the current situation. Don't advance al
           .max(3)
           .describe("Number of steps to advance the doom clock"),
       }),
-      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
       execute: async ({
         frontId,
         steps,
@@ -214,7 +211,7 @@ Only advance Fronts that are relevant to the current situation. Don't advance al
 - Mystery threads that need investigation
 - Player-initiated goals that become quests
 Only create quests that are meaningful and relevant. Don't create duplicate quests.`,
-      parameters: z.object({
+      inputSchema: z.object({
         title: z.string().describe("Title of the quest"),
         description: z.string().describe("Description of the quest objective"),
         type: z
@@ -222,7 +219,6 @@ Only create quests that are meaningful and relevant. Don't create duplicate ques
           .optional()
           .describe("Type of quest (e.g., 'main', 'side', 'mystery')"),
       }),
-      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
       execute: async ({
         title,
         description,
@@ -249,7 +245,7 @@ Only create quests that are meaningful and relevant. Don't create duplicate ques
 - World-changing events (not routine actions)
 - Discoveries that affect future gameplay
 Use 'critical' sparingly - only for truly game-changing moments. Most events should be 'medium' or 'high'.`,
-      parameters: z.object({
+      inputSchema: z.object({
         description: z.string().describe("Description of the event"),
         type: z
           .string()
@@ -260,7 +256,6 @@ Use 'critical' sparingly - only for truly game-changing moments. Most events sho
           .optional()
           .describe("Importance level of the event"),
       }),
-      // @ts-expect-error - AI SDK v6 tool type inference issue, works correctly at runtime
       execute: async ({
         description,
         type,
