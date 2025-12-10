@@ -162,34 +162,36 @@ function CampaignCard({
 
   return (
     <Card className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full relative">
-      <button
-        type="button"
-        className="relative aspect-video w-full bg-muted overflow-hidden cursor-pointer text-left"
-        onClick={handleCardClick}
-      >
-        {campaign.coverImage ? (
-          <Image
-            src={campaign.coverImage}
-            alt={campaign.name}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-secondary/20">
-            <BookOpen className="w-12 h-12 text-muted-foreground/30" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-80" />
+      <div className="relative aspect-video w-full bg-muted overflow-hidden">
+        <button
+          type="button"
+          className="h-full w-full cursor-pointer text-left"
+          onClick={handleCardClick}
+        >
+          {campaign.coverImage ? (
+            <Image
+              src={campaign.coverImage}
+              alt={campaign.name}
+              fill
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full bg-secondary/20">
+              <BookOpen className="w-12 h-12 text-muted-foreground/30" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-80" />
 
-        <div className="absolute bottom-0 left-0 p-4 w-full">
-          <h3 className="font-bold text-xl text-white leading-tight shadow-black drop-shadow-md mb-1">
-            {campaign.name}
-          </h3>
-          <div className="flex items-center text-white/80 text-xs gap-2">
-            <MapPin className="w-3 h-3" />
-            <span>{campaign.universeName}</span>
+          <div className="absolute bottom-0 left-0 p-4 w-full">
+            <h3 className="font-bold text-xl text-white leading-tight shadow-black drop-shadow-md mb-1">
+              {campaign.name}
+            </h3>
+            <div className="flex items-center text-white/80 text-xs gap-2">
+              <MapPin className="w-3 h-3" />
+              <span>{campaign.universeName}</span>
+            </div>
           </div>
-        </div>
+        </button>
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -229,7 +231,7 @@ function CampaignCard({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </button>
+      </div>
 
       <CardContent
         className="flex flex-col flex-1 p-4 pt-5 cursor-pointer"
