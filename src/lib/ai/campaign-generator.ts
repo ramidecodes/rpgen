@@ -19,10 +19,10 @@ export async function generateCampaignState(
     3. Character: "${character.name}"
        - Profession: ${character.properties?.profession || "Unknown"}
        - Stats: Strength ${character.stats.strength}, Agility ${
-        character.stats.agility
-      }, Intelligence ${character.stats.intelligence}, Scholarship ${
-        character.stats.scholarship
-      }, Intuition ${character.stats.intuition}
+         character.stats.agility
+       }, Intelligence ${character.stats.intelligence}, Scholarship ${
+         character.stats.scholarship
+       }, Intuition ${character.stats.intuition}
        - Backstory: ${
          character.properties?.backstory?.substring(0, 300) ||
          "No backstory provided"

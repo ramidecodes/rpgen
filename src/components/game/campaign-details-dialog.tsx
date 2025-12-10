@@ -71,8 +71,8 @@ export function CampaignDetailsDialog({
                         isDoomed
                           ? "border-red-500/50 bg-red-500/5"
                           : isNearDoom
-                          ? "border-yellow-500/50 bg-yellow-500/5"
-                          : ""
+                            ? "border-yellow-500/50 bg-yellow-500/5"
+                            : ""
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -82,8 +82,8 @@ export function CampaignDetailsDialog({
                             isDoomed
                               ? "destructive"
                               : isNearDoom
-                              ? "outline"
-                              : "outline"
+                                ? "outline"
+                                : "outline"
                           }
                         >
                           {front.doomClock}/{front.maxDoom}
@@ -109,8 +109,8 @@ export function CampaignDetailsDialog({
                               isDoomed
                                 ? "bg-red-500"
                                 : isNearDoom
-                                ? "bg-yellow-500"
-                                : "bg-primary"
+                                  ? "bg-yellow-500"
+                                  : "bg-primary"
                             }`}
                             style={{
                               width: `${Math.min(100, doomProgress * 100)}%`,
@@ -190,10 +190,10 @@ export function CampaignDetailsDialog({
                           quest.status === "active"
                             ? "default"
                             : quest.status === "completed"
-                            ? "secondary"
-                            : quest.status === "failed"
-                            ? "destructive"
-                            : "outline"
+                              ? "secondary"
+                              : quest.status === "failed"
+                                ? "destructive"
+                                : "outline"
                         }
                       >
                         {quest.status}

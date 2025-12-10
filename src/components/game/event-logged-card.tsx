@@ -47,8 +47,8 @@ export function EventLoggedCard({
     importance === "critical"
       ? "danger"
       : importance === "high"
-      ? "warning"
-      : "default";
+        ? "warning"
+        : "default";
 
   return (
     <ToolResultCard

@@ -52,9 +52,7 @@ export function createGameMasterTools(state: CampaignState) {
         : [],
     },
     currentContext:
-      typeof state.currentContext === "string"
-        ? state.currentContext
-        : undefined,
+      typeof state.currentContext === "string" ? state.currentContext : null,
   };
 
   return {
