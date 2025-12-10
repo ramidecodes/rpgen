@@ -1,5 +1,9 @@
 import { getImageModel, getReplicateClient } from "@/lib/ai/provider";
 
+type ReplicateModelIdentifier =
+  | `${string}/${string}`
+  | `${string}/${string}:${string}`;
+
 const replicate = getReplicateClient();
 const imageModel = getImageModel();
 
@@ -8,7 +12,7 @@ const imageModel = getImageModel();
  * Uses a fast, high-quality model suitable for fantasy/sci-fi landscapes.
  */
 export async function generateUniverseImage(prompt: string): Promise<Buffer> {
-  const model = imageModel;
+  const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
     prompt: `Epic, cinematic, highly detailed concept art: ${prompt}. 8k resolution, trending on artstation.`,
@@ -46,7 +50,7 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
 export async function generateCharacterPortrait(
   prompt: string
 ): Promise<Buffer> {
-  const model = imageModel;
+  const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
     prompt: `Character portrait, highly detailed, expressive face, cinematic lighting: ${prompt}. 8k resolution, trending on artstation, centered composition.`,
@@ -81,7 +85,7 @@ export async function generateCharacterPortrait(
  * Focuses on mood, atmosphere, and genre-blending.
  */
 export async function generateCampaignCover(prompt: string): Promise<Buffer> {
-  const model = imageModel;
+  const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
     prompt: `Movie poster style, campaign cover art, highly detailed, atmospheric: ${prompt}. Titleless, cinematic composition, 8k resolution, dramatic lighting.`,
