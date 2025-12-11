@@ -64,7 +64,7 @@ export default function CharactersPage() {
                   Heroes you've forged across the multiverse
                 </p>
               </div>
-              <Link href="/universes">
+              <Link href="/characters/create">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" /> New Character
                 </Button>

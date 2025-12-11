@@ -58,7 +58,7 @@ export function CampaignStartForm({
         <p className="text-sm text-muted-foreground">
           You don't have any characters in this universe yet.
         </p>
-        <Link href="/universes">
+        <Link href="/characters/create">
           <Button variant="secondary" size="sm" className="w-full">
             <User className="w-4 h-4 mr-2" /> Create Character
           </Button>

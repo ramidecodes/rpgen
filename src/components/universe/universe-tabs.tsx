@@ -163,9 +163,9 @@ export function UniverseTabs({
 
       <TabsContent
         value="characters"
-        className="animate-in slide-in-from-bottom-4 duration-500"
+        className="animate-in slide-in-from-bottom-4 duration-500 relative z-10"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pointer-events-auto">
           {characters && characters.length > 0 ? (
             characters.map((char: UniverseCharacter) => (
               <Link
@@ -196,13 +196,13 @@ export function UniverseTabs({
               </Link>
             ))
           ) : (
-            <div className="col-span-2 py-12 text-center">
-              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <div className="col-span-2 py-12 text-center relative">
+              <div className="flex flex-col items-center gap-2 text-muted-foreground relative z-10 pointer-events-auto">
                 <Users className="h-8 w-8 opacity-20" />
                 <p>No characters forged in this universe yet.</p>
-                <Button variant="link" asChild className="mt-2">
+                <Button asChild className="mt-4">
                   <Link href={`/characters/create?universeId=${universeId}`}>
-                    Be the first to create one
+                    Create Character
                   </Link>
                 </Button>
               </div>

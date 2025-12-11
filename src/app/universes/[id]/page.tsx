@@ -50,7 +50,7 @@ export default async function UniversePage({
       <Header />
       <main className="flex-1 pb-20">
         {/* Hero Section with Cover Image */}
-        <div className="relative h-[40vh] md:h-[50vh] w-full bg-muted">
+        <div className="relative w-full bg-muted overflow-hidden min-h-[30vh]">
           {universe.coverImage ? (
             <Image
               src={universe.coverImage}
@@ -67,65 +67,60 @@ export default async function UniversePage({
           )}
           <div className="absolute inset-0 z-10 bg-linear-to-t from-background via-background/60 to-transparent" />
 
-          {/* Content overlay - single container for both button and content */}
-          <div className="absolute inset-0 z-20 flex flex-col">
-            <div className="container mx-auto px-6 flex flex-1 flex-col pt-8 md:pt-12">
-              {/* Bottom: Universe info - pushed to bottom with mt-auto */}
-              <div className="mt-auto pb-6 md:pb-12 space-y-6">
-                {/* Top row: Badges and Back button on same horizontal line */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge icon={<Calendar className="h-3 w-3" />}>
-                      {ontology.timeframe}
-                    </Badge>
-                    <Badge icon={<Zap className="h-3 w-3" />}>
-                      {ontology.magicLevel}
-                    </Badge>
-                    <Badge icon={<Globe className="h-3 w-3" />}>
-                      {ontology.physics}
-                    </Badge>
-                  </div>
-                  <Button
-                    asChild
-                    variant="secondary"
-                    size="sm"
-                    className="gap-2 backdrop-blur-md bg-background/50 hover:bg-background/80"
-                  >
-                    <Link href="/universes">
-                      <ArrowLeft className="h-4 w-4" /> Back to Nexus
-                    </Link>
-                  </Button>
+          <div className="relative z-20">
+            <div className="container mx-auto px-6 py-8 md:py-10 space-y-6">
+              {/* Top row: Badges and Back button on same horizontal line */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge icon={<Calendar className="h-3 w-3" />}>
+                    {ontology.timeframe}
+                  </Badge>
+                  <Badge icon={<Zap className="h-3 w-3" />}>
+                    {ontology.magicLevel}
+                  </Badge>
+                  <Badge icon={<Globe className="h-3 w-3" />}>
+                    {ontology.physics}
+                  </Badge>
+                </div>
+                <Button
+                  asChild
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2 backdrop-blur-md bg-background/50 hover:bg-background/80"
+                >
+                  <Link href="/universes">
+                    <ArrowLeft className="h-4 w-4" /> Back to Nexus
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-4 w-full">
+                  <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground drop-shadow-lg">
+                    {universe.name}
+                  </h1>
+                  <p className="text-base md:text-lg text-muted-foreground drop-shadow-md w-full leading-relaxed">
+                    {universe.description}
+                  </p>
                 </div>
 
-                {/* Main content row: Title/Description and Create Character button */}
-                <div className="flex flex-col md:flex-row gap-6 items-end justify-between">
-                  <div className="space-y-4 max-w-3xl">
-                    <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground drop-shadow-lg">
-                      {universe.name}
-                    </h1>
-                    <p className="text-lg md:text-xl text-muted-foreground drop-shadow-md max-w-2xl">
-                      {universe.description}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button
-                      asChild
-                      size="lg"
-                      className="gap-2 shadow-lg animate-in fade-in zoom-in duration-500"
-                    >
-                      <Link href={`/characters/create?universeId=${id}`}>
-                        <Play className="h-5 w-5" /> Create Character
-                      </Link>
-                    </Button>
-                  </div>
+                <div className="flex flex-wrap gap-3 pointer-events-auto">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="gap-2 shadow-lg animate-in fade-in zoom-in duration-500"
+                  >
+                    <Link href={`/characters/create?universeId=${id}`}>
+                      <Play className="h-5 w-5" /> Create Character
+                    </Link>
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="container mx-auto px-6 mt-8 relative z-40">
+        <div className="container mx-auto px-6 mt-6 md:mt-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Sidebar / Info */}
             <div className="lg:col-span-4 space-y-6">
