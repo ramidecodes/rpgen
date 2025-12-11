@@ -19,20 +19,15 @@ type ChatInterfaceProps = {
 
 /**
  * Extract visible narration from a UIMessage following AI SDK v6 patterns.
- * Priority: text parts (if any exist) > content field (if string).
+ * AI SDK v6 uses parts array exclusively - extract text parts only.
  * Returns both the narration string (or null) and a boolean indicating
  * whether the message has any visible content.
- *
- * This helper ensures consistent handling of messages where:
- * - parts contains tool metadata and content holds narration (HITL pattern)
- * - parts contains text parts (standard streaming pattern)
- * - Both exist (prefer text parts to avoid duplication)
  */
 function extractNarration(message: UIMessage): {
   narration: string | null;
   hasVisibleContent: boolean;
 } {
-  // First, collect all non-empty text parts from message.parts
+  // Collect all non-empty text parts from message.parts (AI SDK v6 format)
   const textParts: string[] = [];
   if (message.parts && Array.isArray(message.parts)) {
     for (const part of message.parts) {
@@ -47,23 +42,10 @@ function extractNarration(message: UIMessage): {
     }
   }
 
-  // If we have text parts, use them (AI SDK v6: parts take priority)
+  // Return narration from text parts
   if (textParts.length > 0) {
     return {
       narration: textParts.join("\n\n"),
-      hasVisibleContent: true,
-    };
-  }
-
-  // Fallback to content field if it's a non-empty string
-  // This handles HITL cases where narration is in content while parts only has tool metadata
-  if (
-    "content" in message &&
-    typeof message.content === "string" &&
-    message.content.trim().length > 0
-  ) {
-    return {
-      narration: message.content,
       hasVisibleContent: true,
     };
   }
@@ -119,9 +101,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                  typeof (error as { message?: unknown }).message === "string"
-                ? ((error as { message?: string }).message ?? "")
-                : "The Game Master ran into an error. Please try again."}
+                typeof (error as { message?: unknown }).message === "string"
+              ? (error as { message?: string }).message ?? ""
+              : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -133,6 +115,15 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
 
         {messages
           .filter((message) => {
+            // Filter out messages with no parts (AI SDK v6 uses parts exclusively)
+            if (
+              !message.parts ||
+              !Array.isArray(message.parts) ||
+              message.parts.length === 0
+            ) {
+              return false;
+            }
+
             // Filter out empty user messages (used to trigger initial GM message)
             // These are lightweight triggers sent after HITL tool output
             if (message.role === "user") {
@@ -239,12 +230,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                        ? (
-                            skillCheckPart as {
-                              result?: unknown;
-                            }
-                          ).result
-                        : undefined;
+                      ? (
+                          skillCheckPart as {
+                            result?: unknown;
+                          }
+                        ).result
+                      : undefined;
 
                   let summaryMessage: string | null = null;
                   let detailMeta: {
@@ -349,8 +340,6 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                   )}
                 >
                   <CardContent className="p-4">
-                    {renderedToolParts}
-
                     {narration && (
                       <div className="prose prose-sm dark:prose-invert max-w-none wrap-break-words prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-strong:font-semibold prose-em:italic prose-code:text-xs prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-li:leading-relaxed prose-a:text-primary prose-a:underline hover:prose-a:text-primary/80 text-sm">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -358,6 +347,8 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                         </ReactMarkdown>
                       </div>
                     )}
+
+                    {renderedToolParts}
                   </CardContent>
                 </Card>
               </div>

@@ -1,11 +1,4 @@
-import {
-  createUIMessageStreamResponse,
-  createUIMessageStream,
-  streamText,
-  convertToModelMessages,
-  stepCountIs,
-} from "ai";
-import { createGameMasterTools } from "@/lib/ai/tools";
+import { createAgentUIStreamResponse } from "ai";
 import { db } from "@/lib/db";
 import {
   runs,
@@ -14,15 +7,17 @@ import {
   universes,
   messages,
 } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
+import { createGameMasterAgent } from "@/agents/game-master";
+import {
+  createCampaignManagerAgent,
+  extractTranscriptForProcessing,
+} from "@/agents/campaign-manager";
 import type { UIMessage } from "ai";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
-import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
-
-const openrouter = getOpenRouterClient();
-const MODEL_NAME = getTextModel("base");
+import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
 
 export async function POST(req: Request) {
   try {
@@ -42,8 +37,8 @@ export async function POST(req: Request) {
       return new Response("User profile not found", { status: 404 });
     }
 
-    // Validate request body
-    let requestBody: { messages?: unknown; runId?: unknown };
+    // Parse and validate request body
+    let requestBody: { messages?: UIMessage[]; runId?: string };
     try {
       requestBody = await req.json();
     } catch (error) {
@@ -69,12 +64,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // Ensure messages array is properly typed and validated
-    const typedMessages = incomingMessages as UIMessage[];
-
-    // Validate each message has required structure (AI SDK v6 supports both 'content' and 'parts')
-    for (let i = 0; i < typedMessages.length; i++) {
-      const msg = typedMessages[i];
+    // Validate each message structure
+    for (let i = 0; i < incomingMessages.length; i++) {
+      const msg = incomingMessages[i];
       if (!msg || typeof msg !== "object") {
         console.error(`[API] Invalid message at index ${i}:`, msg);
         return new Response(`Invalid message structure at index ${i}`, {
@@ -88,8 +80,6 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      // AI SDK v6 messages can have either 'content' OR 'parts' (or both).
-      // Detailed validation of \"meaningful\" content is handled later before model conversion.
     }
 
     // Fetch run with related data
@@ -125,648 +115,305 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 403 });
     }
 
-    // Check if this is the first message (no previous messages in database)
-    // Select all fields to avoid Drizzle select object structure issues
+    // Load existing messages for context
     const existingMessages = await db
       .select()
       .from(messages)
       .where(eq(messages.runId, run.id))
-      .limit(1);
+      .orderBy(desc(messages.createdAt))
+      .limit(50);
 
-    const isFirstMessage = existingMessages.length === 0;
+    // Convert stored messages back to UIMessage format
+    const storedMessages = existingMessages.reverse().map((msg) => ({
+      id: msg.id,
+      role: msg.role as UIMessage["role"],
+      parts: msg.content as UIMessage["parts"],
+    }));
 
-    const lastUserMessage = typedMessages
-      .filter((m) => m.role === "user")
-      .pop();
+    // Filter and prepare messages for model processing
+    const processedMessages = prepareMessagesForModel([
+      ...storedMessages,
+      ...incomingMessages,
+    ]);
 
-    // Check if this is an empty initial message (first message with empty/whitespace content or empty parts)
-    let isEmptyInitialMessage = false;
-    if (isFirstMessage) {
-      if (!lastUserMessage) {
-        isEmptyInitialMessage = true;
-      } else {
-        const arrayContent =
-          "content" in lastUserMessage
-            ? (lastUserMessage as { content?: unknown[] }).content
-            : undefined;
+    // Check for empty initial message (unused for now, but function is available)
+    const _isEmptyInitialMessage =
+      checkForEmptyInitialMessage(incomingMessages);
 
-        const hasEmptyContent =
-          ("content" in lastUserMessage &&
-            typeof (lastUserMessage as { content?: unknown }).content ===
-              "string" &&
-            ((lastUserMessage as { content?: string }).content || "").trim() ===
-              "") ||
-          (Array.isArray(arrayContent) && arrayContent.length === 0);
+    // Persist assistant messages with tool outputs from incoming messages
+    // This handles HITL tool results added via addToolOutput (immutable pattern)
+    await persistAssistantMessagesWithToolOutputs(incomingMessages, run.id);
 
-        const hasOnlyEmptyTextParts =
-          Array.isArray(lastUserMessage.parts) &&
-          lastUserMessage.parts.every((part: unknown) => {
-            if (
-              typeof part === "object" &&
-              part !== null &&
-              "type" in part &&
-              "text" in part
-            ) {
-              return (
-                typeof (part as { text?: unknown }).text === "string" &&
-                (part as { text: string }).text.trim() === ""
-              );
-            }
-            return false;
-          });
+    // Create mutable state copy for tool execution
+    const campaignState: CampaignState = JSON.parse(JSON.stringify(run.state));
 
-        isEmptyInitialMessage = hasEmptyContent || hasOnlyEmptyTextParts;
-      }
-    }
+    // Create Game Master Agent
+    const gma = createGameMasterAgent({
+      runId,
+      campaign,
+      character,
+      universe,
+      campaignState,
+    });
 
-    // For empty initial messages, ensure we have at least one user message to trigger the opening scene.
-    // We synthesize a minimal text part instead of using the deprecated/unsupported `content` field.
-    if (isEmptyInitialMessage && typedMessages.length === 0) {
-      typedMessages.push({
-        id: "synthetic-initial-message",
-        role: "user",
-        parts: [
-          {
-            type: "text",
-            text: " ",
-          },
-        ],
-      });
-    }
+    // Create the streaming response
+    const response = createAgentUIStreamResponse({
+      agent: gma.getAgent(),
+      messages: processedMessages,
+      onFinish: async (result) => {
+        console.log("[API] Agent execution finished");
 
-    // Create mutable state copy for tool execution and ensure it matches CampaignState
-    let validatedState: CampaignState;
-    try {
-      const rawState = JSON.parse(JSON.stringify(run.state)) as CampaignState;
-
-      validatedState = {
-        activeFronts: Array.isArray(rawState.activeFronts)
-          ? rawState.activeFronts
-          : [],
-        narrativeVectors: {
-          hope:
-            typeof rawState.narrativeVectors?.hope === "number"
-              ? rawState.narrativeVectors.hope
-              : 0.5,
-          chaos:
-            typeof rawState.narrativeVectors?.chaos === "number"
-              ? rawState.narrativeVectors.chaos
-              : 0.5,
-        },
-        questThreads: Array.isArray(rawState.questThreads)
-          ? rawState.questThreads
-          : [],
-        knowledgeGraph: {
-          nodes: Array.isArray(rawState.knowledgeGraph?.nodes)
-            ? rawState.knowledgeGraph.nodes
-            : [],
-          edges: Array.isArray(rawState.knowledgeGraph?.edges)
-            ? rawState.knowledgeGraph.edges
-            : [],
-        },
-        currentContext:
-          typeof rawState.currentContext === "string"
-            ? rawState.currentContext
-            : null,
-      };
-    } catch (error) {
-      console.error("[API] Error parsing campaign state:", error);
-      return new Response("Invalid campaign state", { status: 500 });
-    }
-
-    // Build system prompt with context
-    const systemPrompt = `You are the Game Master Agent (GMA) for a text-based RPG campaign.
-
-UNIVERSE CONTEXT:
-- Name: ${universe.name}
-- Description: ${universe.description}
-- History: ${universe.history.substring(0, 500)}...
-- Ontology: ${JSON.stringify(universe.ontology)}
-- Factions: ${JSON.stringify(universe.factions || [])}
-
-CAMPAIGN CONTEXT:
-- Name: ${campaign.name}
-- Genres: ${campaign.genres.join(", ")}
-- Current State:
-  - Active Fronts: ${JSON.stringify(validatedState.activeFronts)}
-  - Narrative Vectors: Hope=${(
-    validatedState.narrativeVectors?.hope ?? 0.5
-  ).toFixed(2)}, Chaos=${(
-      validatedState.narrativeVectors?.chaos ?? 0.5
-    ).toFixed(2)}
-  - Quest Threads: ${validatedState.questThreads?.length ?? 0} active
-  - Knowledge Graph: ${
-    validatedState.knowledgeGraph?.nodes?.length ?? 0
-  } nodes, ${validatedState.knowledgeGraph?.edges?.length ?? 0} edges
-  - Current Context: ${validatedState.currentContext || "Beginning of campaign"}
-
-CHARACTER CONTEXT:
-- Name: ${character.name}
-- Profession: ${character.properties?.profession || "Unknown"}
-- Stats:
-  - Strength: ${character.stats.strength}
-  - Agility: ${character.stats.agility}
-  - Intelligence: ${character.stats.intelligence}
-  - Scholarship: ${character.stats.scholarship}
-  - Intuition: ${character.stats.intuition}
-- Backstory: ${
-      character.properties?.backstory?.substring(0, 300) ||
-      "No backstory provided"
-    }...
-
-GAME MASTER INSTRUCTIONS:
-1. You are a living world simulator. Use tools thoughtfully to update the campaign state dynamically.
-2. FRONT MANAGEMENT:
-   - Review Active Fronts each turn, but only advance Fronts that are relevant to the current situation
-   - Advance a Front by 1-2 steps if the player ignores it or if time passes without addressing it
-   - Don't advance all Fronts every turn - be selective and meaningful
-   - When a Front reaches maxDoom, narrate the doom event dramatically
-3. SKILL CHECKS:
-   - Use requestSkillCheck when player actions require a skill check
-   - Choose appropriate attribute and difficulty based on the action
-   - Wait for player to roll before continuing
-4. QUEST CREATION:
-   - Create quests when players discover new objectives or accept missions
-   - Use clear, descriptive titles and detailed descriptions
-   - Don't create duplicate quests - check existing questThreads first
-5. EVENT LOGGING:
-   - Log significant events that impact the world or story
-   - Use appropriate importance levels (most events are 'medium' or 'high')
-   - Reserve 'critical' for truly game-changing moments
-6. NARRATIVE VECTORS:
-   - Adjust Hope/Chaos when player actions significantly impact the world
-   - Make meaningful changes (0.1-0.3 deltas), not tiny adjustments every turn
-   - Hope increases with heroic successes, decreases with failures/despair
-   - Chaos increases when order breaks down, decreases when stability is restored
-7. KNOWLEDGE GRAPH:
-   - Update relationships when NPCs interact meaningfully
-   - Track alliances, enmities, and connections between entities
-   - Only update when relationships meaningfully change
-8. NARRATION:
-   - After tool execution, narrate the consequences naturally
-   - Incorporate state changes into your description seamlessly
-   - Keep narrative engaging and responsive to player choices
-   - You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations
-9. TOOL USAGE GUIDELINES:
-   - Use tools thoughtfully, not automatically
-   - Each tool call should represent a meaningful change
-   - Don't call tools just because you can - ensure they add value
-   - If a tool call doesn't make sense, skip it and just narrate
-
-${
-  isEmptyInitialMessage
-    ? `OPENING SCENE INSTRUCTIONS:
-This is the beginning of the campaign. You must create an engaging opening scene that:
-- Introduces the setting and atmosphere based on the universe and campaign genres
-- Establishes the character's current situation and location
-- Incorporates elements from the character's backstory naturally
-- References the active fronts and quest threads from the campaign state
-- Sets up the first decision point or action prompt for the player
-- Uses rich, descriptive language with markdown formatting (use **bold** for emphasis, *italic* for thoughts, etc.)
-- Ends with a clear prompt asking what the player wants to do next
-
-Make this opening scene immersive and compelling. Set the tone for the adventure ahead.`
-    : ""
-}
-
-IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.`;
-
-    // Create tools with state context
-    let toolsWithState: ReturnType<typeof createGameMasterTools>;
-    try {
-      toolsWithState = createGameMasterTools(
-        validatedState as Parameters<typeof createGameMasterTools>[0]
-      );
-
-      // Validate tools object structure
-      if (!toolsWithState || typeof toolsWithState !== "object") {
-        throw new Error("Tools object is invalid");
-      }
-
-      // Ensure all expected tools exist
-      const requiredTools = [
-        "updateNarrativeVector",
-        "manageRelationship",
-        "advanceFront",
-        "createQuest",
-        "logEvent",
-        "requestSkillCheck",
-      ];
-      for (const toolName of requiredTools) {
-        if (!(toolName in toolsWithState)) {
-          throw new Error(`Missing required tool: ${toolName}`);
-        }
-      }
-    } catch (error) {
-      console.error("[API] Error creating tools:", error);
-      return new Response(
-        `Error creating game tools: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-        { status: 500 }
-      );
-    }
-
-    // Validate and sanitize messages before conversion.
-    // AI SDK v6 messages can have 'content', 'parts', or both.
-    // Providers like xAI require that each message has at least one content element,
-    // so we drop messages that are effectively empty (no meaningful content or parts).
-    // Deduplicate tool results by toolCallId to prevent OpenAI duplicate ID errors.
-    // When addToolOutput updates messages, the same tool result can appear multiple times.
-    const seenToolCallIds = new Set<string>();
-
-    const sanitizedMessages = typedMessages
-      .filter((msg): msg is UIMessage => {
-        if (!msg || typeof msg !== "object") {
-          return false;
-        }
-        if (!("role" in msg)) {
-          return false;
+        // Persist user message if it was meaningful
+        const lastUserMessage = findLastMeaningfulUserMessage(incomingMessages);
+        if (lastUserMessage) {
+          await persistMessage(run.id, lastUserMessage);
         }
 
-        const rawContent =
-          "content" in msg ? (msg as { content?: unknown }).content : undefined;
-        const hasContent =
-          typeof rawContent === "string"
-            ? rawContent.trim().length > 0
-            : Array.isArray(rawContent)
-            ? rawContent.length > 0
-            : false;
+        // Persist assistant message with tool calls/results
+        await persistAssistantMessage(run.id, result);
 
-        const rawParts = "parts" in msg ? msg.parts : undefined;
-        // Treat any non-empty parts array as meaningful content. This ensures that
-        // tool calls and tool results (which often have no text content) are kept
-        // in the conversation history so HITL flows continue to work correctly.
-        const hasParts = Array.isArray(rawParts) && rawParts.length > 0;
+        // Update campaign state if modified
+        if (gma.hasStateChanged(run.state)) {
+          console.log("[API] Campaign state modified, persisting changes");
+          await db
+            .update(runs)
+            .set({
+              state: campaignState,
+              updatedAt: new Date(),
+            })
+            .where(eq(runs.id, run.id));
 
-        if (!hasContent && !hasParts) {
-          console.warn("[API] Dropping empty message before model call:", msg);
-          return false;
-        }
-
-        return true;
-      })
-      .map((msg) => {
-        // Deduplicate tool-result parts by toolCallId
-        // Each tool call should only have one result in the conversation
-        if (msg.parts && Array.isArray(msg.parts)) {
-          const deduplicatedParts = msg.parts.filter((part: unknown) => {
-            if (
-              typeof part === "object" &&
-              part !== null &&
-              "type" in part &&
-              part.type === "tool-result"
-            ) {
-              const toolResult = part as { toolCallId?: string };
-              if (
-                toolResult.toolCallId &&
-                typeof toolResult.toolCallId === "string"
-              ) {
-                if (seenToolCallIds.has(toolResult.toolCallId)) {
-                  console.warn(
-                    "[API] Dropping duplicate tool result for toolCallId:",
-                    toolResult.toolCallId
-                  );
-                  return false;
-                }
-                seenToolCallIds.add(toolResult.toolCallId);
-              }
-            }
-            return true;
-          });
-
-          if (deduplicatedParts.length !== msg.parts.length) {
-            return {
-              ...msg,
-              parts: deduplicatedParts,
-            };
-          }
-        }
-        return msg;
-      });
-
-    // Save user message upfront (before streaming) to ensure persistence
-    // Reuse lastUserMessage that was already declared above
-    if (lastUserMessage && !isEmptyInitialMessage) {
-      // Handle both content and parts formats
-      const userContent =
-        "content" in lastUserMessage
-          ? (lastUserMessage as { content?: unknown }).content
-          : undefined;
-      const userParts = lastUserMessage.parts;
-
-      // Check if message has meaningful content
-      const hasContent =
-        typeof userContent === "string"
-          ? userContent.trim().length > 0
-          : Array.isArray(userContent)
-          ? userContent.length > 0
-          : false;
-
-      const hasParts =
-        Array.isArray(userParts) &&
-        userParts.length > 0 &&
-        userParts.some((part: unknown) => {
-          if (typeof part === "object" && part !== null && "type" in part) {
-            if (
-              "text" in part &&
-              typeof (part as { text: unknown }).text === "string"
-            ) {
-              return (part as { text: string }).text.trim().length > 0;
-            }
-            return true; // Non-text parts are considered content
-          }
-          return false;
-        });
-
-      if (hasContent || hasParts) {
-        try {
-          const userMessageData = {
-            content: userContent,
-            parts: userParts || undefined,
-          };
-          await db.insert(messages).values({
-            runId: run.id,
-            role: "user",
-            content: userMessageData as unknown,
-          });
-        } catch (error) {
-          console.error("[API] Error saving user message upfront:", error);
-          // Continue even if saving fails - don't block the stream
-        }
-      }
-    }
-
-    // Save assistant messages from incoming messages that have tool output
-    // (These come from the client after addToolOutput updates them with output)
-    // This ensures tool results with output are persisted correctly
-    for (const msg of typedMessages) {
-      if (msg.role === "assistant" && msg.parts) {
-        // Check if this message has tool parts with output-available state
-        const toolPartsWithOutput = msg.parts.filter((part: unknown) => {
-          if (
-            typeof part === "object" &&
-            part !== null &&
-            "type" in part &&
-            ("state" in part || "output" in part)
-          ) {
-            const typedPart = part as {
-              type?: string;
-              state?: string;
-              output?: unknown;
-              toolCallId?: string;
-            };
-            // Check for tool parts with output (HITL tool results)
-            return (
-              (typedPart.state === "output-available" ||
-                typedPart.state === "result") &&
-              typedPart.output !== undefined &&
-              typedPart.toolCallId
-            );
-          }
-          return false;
-        });
-
-        if (toolPartsWithOutput.length > 0) {
-          try {
-            // Extract toolCallIds from tool parts with output
-            const toolCallIds = toolPartsWithOutput
-              .map((part: unknown) => {
-                const typedPart = part as { toolCallId?: string };
-                return typedPart.toolCallId;
-              })
-              .filter((id): id is string => typeof id === "string");
-
-            // Find existing messages that contain these toolCallIds
-            const existingMessages = await db
-              .select()
-              .from(messages)
-              .where(
-                and(eq(messages.runId, run.id), eq(messages.role, "assistant"))
-              );
-
-            // Check if any existing message has matching toolCallIds
-            let messageUpdated = false;
-            for (const existingMsg of existingMessages) {
-              const existingContent = existingMsg.content as
-                | { parts?: unknown[] }
-                | null
-                | undefined;
-              const existingParts = Array.isArray(existingContent?.parts)
-                ? existingContent.parts
-                : [];
-
-              const hasMatchingToolCall = existingParts.some(
-                (part: unknown) => {
-                  if (
-                    typeof part === "object" &&
-                    part !== null &&
-                    "toolCallId" in part
-                  ) {
-                    const typedPart = part as { toolCallId?: string };
-                    return (
-                      typedPart.toolCallId &&
-                      toolCallIds.includes(typedPart.toolCallId)
-                    );
-                  }
-                  return false;
-                }
-              );
-
-              if (hasMatchingToolCall) {
-                // Update existing message with tool output
-                const assistantMessageData = {
-                  content: "content" in msg ? msg.content : undefined,
-                  parts: msg.parts,
-                };
-                await db
-                  .update(messages)
-                  .set({
-                    content: assistantMessageData as unknown,
-                  })
-                  .where(eq(messages.id, existingMsg.id));
-                messageUpdated = true;
-                break;
-              }
-            }
-
-            // If no existing message was found, insert new one
-            if (!messageUpdated) {
-              const assistantMessageData = {
-                content: "content" in msg ? msg.content : undefined,
-                parts: msg.parts,
-              };
-              await db.insert(messages).values({
-                runId: run.id,
-                role: "assistant",
-                content: assistantMessageData as unknown,
-              });
-            }
-          } catch (error) {
-            console.error(
-              "[API] Error saving assistant message with tool output:",
-              error
-            );
-            // Continue even if saving fails - don't block the stream
-          }
-        }
-      }
-    }
-
-    const stream = createUIMessageStream({
-      originalMessages: sanitizedMessages, // Use sanitized (deduplicated) messages for consistency
-      execute: async ({ writer }) => {
-        try {
-          // Convert messages safely
-          let modelMessages: ReturnType<typeof convertToModelMessages>;
-          try {
-            modelMessages = convertToModelMessages(sanitizedMessages);
-          } catch (error) {
-            console.error("[API] Error converting messages:", error);
-            throw new Error(
-              `Message conversion failed: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`
-            );
-          }
-          console.log("[API] Starting streamText with model:", MODEL_NAME);
-          const result = streamText({
-            model: openrouter.chat(MODEL_NAME),
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...modelMessages,
-            ],
-            tools: toolsWithState,
-            stopWhen: stepCountIs(5), // Allow up to 5 tool/thought steps before stopping
-            onFinish: async ({ text, toolCalls, toolResults }) => {
-              console.log("[API] streamText.onFinish called", {
-                hasText: !!text,
-                textLength: text?.length || 0,
-                toolCallsCount: toolCalls?.length || 0,
-                toolResultsCount: toolResults?.length || 0,
-              });
-              try {
-                // Save assistant message using the text and tool calls from onFinish
-                // Note: For HITL tools like requestSkillCheck, tool output comes from the client
-                // via addToolOutput and will be saved/updated when the client sends the next message.
-                // We save the message here without tool output, then update it later when tool output arrives.
-                const parts: unknown[] = [];
-                if (text) {
-                  parts.push({
-                    type: "text",
-                    text,
-                  });
-                }
-                if (toolCalls) {
-                  for (const toolCall of toolCalls) {
-                    parts.push({
-                      type: "tool-call",
-                      toolCallId: toolCall.toolCallId,
-                      toolName: toolCall.toolName,
-                    });
-                  }
-                }
-                if (toolResults) {
-                  for (const toolResult of toolResults) {
-                    // For server-executed tools, include result if available
-                    const typedResult = toolResult as {
-                      toolCallId: string;
-                      result?: unknown;
-                    };
-                    parts.push({
-                      type: "tool-result",
-                      toolCallId: typedResult.toolCallId,
-                      result: typedResult.result,
-                    });
-                  }
-                }
-
-                const assistantMessageData = {
-                  content: text || "",
-                  parts: parts.length > 0 ? parts : undefined,
-                };
-
-                await db.insert(messages).values({
-                  runId: run.id,
-                  role: "assistant",
-                  content: assistantMessageData as unknown,
-                });
-
-                // Check if any tools modified state (excluding requestSkillCheck)
-                // Tools mutate validatedState directly, so we need to save it if any non-HITL tools were called
-                let stateUpdated = false;
-                if (toolCalls && toolCalls.length > 0) {
-                  for (const toolCall of toolCalls) {
-                    if (toolCall.toolName !== "requestSkillCheck") {
-                      stateUpdated = true;
-                      break;
-                    }
-                  }
-                }
-
-                // Persist updated state if tools modified it
-                // validatedState is mutated in-place by tools, so we save the same reference
-                if (stateUpdated) {
-                  try {
-                    // Deep clone to ensure we're saving a clean copy
-                    const stateToSave = JSON.parse(
-                      JSON.stringify(validatedState)
-                    ) as CampaignState;
-                    await db
-                      .update(runs)
-                      .set({
-                        state: stateToSave,
-                        updatedAt: new Date(),
-                      })
-                      .where(eq(runs.id, run.id));
-                    console.log(
-                      "[API] State updated successfully after tool execution"
-                    );
-                  } catch (error) {
-                    console.error("[API] Error saving updated state:", error);
-                    // Don't throw - allow message to be saved even if state save fails
-                  }
-                }
-              } catch (error) {
-                console.error("[API] Error in streamText.onFinish:", error);
-                console.error(
-                  "[API] Error stack:",
-                  error instanceof Error ? error.stack : "No stack trace"
-                );
-                // Don't throw - allow the stream to complete even if saving fails
-              }
-            },
-          });
-
-          console.log("[API] Merging stream result into writer");
-          await writer.merge(
-            result.toUIMessageStream({ originalMessages: sanitizedMessages })
+          // Trigger background Campaign Manager Agent for state reconciliation
+          await triggerBackgroundStateReconciliation(
+            run,
+            character,
+            campaign,
+            universe,
+            campaignState,
+            processedMessages
           );
-          console.log("[API] Stream merge completed");
-        } catch (error) {
-          console.error("[API] Error in stream execution:", error);
-          console.error(
-            "[API] Error stack:",
-            error instanceof Error ? error.stack : "No stack trace"
-          );
-          throw error;
         }
+
+        // Log completion metrics
+        console.log("[API] Chat turn completed", {
+          runId,
+          hasStateChanges: gma.hasStateChanged(run.state),
+          messageCount: result.messages?.length || 0,
+        });
       },
     });
 
-    // Simplified: messages are now saved in streamText.onFinish and upfront for user messages
-    return createUIMessageStreamResponse({ stream });
+    return response;
   } catch (error) {
-    console.error("[API] Unhandled error in POST handler:", error);
-    console.error(
-      "[API] Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
+    console.error("[API] Unexpected error:", error);
+    return new Response("Internal server error", { status: 500 });
+  }
+}
+
+/**
+ * Prepare messages for model processing by filtering out empty messages
+ * and converting to the format expected by the model
+ */
+function prepareMessagesForModel(messages: UIMessage[]): UIMessage[] {
+  return messages.filter((msg) => {
+    // Drop messages that have no non-empty parts
+    return Array.isArray(msg.parts) && msg.parts.length > 0;
+  });
+}
+
+/**
+ * Check if the incoming messages represent an empty initial message
+ */
+function checkForEmptyInitialMessage(messages: UIMessage[]): boolean {
+  if (messages.length === 0) return true;
+
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage.role !== "user") return false;
+
+  // Check for empty text parts
+  if (Array.isArray(lastMessage.parts)) {
+    const hasOnlyEmptyText = lastMessage.parts.every((part) => {
+      return (
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        "text" in part &&
+        typeof (part as { text: unknown }).text === "string" &&
+        (part as { text: string }).text.trim() === ""
+      );
+    });
+    if (hasOnlyEmptyText) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Find the last meaningful user message from incoming messages
+ */
+function findLastMeaningfulUserMessage(
+  messages: UIMessage[]
+): UIMessage | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === "user") {
+      // Check if it has non-empty parts
+      if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+        return msg;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Persist a message to the database
+ */
+async function persistMessage(
+  runId: string,
+  message: UIMessage
+): Promise<void> {
+  await db.insert(messages).values({
+    runId,
+    role: message.role,
+    content: message.parts || [],
+  });
+}
+
+/**
+ * Persist assistant messages with tool outputs from incoming messages
+ * This handles HITL tool results added via addToolOutput (immutable pattern)
+ */
+async function persistAssistantMessagesWithToolOutputs(
+  incomingMessages: UIMessage[],
+  runId: string
+): Promise<void> {
+  for (const msg of incomingMessages) {
+    if (msg.role !== "assistant" || !msg.parts || !Array.isArray(msg.parts)) {
+      continue;
+    }
+
+    // Check if this message has tool parts with output-available state
+    const hasToolOutput = msg.parts.some((part) => {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        !Array.isArray(part) &&
+        "type" in part &&
+        "toolCallId" in part
+      ) {
+        const typedPart = part as {
+          type?: string;
+          state?: string;
+          output?: unknown;
+          toolCallId?: string;
+        };
+
+        // Check for tool parts with output (HITL tool results)
+        return (
+          (typedPart.state === "output-available" ||
+            typedPart.state === "result") &&
+          typedPart.output !== undefined &&
+          typeof typedPart.toolCallId === "string"
+        );
+      }
+      return false;
+    });
+
+    if (hasToolOutput) {
+      try {
+        // Insert as new message (immutable pattern - don't update existing)
+        await persistMessage(runId, msg);
+      } catch (error) {
+        console.error(
+          "[API] Error persisting assistant message with tool output:",
+          error
+        );
+        // Continue even if saving fails - don't block the stream
+      }
+    }
+  }
+}
+
+/**
+ * Persist assistant message with tool calls and results
+ */
+async function persistAssistantMessage(
+  runId: string,
+  result: { messages?: UIMessage[] }
+): Promise<void> {
+  if (!result.messages || result.messages.length === 0) return;
+
+  // The result should contain the final assistant message with all parts
+  const assistantMessage = result.messages[result.messages.length - 1];
+  if (assistantMessage?.role === "assistant") {
+    await persistMessage(runId, assistantMessage);
+  }
+}
+
+/**
+ * Trigger background state reconciliation using the Campaign Manager Agent
+ */
+async function triggerBackgroundStateReconciliation(
+  run: Run,
+  character: Character,
+  campaign: Campaign,
+  universe: Universe,
+  campaignState: CampaignState,
+  recentMessages: UIMessage[]
+): Promise<void> {
+  try {
+    console.log("[API] Starting background state reconciliation");
+
+    // Extract transcript for CMA processing
+    const transcript = extractTranscriptForProcessing(
+      recentMessages.map((msg) => ({
+        role: msg.role,
+        content: msg.parts || [],
+      }))
     );
-    return new Response(
-      `Internal server error: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`,
-      { status: 500 }
-    );
+
+    // Create Campaign Manager Agent
+    const cma = createCampaignManagerAgent({
+      runId: run.id,
+      campaign,
+      character,
+      universe,
+      campaignState,
+      transcript,
+    });
+
+    // Execute background processing (no streaming, just state mutations)
+    // Pass transcript messages to generate method (filter to valid ModelMessage roles)
+    const modelMessages = transcript
+      .filter((msg) => msg.role !== "tool") // Remove tool messages for generate call
+      .map((msg) => ({
+        role: msg.role as "system" | "user" | "assistant",
+        content: msg.content,
+      }));
+
+    const result = await cma.getAgent().generate({
+      messages: modelMessages,
+    });
+
+    // Persist any additional state changes from background processing
+    if (cma.hasStateChanged(campaignState)) {
+      console.log("[API] Background agent modified state, persisting changes");
+      await db
+        .update(runs)
+        .set({
+          state: cma.getCampaignState(),
+          updatedAt: new Date(),
+        })
+        .where(eq(runs.id, run.id));
+    }
+
+    console.log("[API] Background state reconciliation completed", {
+      toolCalls: result.toolCalls?.length || 0,
+      stateChanged: cma.hasStateChanged(campaignState),
+    });
+  } catch (error) {
+    console.error("[API] Background state reconciliation failed:", error);
+    // Don't fail the main request if background processing fails
   }
 }

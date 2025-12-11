@@ -83,77 +83,17 @@ export default async function PlayPage({ params }: PlayPageProps) {
     .orderBy(asc(messages.createdAt))
     .limit(100);
 
-  // Convert to AI SDK UIMessage format - reconstruct full message structure
-  // UIMessage is the format expected by useChat hook for display
+  // Convert to AI SDK v6 UIMessage format - parts-only approach
+  // In AI SDK v6, messages use parts array directly (stored in content JSONB field)
   const uiMessages: UIMessage[] = messageHistory.map((msg) => {
-    // msg.content is stored as JSONB with potentially both content and parts
-    const contentData = msg.content as
-      | { content?: unknown; parts?: unknown[] }
-      | string
-      | unknown[]
-      | null
-      | undefined;
+    // msg.content is stored as JSONB array of parts in AI SDK v6 format
+    const contentData = msg.content as unknown[] | null | undefined;
 
-    // Handle different storage formats
-    let content: string | unknown[] | undefined;
+    // Validate and extract parts array
     let parts: unknown[] | undefined;
-
-    // Check if contentData is an object with content/parts structure
-    if (
-      typeof contentData === "object" &&
-      contentData !== null &&
-      !Array.isArray(contentData) &&
-      ("content" in contentData || "parts" in contentData)
-    ) {
-      // New format: { content: ..., parts: ... }
-      const dataObj = contentData as {
-        content?: unknown;
-        parts?: unknown[];
-      };
-
-      const rawContent = dataObj.content;
-      if (typeof rawContent === "string") {
-        content = rawContent;
-      } else if (Array.isArray(rawContent)) {
-        content = rawContent;
-      } else {
-        content = undefined;
-      }
-
-      parts = Array.isArray(dataObj.parts) ? dataObj.parts : undefined;
-    } else if (Array.isArray(contentData)) {
-      // Legacy format: array (treated as content)
-      content = contentData;
-      parts = undefined;
-    } else if (typeof contentData === "string") {
-      // Legacy format: string content
-      content = contentData;
-      parts = undefined;
-    } else {
-      // Null, undefined, or unknown format
-      content = undefined;
-      parts = undefined;
-    }
-
-    // Build UIMessage with proper structure
-    // Ensure message has required fields: id, role, and either content or parts
-    // UIMessage only supports system, user, and assistant roles. Map any other
-    // stored roles (e.g. \"tool\", \"data\") to \"assistant\" for safe display.
-    const baseRole =
-      msg.role === "system" || msg.role === "user" || msg.role === "assistant"
-        ? msg.role
-        : "assistant";
-
-    const message: Record<string, unknown> = {
-      id: msg.id,
-      role: baseRole,
-    };
-
-    // Priority: parts > meaningful content
-    // If parts exist and are valid, use them (even if content is empty string)
-    if (parts && Array.isArray(parts) && parts.length > 0) {
+    if (Array.isArray(contentData) && contentData.length > 0) {
       // Validate parts structure - ensure each part is an object with a type
-      const validParts = parts.filter(
+      const validParts = contentData.filter(
         (part): part is Record<string, unknown> =>
           typeof part === "object" &&
           part !== null &&
@@ -163,48 +103,28 @@ export default async function PlayPage({ params }: PlayPageProps) {
       );
 
       if (validParts.length > 0) {
-        message.parts = validParts as UIMessage["parts"];
-        // Only set content if it's a meaningful string (not empty)
-        // Parts take priority, so content is optional when parts exist
-        if (
-          content !== undefined &&
-          content !== null &&
-          typeof content === "string" &&
-          content.trim().length > 0
-        ) {
-          message.content = content;
-        } else if (Array.isArray(content) && content.length > 0) {
-          message.content = content;
-        }
-        // If we have valid parts, we don't need to set empty content
-        return message as unknown as UIMessage;
+        parts = validParts;
       }
     }
 
-    // If no valid parts, handle content
-    if (content !== undefined && content !== null) {
-      if (typeof content === "string") {
-        // For strings, only set if non-empty (after trimming)
-        // Empty strings will be filtered out by the chat interface
-        if (content.trim().length > 0) {
-          message.content = content;
-        }
-        // Don't set empty string content - let the message have no content
-        // This prevents messages from being incorrectly filtered
-      } else if (Array.isArray(content) && content.length > 0) {
-        message.content = content;
-      }
-    }
+    // Map role to valid UIMessage role
+    const baseRole =
+      msg.role === "system" || msg.role === "user" || msg.role === "assistant"
+        ? msg.role
+        : "assistant";
 
-    // Ensure message has either content or parts (required by UIMessage)
-    // If neither exists, set empty content to maintain message structure
-    // but note that empty content messages may be filtered by the UI
-    if (!message.parts && !message.content) {
-      message.content = "";
-    }
+    // Build UIMessage with parts (AI SDK v6 format)
+    const message: UIMessage = {
+      id: msg.id,
+      role: baseRole,
+      parts: parts as UIMessage["parts"],
+    };
 
-    return message as unknown as UIMessage;
+    return message;
   });
+
+  // Deduplicate tool parts by toolCallId across all messages - keep output version, remove input-only version
+  const deduplicatedMessages = deduplicateToolPartsAcrossMessages(uiMessages);
 
   return (
     <GamePlayClient
@@ -212,7 +132,143 @@ export default async function PlayPage({ params }: PlayPageProps) {
       character={character}
       campaign={campaign}
       universe={universe}
-      messages={uiMessages}
+      messages={deduplicatedMessages}
     />
   );
+}
+
+/**
+ * Deduplicate tool parts by toolCallId across all messages
+ * If tool parts with the same toolCallId exist across messages, keep the one with output
+ * and remove the ones with only input (immutable pattern - messages may have duplicates)
+ */
+function deduplicateToolPartsAcrossMessages(
+  messages: UIMessage[]
+): UIMessage[] {
+  // First pass: collect all tool parts by toolCallId across all messages
+  const toolPartsByCallId = new Map<string, unknown[]>();
+
+  for (const message of messages) {
+    if (
+      message.role !== "assistant" ||
+      !message.parts ||
+      !Array.isArray(message.parts)
+    ) {
+      continue;
+    }
+
+    for (const part of message.parts) {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        !Array.isArray(part) &&
+        "type" in part &&
+        "toolCallId" in part
+      ) {
+        const typedPart = part as { toolCallId?: string };
+        const toolCallId = typedPart.toolCallId;
+
+        if (typeof toolCallId === "string" && toolCallId.length > 0) {
+          if (!toolPartsByCallId.has(toolCallId)) {
+            toolPartsByCallId.set(toolCallId, []);
+          }
+          toolPartsByCallId.get(toolCallId)?.push(part);
+        }
+      }
+    }
+  }
+
+  // Determine which toolCallIds have output
+  const toolCallIdsWithOutput = new Set<string>();
+  for (const [toolCallId, parts] of toolPartsByCallId.entries()) {
+    const hasOutput = parts.some((part) => {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        !Array.isArray(part) &&
+        ("output" in part || "result" in part)
+      ) {
+        const typedPart = part as {
+          state?: string;
+          output?: unknown;
+          result?: unknown;
+        };
+        return (
+          (typedPart.state === "output-available" ||
+            typedPart.state === "result") &&
+          (typedPart.output !== undefined || typedPart.result !== undefined)
+        );
+      }
+      return false;
+    });
+
+    if (hasOutput) {
+      toolCallIdsWithOutput.add(toolCallId);
+    }
+  }
+
+  // Second pass: filter out tool parts with only input if output exists
+  return messages.map((message) => {
+    if (
+      message.role !== "assistant" ||
+      !message.parts ||
+      !Array.isArray(message.parts)
+    ) {
+      return message;
+    }
+
+    const filteredParts = message.parts.filter((part) => {
+      // Keep non-tool parts
+      if (
+        typeof part !== "object" ||
+        part === null ||
+        Array.isArray(part) ||
+        !("type" in part) ||
+        !("toolCallId" in part)
+      ) {
+        return true;
+      }
+
+      const typedPart = part as { toolCallId?: string };
+      const toolCallId = typedPart.toolCallId;
+
+      // Keep tool parts without valid toolCallId
+      if (typeof toolCallId !== "string" || toolCallId.length === 0) {
+        return true;
+      }
+
+      // If this toolCallId has an output version, remove input-only versions
+      if (toolCallIdsWithOutput.has(toolCallId)) {
+        // Check if this part has output
+        const hasOutput =
+          ("output" in part || "result" in part) &&
+          typeof part === "object" &&
+          part !== null &&
+          !Array.isArray(part);
+        if (hasOutput) {
+          const typedPartWithState = part as {
+            state?: string;
+            output?: unknown;
+            result?: unknown;
+          };
+          return (
+            (typedPartWithState.state === "output-available" ||
+              typedPartWithState.state === "result") &&
+            (typedPartWithState.output !== undefined ||
+              typedPartWithState.result !== undefined)
+          );
+        }
+        // This is an input-only part for a toolCallId that has output - remove it
+        return false;
+      }
+
+      // ToolCallId doesn't have output yet - keep this part
+      return true;
+    });
+
+    return {
+      ...message,
+      parts: filteredParts as UIMessage["parts"],
+    };
+  });
 }

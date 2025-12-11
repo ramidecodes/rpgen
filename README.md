@@ -43,7 +43,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 
 ## Features
 
-Feature requirements are located in `docs/features/`.
+Feature requirements are located in `docs/features/` (new FRED: `docs/features/chat-agent-v6-refactor.md` for the AI SDK v6 chat refactor).
 
 ### 1. Universe Generation (Ontology)
 
@@ -77,7 +77,7 @@ Campaigns are the "Play Session" of a Character in a Universe.
 - **Narrative**: AI streams descriptive text.
 - **Action**: Player types flexible actions.
 - **Visuals**: (Planned) Generative images for scenes.
-- **GMA Integration**: The AI reads the Campaign State and uses **Tools** to update the Graph dynamically.
+- **Agentic Chat (AI SDK v6)**: The Game Master uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks and world-state tools; an optional background state agent can reconcile campaign data without user-facing text.
 
 ## License
 

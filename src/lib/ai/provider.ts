@@ -26,8 +26,8 @@ export type ModelRegistry = {
 
 const TEXT_MODELS: TextModelRegistry = {
   free: "mistralai/mistral-small-3.1-24b-instruct:free",
-  base: "openai/gpt-5-nano",
-  reasoning: "openai/gpt-5-nano",
+  base: "x-ai/grok-4.1-fast",
+  reasoning: "x-ai/grok-4.1-fast",
 };
 
 const IMAGE_MODELS: ImageModelRegistry = {
