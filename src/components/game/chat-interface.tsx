@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SkillCheckInteractive } from "@/components/game/skill-check-interactive";
+import { SkillCheckResult } from "@/components/game/skill-check-result";
 import { useGameStore } from "@/lib/store/game-store";
 import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
 import type { UIMessage } from "ai";
@@ -237,79 +238,58 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                         ).result
                       : undefined;
 
-                  let summaryMessage: string | null = null;
                   let detailMeta: {
                     rollValue?: number;
                     statValue?: number;
                     total?: number;
                     difficulty?: number;
                     success?: boolean;
+                    attribute?: string;
                   } = {};
 
-                  if (
-                    rawResult &&
-                    typeof rawResult === "object" &&
-                    "message" in rawResult &&
-                    typeof (rawResult as { message?: unknown }).message ===
-                      "string"
-                  ) {
+                  if (rawResult && typeof rawResult === "object") {
                     const typedResult = rawResult as {
-                      message?: string;
                       rollValue?: number;
                       statValue?: number;
                       total?: number;
                       difficulty?: number;
                       success?: boolean;
+                      attribute?: string;
                     };
-                    summaryMessage = typedResult.message ?? null;
                     detailMeta = {
                       rollValue: typedResult.rollValue,
                       statValue: typedResult.statValue,
                       total: typedResult.total,
                       difficulty: typedResult.difficulty,
                       success: typedResult.success,
+                      attribute: typedResult.attribute,
                     };
                   }
 
-                  if (summaryMessage) {
+                  // Render result if we have all required data
+                  if (
+                    detailMeta.rollValue !== undefined &&
+                    detailMeta.statValue !== undefined &&
+                    detailMeta.total !== undefined &&
+                    detailMeta.difficulty !== undefined &&
+                    detailMeta.success !== undefined &&
+                    detailMeta.attribute
+                  ) {
                     return (
                       <div
                         key={`${message.id}-skill-check-result-${
                           skillCheckPart.toolCallId ?? "pending"
                         }`}
-                        className="mt-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs text-primary-foreground/90"
+                        className="mt-2"
                       >
-                        <div className="font-semibold text-primary mb-1">
-                          Skill Check Result
-                        </div>
-                        <div className="text-muted-foreground">
-                          {summaryMessage}
-                        </div>
-                        {(detailMeta.rollValue !== undefined ||
-                          detailMeta.statValue !== undefined ||
-                          detailMeta.total !== undefined ||
-                          detailMeta.difficulty !== undefined) && (
-                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground/80">
-                            {detailMeta.rollValue !== undefined && (
-                              <span>Roll: {detailMeta.rollValue}</span>
-                            )}
-                            {detailMeta.statValue !== undefined && (
-                              <span>Stat: {detailMeta.statValue}</span>
-                            )}
-                            {detailMeta.total !== undefined && (
-                              <span>Total: {detailMeta.total}</span>
-                            )}
-                            {detailMeta.difficulty !== undefined && (
-                              <span>DC: {detailMeta.difficulty}</span>
-                            )}
-                            {detailMeta.success !== undefined && (
-                              <span>
-                                Outcome:{" "}
-                                {detailMeta.success ? "Success" : "Failure"}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <SkillCheckResult
+                          rollValue={detailMeta.rollValue}
+                          statValue={detailMeta.statValue}
+                          total={detailMeta.total}
+                          difficulty={detailMeta.difficulty}
+                          success={detailMeta.success}
+                          attribute={detailMeta.attribute}
+                        />
                       </div>
                     );
                   }
