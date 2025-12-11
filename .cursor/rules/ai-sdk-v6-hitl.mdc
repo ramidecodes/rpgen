@@ -26,8 +26,13 @@ Do **not** apply this rule for completely unrelated features (e.g., layout, hero
 - **Use AI SDK v6 UI types**:
   - Prefer `UIMessage` / `UIMessagePart` and `createUIMessageStream` for UI-centric flows.
   - Treat `UIMessage` as the source of truth for what the client renders.
+- **Agents**:
+
+  - Prefer `ToolLoopAgent` (AI SDK v6) for the Game Master; use `stopWhen`/`prepareStep` to limit tool spam and phase tools.
+  - Consider a background Campaign State Agent for reconciliation-only runs (no HITL, no narration) if splitting responsibilities.
 
 - **HITL tool pattern** (e.g. `requestSkillCheck`):
+
   - Tool UI parts use:
     - `state: "input-available"` for tool arguments awaiting user action.
     - `state: "output-available"` for tool results provided by the user.
@@ -102,6 +107,7 @@ addToolOutput({
 ### 3. Rendering in ChatInterface
 
 - **Input state** (`state === "input-available"`):
+
   - Use `SkillCheckInteractive` with `input.attribute`, `input.difficulty`, `input.reason`.
   - Only render when the input structure is valid (types/values checked).
 
@@ -117,10 +123,10 @@ const rawResult =
     : undefined;
 ```
 
-  - Only render the result card when:
-    - `rawResult` is an object.
-    - It has a string `message` field.
-  - Extract and display structured fields (roll, stat, total, difficulty, success) with defensive type checks.
+- Only render the result card when:
+  - `rawResult` is an object.
+  - It has a string `message` field.
+- Extract and display structured fields (roll, stat, total, difficulty, success) with defensive type checks.
 
 ---
 
@@ -174,6 +180,7 @@ typedMessages.push({
 ### 5. Persisting Messages
 
 - **User messages**:
+
   - Save the last meaningful user message **before** streaming, with:
     - `content`: original `content` (if present).
     - `parts`: original `parts` (if present).
@@ -231,4 +238,3 @@ When modifying any of the above:
   - After refreshing `runs/[id]/play`:
     - The skill check **result card** renders with the same summary and metadata (roll, stat, total, DC, success).
 - Ensure `pnpm lint` passes on all touched files.
-

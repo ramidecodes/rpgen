@@ -46,7 +46,7 @@ flowchart TB
     %% AI Services Boundary
     subgraph AIServices["AI Services"]
         direction TB
-        AISDK["AI SDK (v5)<br/>Vercel AI SDK<br/><i>Orchestrates LLM inference<br/>with multi-step reasoning (maxSteps)<br/>and structured tool outputs</i>"]
+        AISDK["AI SDK (v6)<br/>Vercel AI SDK<br/><i>Orchestrates LLM inference<br/>with ToolLoopAgent loops<br/>and structured tool outputs</i>"]
         LLM["LLM Provider<br/>OpenRouter<br/><i>Game Master Agent,<br/>Campaign Crafter, Scribe</i>"]
         ImageGen["Image Generation<br/>Replicate<br/><i>Visual scene rendering</i>"]
         AISDK --> LLM
@@ -92,7 +92,7 @@ flowchart TB
 
 - Next.js (Vercel) — React-based framework for UI, routing, server actions, and ISR.
 - TypeScript — typed, safer frontend + backend logic.
-- AI SDK (Vercel) — unified interface for chat UI + LLM inference with **streaming responses**, **multi-step tool calling** (`maxSteps`), and **object generation** (`generateObject`).
+- AI SDK v6 (Vercel) — unified interface for chat UI + LLM inference with **streaming responses**, **ToolLoopAgent** tool-calling loops (`stopWhen`, `prepareStep`), and **object generation** (`generateObject`).
 
 **Authentication**
 
@@ -127,11 +127,12 @@ flowchart TB
 
 **AI Layer**
 
-- AI SDK — orchestration of inference flows with **streaming responses** to immediately display LLM output to players as tokens are generated.
+- AI SDK v6 — orchestration of inference flows with **streaming responses** to immediately display LLM output to players as tokens are generated, plus ToolLoopAgent for iterative tool calls.
 - OpenRouter — LLM provider routing for:
-  - Game Master Agent
+  - Game Master Agent (interactive, HITL skill checks)
   - Campaign Crafter Agent
   - Scribe Agent
+  - Optional background Campaign State Agent (state reconciliation without UI text)
 - Replicate — image/multimedia models for visual rendering.
 
 ---
@@ -145,7 +146,7 @@ flowchart TB
 3. Next.js API hands off the command to:
    - Game Master Agent (LLM) using OpenRouter
    - Dice roll resolver inside API layer
-4. GMA transforms action → events → world changes.
+4. GMA transforms action → events → world changes via `ToolLoopAgent`; may hand off state reconciliation to a background Campaign State Agent post-turn.
    - **LLM responses are streamed** (via AI SDK) to the UI, allowing players to see the story appear in real-time as tokens are generated.
 5. Next.js stores new campaign state in Neon.
 6. Scene generator triggers a Replicate model → saves output to R2.

@@ -122,6 +122,7 @@ This document provides an overview of the project's directory structure and guid
 
 - Place agent implementations here
 - Each agent should be in its own file or directory
+- Game Master Agent uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks; consider a background Campaign State Agent for state reconciliation without user-facing narration.
 
 ### `/src/hooks`
 
