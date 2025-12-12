@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useGameStore } from "@/lib/store/game-store";
 import { useCallback, useEffect } from "react";
-import type { UIMessage } from "ai";
+import type { UIMessage } from "@/types/ui-message";
 import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
 
 type UseGameChatOptions = {

@@ -5,6 +5,7 @@ import {
   characters,
   universes,
   messages,
+  scenes,
 } from "@/lib/db/schema";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { auth } from "@clerk/nextjs/server";
@@ -12,7 +13,8 @@ import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { GamePlayClient } from "./game-play-client";
 import { getPublicUrl } from "@/lib/storage/r2";
-import type { UIMessage } from "ai";
+import type { UIMessage } from "@/types/ui-message";
+import type { Scene } from "@/lib/db/schema";
 
 interface PlayPageProps {
   params: Promise<{
@@ -67,6 +69,29 @@ export default async function PlayPage({ params }: PlayPageProps) {
     character.properties.imageUrl = await getPublicUrl(
       character.properties.imageUrl
     );
+  }
+
+  // Fetch current scene if it exists
+  let currentScene: Scene | null = null;
+  if (run.currentSceneId) {
+    const [sceneData] = await db
+      .select()
+      .from(scenes)
+      .where(eq(scenes.id, run.currentSceneId))
+      .limit(1);
+
+    if (sceneData) {
+      // Convert R2 key to public URL if needed
+      const imageUrl =
+        sceneData.imageUrl && !sceneData.imageUrl.startsWith("http")
+          ? await getPublicUrl(sceneData.imageUrl)
+          : sceneData.imageUrl;
+
+      currentScene = {
+        ...sceneData,
+        imageUrl,
+      };
+    }
   }
 
   // Load message history in chronological order (oldest first)
@@ -133,6 +158,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       campaign={campaign}
       universe={universe}
       messages={deduplicatedMessages}
+      currentScene={currentScene}
     />
   );
 }

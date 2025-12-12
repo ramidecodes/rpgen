@@ -11,7 +11,7 @@ import { SkillCheckInteractive } from "@/components/game/skill-check-interactive
 import { SkillCheckResult } from "@/components/game/skill-check-result";
 import { useGameStore } from "@/lib/store/game-store";
 import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
-import type { UIMessage } from "ai";
+import type { UIMessage } from "@/types/ui-message";
 import { D20Anime } from "@/components/hero/d20-anime";
 
 type ChatInterfaceProps = {
@@ -102,9 +102,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                typeof (error as { message?: unknown }).message === "string"
-              ? (error as { message?: string }).message ?? ""
-              : "The Game Master ran into an error. Please try again."}
+                  typeof (error as { message?: unknown }).message === "string"
+                ? ((error as { message?: string }).message ?? "")
+                : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -231,12 +231,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                      ? (
-                          skillCheckPart as {
-                            result?: unknown;
-                          }
-                        ).result
-                      : undefined;
+                        ? (
+                            skillCheckPart as {
+                              result?: unknown;
+                            }
+                          ).result
+                        : undefined;
 
                   let detailMeta: {
                     rollValue?: number;
