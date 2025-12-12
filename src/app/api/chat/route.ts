@@ -15,7 +15,12 @@ import {
   createCampaignManagerAgent,
   extractTranscriptForProcessing,
 } from "@/agents/campaign-manager";
-import type { UIMessage } from "ai";
+import {
+  createVisualEngineAgent,
+  extractCharacterAction,
+} from "@/agents/visual-engine";
+import type { UIMessage, UIMessagePart } from "@/types/ui-message";
+import { isTextUIPart } from "@/types/ui-message";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
 
@@ -172,6 +177,16 @@ export async function POST(req: Request) {
         // Persist assistant message with tool calls/results
         await persistAssistantMessage(run.id, result);
 
+        // Extract latest assistant message from result.messages
+        const latestAssistantMessage = result.messages
+          ?.filter((msg) => msg.role === "assistant")
+          .pop();
+
+        // Build complete message context including latest assistant message
+        const allRecentMessages: UIMessage[] = latestAssistantMessage
+          ? [...processedMessages, latestAssistantMessage]
+          : processedMessages;
+
         // Update campaign state if modified
         if (gma.hasStateChanged(run.state)) {
           console.log("[API] Campaign state modified, persisting changes");
@@ -184,15 +199,32 @@ export async function POST(req: Request) {
             .where(eq(runs.id, run.id));
 
           // Trigger background Campaign Manager Agent for state reconciliation
+          // (Only when state changes - correct behavior for state reconciliation)
           await triggerBackgroundStateReconciliation(
             run,
             character,
             campaign,
             universe,
             campaignState,
-            processedMessages
+            allRecentMessages
           );
         }
+
+        // Trigger Visual Engine Agent for scene generation (non-blocking)
+        // (After EVERY assistant message - needed to assess narrative changes)
+        // Fire-and-forget pattern: don't await to avoid blocking the chat response
+        triggerVisualEngineAgent(
+          run,
+          character,
+          campaign,
+          universe,
+          campaignState,
+          allRecentMessages,
+          incomingMessages
+        ).catch((error) => {
+          // Log errors but don't fail the main request
+          console.error("[API] Visual Engine Agent error (non-blocking):", error);
+        });
 
         // Log completion metrics
         console.log("[API] Chat turn completed", {
@@ -222,6 +254,43 @@ function prepareMessagesForModel(messages: UIMessage[]): UIMessage[] {
 }
 
 /**
+ * Convert UIMessage[] to CoreMessage[] format for model input
+ * Extracts text from text parts and filters non-standard parts
+ * This is needed when passing messages to ToolLoopAgent.generate() which expects CoreMessage[] with content field
+ */
+function convertUIMessagesToCoreMessages(
+  messages: UIMessage[]
+): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  return messages
+    .filter((msg) => {
+      // Only include system, user, assistant messages
+      return (
+        msg.role === "system" || msg.role === "user" || msg.role === "assistant"
+      );
+    })
+    .map((msg) => {
+      // Extract text from text parts
+      const textParts: string[] = [];
+      if (Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (isTextUIPart(part)) {
+            const text = part.text.trim();
+            if (text.length > 0) {
+              textParts.push(text);
+            }
+          }
+        }
+      }
+
+      return {
+        role: msg.role as "system" | "user" | "assistant",
+        content: textParts.join(" ").trim() || "", // Join text parts, fallback to empty string
+      };
+    })
+    .filter((msg) => msg.content.length > 0); // Remove empty messages
+}
+
+/**
  * Check if the incoming messages represent an empty initial message
  */
 function checkForEmptyInitialMessage(messages: UIMessage[]): boolean {
@@ -232,15 +301,11 @@ function checkForEmptyInitialMessage(messages: UIMessage[]): boolean {
 
   // Check for empty text parts
   if (Array.isArray(lastMessage.parts)) {
-    const hasOnlyEmptyText = lastMessage.parts.every((part) => {
-      return (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        "text" in part &&
-        typeof (part as { text: unknown }).text === "string" &&
-        (part as { text: string }).text.trim() === ""
-      );
+    const hasOnlyEmptyText = lastMessage.parts.every((part: UIMessagePart) => {
+      if (!isTextUIPart(part)) {
+        return false;
+      }
+      return part.text.trim() === "";
     });
     if (hasOnlyEmptyText) return true;
   }
@@ -415,5 +480,79 @@ async function triggerBackgroundStateReconciliation(
   } catch (error) {
     console.error("[API] Background state reconciliation failed:", error);
     // Don't fail the main request if background processing fails
+  }
+}
+
+/**
+ * Trigger Visual Engine Agent for automatic scene generation
+ */
+async function triggerVisualEngineAgent(
+  run: Run,
+  character: Character,
+  campaign: Campaign,
+  universe: Universe,
+  campaignState: CampaignState,
+  recentMessages: UIMessage[],
+  incomingMessages: UIMessage[]
+): Promise<void> {
+  try {
+    console.log("[API] Starting Visual Engine Agent for scene generation");
+
+    // Extract character action from the latest user message
+    const characterAction = extractCharacterAction(incomingMessages);
+
+    // Get current scene for comparison
+    const { db } = await import("@/lib/db");
+    const { scenes } = await import("@/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const currentScene = run.currentSceneId
+      ? await db
+          .select({
+            id: scenes.id,
+            runId: scenes.runId,
+            sceneType: scenes.sceneType,
+            imageUrl: scenes.imageUrl,
+            generationPrompt: scenes.generationPrompt,
+            narrativeContext: scenes.narrativeContext,
+            previousSceneId: scenes.previousSceneId,
+            createdAt: scenes.createdAt,
+          })
+          .from(scenes)
+          .where(eq(scenes.id, run.currentSceneId))
+          .limit(1)
+          .then((results) => results[0] || null)
+      : null;
+
+    // Create Visual Engine Agent
+    const vea = createVisualEngineAgent({
+      runId: run.id,
+      campaign,
+      character,
+      universe,
+      campaignState,
+      currentScene,
+      recentMessages,
+      characterAction,
+    });
+
+    // Extract recent messages for VEA context
+    // Convert UIMessage[] to CoreMessage[] format for model input
+    const veaMessages = convertUIMessagesToCoreMessages(
+      recentMessages.slice(-10) // Last 10 messages for context
+    );
+
+    // Execute visual engine processing (background, no streaming)
+    // runId is already bound in the tool at agent creation time
+    const result = await vea.getAgent().generate({
+      messages: veaMessages,
+    });
+
+    console.log("[API] Visual Engine Agent completed", {
+      toolCalls: result.toolCalls?.length || 0,
+    });
+  } catch (error) {
+    console.error("[API] Visual Engine Agent failed:", error);
+    // Don't fail the main request if visual processing fails
   }
 }

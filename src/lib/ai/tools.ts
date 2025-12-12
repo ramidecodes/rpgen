@@ -1,6 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
+import type { Scene } from "@/lib/db/schema";
 
 // --- Interactive Tools (HITL - Client triggers) ---
 
@@ -277,4 +280,459 @@ Use 'critical' sparingly - only for truly game-changing moments. Most events sho
     }),
     requestSkillCheck: requestSkillCheckTool, // HITL tool - no execute
   };
+}
+
+// ============================================================================
+// Visual Engine Tools
+// ============================================================================
+
+/**
+ * Decision tool to determine if a new scene should be generated
+ */
+export const shouldGenerateSceneTool = tool({
+  description: `Analyze recent narrative changes to determine if a new scene should be generated. Consider:
+- Has the scene location dramatically changed (entering a new area, city, building, etc.)?
+- Has the environment significantly changed (weather, time of day, destruction, etc.)?
+- Has the character moved to a completely different setting?
+- Is the current scene image no longer appropriate for the narrative?
+Return a boolean decision with clear reasoning.`,
+  inputSchema: z.object({
+    currentNarrative: z
+      .string()
+      .describe("Current narrative context from recent messages"),
+    previousNarrative: z
+      .string()
+      .optional()
+      .describe("Previous scene's narrative context for comparison"),
+    currentLocation: z
+      .string()
+      .optional()
+      .describe("Current location from campaign state"),
+    characterAction: z
+      .string()
+      .describe("The character's recent action or situation"),
+  }),
+  execute: async ({
+    currentNarrative,
+    previousNarrative,
+    currentLocation,
+    characterAction,
+  }: {
+    currentNarrative: string;
+    previousNarrative?: string;
+    currentLocation?: string;
+    characterAction: string;
+  }) => {
+    // Simple heuristic-based decision making
+    // In a more sophisticated implementation, this could use embeddings or ML
+
+    const reasons: string[] = [];
+
+    // Check for location changes
+    if (currentLocation) {
+      const locationKeywords = [
+        "entered",
+        "arrived",
+        "moved to",
+        "travelled to",
+        "found themselves in",
+      ];
+      const hasLocationChange = locationKeywords.some((keyword) =>
+        characterAction.toLowerCase().includes(keyword.toLowerCase())
+      );
+      if (hasLocationChange) {
+        reasons.push("Character has moved to a new location");
+      }
+    }
+
+    // Check for dramatic environmental changes
+    const environmentKeywords = [
+      "storm",
+      "fire",
+      "explosion",
+      "earthquake",
+      "flood",
+      "battlefield",
+      "destroyed",
+      "ruins",
+    ];
+    const hasEnvironmentChange = environmentKeywords.some((keyword) =>
+      currentNarrative.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (hasEnvironmentChange) {
+      reasons.push("Environment has dramatically changed");
+    }
+
+    // Check for time/setting changes
+    const timeKeywords = [
+      "dawn",
+      "sunrise",
+      "sunset",
+      "midnight",
+      "night fell",
+      "day broke",
+    ];
+    const hasTimeChange = timeKeywords.some((keyword) =>
+      currentNarrative.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (hasTimeChange) {
+      reasons.push(
+        "Time of day or lighting conditions have changed significantly"
+      );
+    }
+
+    // Compare with previous narrative if available
+    if (previousNarrative && currentNarrative !== previousNarrative) {
+      const similarity = calculateTextSimilarity(
+        currentNarrative,
+        previousNarrative
+      );
+      if (similarity < 0.3) {
+        // Low similarity threshold
+        reasons.push(
+          "Narrative context has significantly changed from previous scene"
+        );
+      }
+    }
+
+    const shouldGenerate = reasons.length > 0;
+
+    return {
+      shouldGenerate,
+      reasoning: shouldGenerate
+        ? `Scene generation recommended: ${reasons.join(", ")}`
+        : "Scene generation not needed: No significant changes detected in location, environment, or narrative context",
+      reasons,
+    };
+  },
+});
+
+/**
+ * Tool to craft detailed image generation prompts
+ */
+export const generateImagePromptTool = tool({
+  description: `Create a detailed, vivid image generation prompt that captures the current scene. Include:
+- Character appearance and pose
+- Environment and setting details
+- Lighting and atmosphere
+- Art style and composition
+- Universe-specific visual elements
+- Genre-appropriate aesthetics`,
+  inputSchema: z.object({
+    characterAppearance: z
+      .string()
+      .optional()
+      .describe("Character's physical appearance"),
+    characterProfession: z
+      .string()
+      .optional()
+      .describe("Character's profession/role"),
+    currentNarrative: z
+      .string()
+      .describe("Current scene narrative description"),
+    universeVisualStyle: z
+      .string()
+      .optional()
+      .describe("Universe's visual description and ontology"),
+    campaignGenres: z.array(z.string()).describe("Campaign genre tags"),
+    locationContext: z
+      .string()
+      .optional()
+      .describe("Specific location details"),
+  }),
+  execute: async ({
+    characterAppearance,
+    characterProfession,
+    currentNarrative,
+    universeVisualStyle,
+    campaignGenres,
+    locationContext,
+  }: {
+    characterAppearance?: string;
+    characterProfession?: string;
+    currentNarrative: string;
+    universeVisualStyle?: string;
+    campaignGenres: string[];
+    locationContext?: string;
+  }) => {
+    let prompt = "";
+
+    // Start with character focus if available
+    if (characterAppearance) {
+      prompt += `${characterAppearance}`;
+      if (characterProfession) {
+        prompt += `, a ${characterProfession.toLowerCase()}`;
+      }
+      prompt += ". ";
+    }
+
+    // Add location and environment
+    if (locationContext) {
+      prompt += `${locationContext}. `;
+    }
+
+    // Add narrative scene description
+    prompt += `${currentNarrative}. `;
+
+    // Add universe visual style
+    if (universeVisualStyle) {
+      prompt += `Visual style: ${universeVisualStyle}. `;
+    }
+
+    // Add genre-appropriate aesthetics
+    const genreStyles = getGenreVisualStyles(campaignGenres);
+    if (genreStyles.length > 0) {
+      prompt += `Art style: ${genreStyles.join(", ")}. `;
+    }
+
+    // Add technical quality instructions
+    prompt +=
+      "Highly detailed digital art, cinematic lighting, professional illustration, vivid colors, atmospheric depth.";
+
+    return {
+      prompt: prompt.trim(),
+      components: {
+        character: characterAppearance || "Not specified",
+        environment: locationContext || currentNarrative,
+        style: universeVisualStyle || "Default fantasy style",
+        genres: campaignGenres,
+      },
+    };
+  },
+});
+
+/**
+ * Factory function to create generateSceneImageTool with runId bound in closure
+ * This allows the tool to be used without requiring the LLM to provide runId
+ */
+export function createGenerateSceneImageTool(runId: string) {
+  return tool({
+    description: `Generate a new scene image using the Replicate API and store it in the database. This tool handles the complete image generation workflow.`,
+    inputSchema: z.object({
+      prompt: z.string().describe("The crafted image generation prompt"),
+      narrativeContext: z
+        .string()
+        .describe("The narrative context that triggered generation"),
+      previousSceneId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("ID of the previous scene for transitions"),
+    }),
+    execute: async ({
+      prompt,
+      narrativeContext,
+      previousSceneId,
+    }: {
+      prompt: string;
+      narrativeContext: string;
+      previousSceneId?: string;
+    }) => {
+      try {
+        // Import here to avoid circular dependencies
+        const { generateImage, createScenePrompt } = await import(
+          "@/lib/ai/scene-generator"
+        );
+        const { db } = await import("@/lib/db");
+        const { scenes, runs } = await import("@/lib/db/schema");
+        const { uploadImage } = await import("@/lib/storage/r2");
+        const { randomUUID } = await import("node:crypto");
+
+        // Query run to get userId for R2 path
+        const [runData] = await db
+          .select({ userId: runs.userId })
+          .from(runs)
+          .where(eq(runs.id, runId))
+          .limit(1);
+
+        if (!runData) {
+          throw new Error(`Run not found: ${runId}`);
+        }
+
+        const userId = runData.userId;
+
+        // Generate scene ID first for use in R2 path
+        const sceneId = randomUUID();
+
+        // Enhance the prompt with safety and quality checks
+        let enhancedPrompt: string;
+        try {
+          enhancedPrompt = createScenePrompt(prompt);
+        } catch (error) {
+          console.error(
+            "Scene generation failed - prompt validation error:",
+            error
+          );
+          console.error("Original prompt length:", prompt.length);
+          console.error("Original prompt preview:", prompt.substring(0, 200));
+          throw error;
+        }
+
+        // Generate the image from Replicate
+        const replicateImageUrl = await generateImage(enhancedPrompt);
+
+        // Ensure we have a valid URL string
+        if (typeof replicateImageUrl !== "string" || !replicateImageUrl) {
+          throw new Error(
+            `Invalid image URL from Replicate: ${typeof replicateImageUrl}`
+          );
+        }
+
+        // Download image from Replicate URL
+        const imageResponse = await fetch(replicateImageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(
+            `Failed to download image from Replicate: ${imageResponse.status} ${imageResponse.statusText}`
+          );
+        }
+
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const imageBuffer = Buffer.from(arrayBuffer);
+
+        // Construct R2 storage key: <user-id>/runs/<run-id>/scenes/<scene-id>.webp
+        const r2Key = `${userId}/runs/${runId}/scenes/${sceneId}.webp`;
+
+        // Upload image to R2
+        const { key: storedKey } = await uploadImage(
+          imageBuffer,
+          r2Key,
+          "image/webp"
+        );
+
+        // Create scene record in database with R2 key (not URL)
+        const newSceneResult = await db
+          .insert(scenes)
+          .values({
+            id: sceneId, // Use the pre-generated ID
+            runId,
+            sceneType: "environment",
+            imageUrl: storedKey, // Store R2 key, not URL
+            generationPrompt: enhancedPrompt,
+            narrativeContext,
+            previousSceneId: previousSceneId || null,
+          })
+          .returning();
+
+        // Handle both array and QueryResult return types
+        const newScene = Array.isArray(newSceneResult)
+          ? newSceneResult[0]
+          : (newSceneResult as unknown as Scene[])[0];
+
+        if (!newScene) {
+          throw new Error("Failed to create scene record");
+        }
+
+        // Update run's current scene
+        await db
+          .update(runs)
+          .set({ currentSceneId: newScene.id })
+          .where(eq(runs.id, runId));
+
+        // Revalidate the play page to show the new scene
+        revalidatePath(`/runs/${runId}/play`);
+
+        return {
+          success: true,
+          sceneId: newScene.id,
+          imageUrl: storedKey, // Return R2 key
+          message: `Scene generated and stored successfully`,
+        };
+      } catch (error) {
+        console.error("Scene generation failed:", error);
+        console.error("Prompt that failed:", prompt.substring(0, 300));
+        console.error("Prompt length:", prompt.length);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          message: "Failed to generate scene image",
+        };
+      }
+    },
+  });
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Calculate simple text similarity for narrative comparison
+ */
+function calculateTextSimilarity(text1: string, text2: string): number {
+  // Simple word overlap similarity
+  const words1 = new Set(text1.toLowerCase().split(/\W+/));
+  const words2 = new Set(text2.toLowerCase().split(/\W+/));
+
+  const intersection = new Set([...words1].filter((x) => words2.has(x)));
+  const union = new Set([...words1, ...words2]);
+
+  return intersection.size / union.size;
+}
+
+/**
+ * Get visual style descriptors for campaign genres
+ */
+function getGenreVisualStyles(genres: string[]): string[] {
+  const styleMap: Record<string, string[]> = {
+    fantasy: [
+      "fantasy art",
+      "medieval architecture",
+      "magical elements",
+      "detailed landscapes",
+    ],
+    sci_fi: [
+      "futuristic",
+      "cyberpunk",
+      "high-tech",
+      "neon lighting",
+      "metallic surfaces",
+    ],
+    horror: [
+      "dark atmosphere",
+      "shadowy lighting",
+      "eerie environments",
+      "ominous mood",
+    ],
+    mystery: [
+      "noir lighting",
+      "intriguing compositions",
+      "atmospheric depth",
+      "subtle details",
+    ],
+    modern: [
+      "contemporary",
+      "realistic lighting",
+      "urban environments",
+      "clean lines",
+    ],
+    historical: [
+      "period accurate",
+      "authentic costumes",
+      "historical architecture",
+      "aged appearance",
+    ],
+    western: [
+      "dusty landscapes",
+      "saloon interiors",
+      "period clothing",
+      "dramatic lighting",
+    ],
+    super_hero: [
+      "dynamic poses",
+      "bright colors",
+      "heroic composition",
+      "action-oriented",
+    ],
+  };
+
+  const styles: string[] = [];
+  for (const genre of genres) {
+    const genreStyles = styleMap[genre.toLowerCase()];
+    if (genreStyles) {
+      styles.push(...genreStyles);
+    }
+  }
+
+  // Remove duplicates and return
+  return [...new Set(styles)];
 }
