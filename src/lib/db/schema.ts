@@ -9,6 +9,7 @@ import {
   text,
   boolean,
   integer,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 import type { CampaignState } from "./schemas/campaign";
 
@@ -133,9 +134,37 @@ export const runs = pgTable("runs", {
     .notNull(),
   state: jsonb("state").$type<CampaignState>().notNull(),
   status: varchar("status", { length: 20 }).default("active").notNull(),
+  currentSceneId: uuid("current_scene_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Define scenes table - use foreignKey operator for self-reference to avoid TypeScript circular reference
+export const scenes = pgTable(
+  "scenes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .references(() => runs.id, { onDelete: "cascade" })
+      .notNull(),
+    sceneType: varchar("scene_type", { length: 20 }).notNull(), // 'environment'
+    imageUrl: varchar("image_url", { length: 500 }).notNull(),
+    generationPrompt: text("generation_prompt").notNull(),
+    narrativeContext: text("narrative_context").notNull(),
+    previousSceneId: uuid("previous_scene_id"), // Track scene transitions - foreign key defined below
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("scenes_run_id_idx").on(table.runId),
+    index("scenes_created_at_idx").on(table.createdAt),
+    // Self-referencing foreign key using foreignKey operator to avoid TypeScript circular reference
+    foreignKey({
+      columns: [table.previousSceneId],
+      foreignColumns: [table.id],
+      name: "scenes_previous_scene_id_fkey",
+    }),
+  ]
+);
 
 export const messages = pgTable(
   "messages",
@@ -175,3 +204,6 @@ export type NewRun = typeof runs.$inferInsert;
 
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+
+export type Scene = typeof scenes.$inferSelect;
+export type NewScene = typeof scenes.$inferInsert;
