@@ -130,10 +130,14 @@ flowchart TB
 - AI SDK v6 — orchestration of inference flows with **streaming responses** to immediately display LLM output to players as tokens are generated, plus ToolLoopAgent for iterative tool calls.
 - OpenRouter — LLM provider routing for:
   - Game Master Agent (interactive, HITL skill checks)
-  - Campaign Crafter Agent
-  - Scribe Agent
-  - Optional background Campaign State Agent (state reconciliation without UI text)
-- Replicate — image/multimedia models for visual rendering.
+  - Campaign Manager Agent (background state reconciliation)
+  - Visual Engine Agent (background scene generation decisions)
+  - Campaign Crafter Agent (future)
+  - Scribe Agent (future)
+- Replicate — image/multimedia models for visual rendering:
+  - Flux Schnell model for fast scene generation
+  - Handles async responses with proper URL extraction from response objects
+  - Supports webhook-based async processing (optional, for truly non-blocking workflows)
 
 ---
 
@@ -149,8 +153,12 @@ flowchart TB
 4. GMA transforms action → events → world changes via `ToolLoopAgent`; may hand off state reconciliation to a background Campaign State Agent post-turn.
    - **LLM responses are streamed** (via AI SDK) to the UI, allowing players to see the story appear in real-time as tokens are generated.
 5. Next.js stores new campaign state in Neon.
-6. Scene generator triggers a Replicate model → saves output to R2.
-7. Next.js renders updated UI.
+6. **Visual Engine Agent (VEA)** automatically triggers in the background (non-blocking) after each assistant message:
+   - Analyzes narrative changes to determine if scene regeneration is needed
+   - Generates scene images via Replicate API when significant location/environment changes occur
+   - Stores images in R2 with key format: `gen-dnd/{userId}/runs/{runId}/scenes/{sceneId}.webp`
+   - Updates run's `currentSceneId` reference
+7. Next.js renders updated UI with current scene image (converted from R2 key to public/signed URL).
 
 ### 4.2 World & Campaign Generation
 
@@ -173,9 +181,22 @@ flowchart TB
 
 ### 4.4 Visual Rendering Engine
 
-- Replicate model receives environment description → outputs image.
-- R2 stores versioned scenes.
-- Next.js fetches and renders the latest scene.
+- **Visual Engine Agent (VEA)**: Background agent that monitors narrative changes and automatically generates scene images
+  - Uses AI SDK v6 `ToolLoopAgent` with limited tool cycles (3 max) for efficiency
+  - Analyzes recent messages to determine if scene regeneration is needed
+  - Crafts detailed image prompts with character/universe context
+  - Generates images via Replicate API (flux-schnell model)
+  - Stores images in R2 with structured key format: `gen-dnd/{userId}/runs/{runId}/scenes/{sceneId}.webp`
+  - Updates run's `currentSceneId` to track the latest scene
+  - Runs non-blocking (fire-and-forget) to avoid blocking chat responses
+- **Scene Storage**: 
+  - R2 stores versioned scenes with metadata (generation prompt, narrative context, previous scene ID)
+  - Database stores R2 key (not full URL) for flexibility
+  - URLs are generated on-demand using `getPublicUrl()` (supports public domains or signed URLs)
+- **Scene Display**:
+  - Play page fetches current scene and converts R2 key to URL
+  - SceneVisualizer component displays scene with zoom functionality
+  - Images are served via public domain or signed URLs (1-hour expiration)
 
 ## 5. Background Job System (High-Level)
 

@@ -55,11 +55,14 @@ This document provides an overview of the project's directory structure and guid
 
 **Purpose**: Next.js App Router pages and routes.
 
-- **`actions/`**: Server actions for data mutations. Each domain (campaign, character, run, universe, user-profile) has its own action file.
+- **`actions/`**: Server actions for data mutations. Each domain (campaign, character, run, universe, user-profile, scenes) has its own action file.
 - **Route directories**: Each route directory (`campaigns/`, `characters/`, `runs/`, `universes/`, `profile/`, `sign-in/`, `sign-up/`, `about/`) contains:
   - `page.tsx` - The route page component
   - `[id]/` - Dynamic route segments
   - `create/` - Creation pages
+- **`api/`**: API routes for chat, webhooks, and other endpoints:
+  - `chat/route.ts` - Main chat API endpoint for game interactions
+  - `webhooks/replicate/route.ts` - Webhook endpoint for Replicate image generation completion events
 - **Root files**: `layout.tsx` (root layout), `page.tsx` (home page), `globals.css` (global styles)
 
 **Guidelines**:
@@ -83,6 +86,7 @@ This document provides an overview of the project's directory structure and guid
 
 - **`campaign/`**: Campaign-related form and display components
 - **`character/`**: Character creation and management components
+- **`game/`**: Game play components (chat interface, scene visualizer, skill checks, etc.)
 - **`hero/`**: Hero section and visual effects (animations, backgrounds)
 - **`layout/`**: Layout components (header, footer, theme provider)
 - **`ui/`**: Reusable UI primitives (buttons, cards, inputs, etc.)
@@ -98,7 +102,9 @@ This document provides an overview of the project's directory structure and guid
 
 **Purpose**: Core library code and business logic.
 
-- **`ai/`**: AI generation utilities for campaigns, characters, images, and universes
+- **`ai/`**: AI generation utilities for campaigns, characters, images, scenes, and universes
+  - `scene-generator.ts` - Scene prompt generation and validation
+  - `image-generator.ts` - Replicate image generation with proper response handling
 - **`auth/`**: Authentication configuration and utilities (Clerk integration)
 - **`db/`**: Database layer
   - **`queries/`**: Database query functions (read operations)
@@ -122,7 +128,9 @@ This document provides an overview of the project's directory structure and guid
 
 - Place agent implementations here
 - Each agent should be in its own file or directory
-- Game Master Agent uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks; consider a background Campaign State Agent for state reconciliation without user-facing narration.
+- **Game Master Agent** (`game-master.ts`): Uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks; handles interactive narration and world state updates
+- **Campaign Manager Agent** (`campaign-manager.ts`): Background agent for state reconciliation without user-facing narration
+- **Visual Engine Agent** (`visual-engine.ts`): Background agent for automatic scene image generation; monitors narrative changes and triggers scene generation when needed
 
 ### `/src/hooks`
 
