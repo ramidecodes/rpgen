@@ -13,6 +13,7 @@ import { Calendar, Play } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import type { Front, QuestThread } from "@/lib/db/schemas/campaign";
 
 interface RunPageProps {
   params: Promise<{
@@ -119,9 +120,13 @@ export default async function RunPage({ params }: RunPageProps) {
                           Active Fronts
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.activeFronts.map((front, index) => (
-                            <li key={`${front.name}-${index}`}>{front.name}</li>
-                          ))}
+                          {run.state.activeFronts.map(
+                            (front: Front, index: number) => (
+                              <li key={`${front.name}-${index}`}>
+                                {front.name}
+                              </li>
+                            )
+                          )}
                         </ul>
                       </div>
                       <div className="bg-muted/50 p-4 rounded-lg">
@@ -129,11 +134,13 @@ export default async function RunPage({ params }: RunPageProps) {
                           Quest Threads
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.questThreads.map((quest, index) => (
-                            <li key={`${quest.title}-${index}`}>
-                              {quest.title}
-                            </li>
-                          ))}
+                          {run.state.questThreads.map(
+                            (quest: QuestThread, index: number) => (
+                              <li key={`${quest.title}-${index}`}>
+                                {quest.title}
+                              </li>
+                            )
+                          )}
                         </ul>
                       </div>
                     </div>
