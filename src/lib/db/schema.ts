@@ -148,7 +148,7 @@ export const scenes = pgTable(
       .references(() => runs.id, { onDelete: "cascade" })
       .notNull(),
     sceneType: varchar("scene_type", { length: 20 }).notNull(), // 'environment'
-    imageUrl: varchar("image_url", { length: 500 }).notNull(),
+    imageUrl: varchar("image_url", { length: 500 }), // Nullable to support pending state
     generationPrompt: text("generation_prompt").notNull(),
     narrativeContext: text("narrative_context").notNull(),
     previousSceneId: uuid("previous_scene_id"), // Track scene transitions - foreign key defined below
