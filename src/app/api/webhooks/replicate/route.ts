@@ -29,12 +29,6 @@ async function getReplicateSigningKeyBase64(): Promise<string> {
   const envSecret = process.env.REPLICATE_WEBHOOK_SECRET_B64;
   if (envSecret) {
     REPLICATE_SIGNING_KEY_B64 = envSecret.replace(/^whsec_?/, "");
-    console.log(
-      "[Webhook] Using webhook secret from env var, length:",
-      REPLICATE_SIGNING_KEY_B64.length,
-      "first 10 chars:",
-      REPLICATE_SIGNING_KEY_B64.substring(0, 10)
-    );
     return REPLICATE_SIGNING_KEY_B64;
   }
 
@@ -46,7 +40,6 @@ async function getReplicateSigningKeyBase64(): Promise<string> {
     );
   }
 
-  console.log("[Webhook] Fetching webhook secret from Replicate API...");
   const res = await fetch(
     "https://api.replicate.com/v1/webhooks/default/secret",
     {
@@ -63,13 +56,6 @@ async function getReplicateSigningKeyBase64(): Promise<string> {
 
   const { key } = (await res.json()) as { key: string };
   REPLICATE_SIGNING_KEY_B64 = key.replace(/^whsec_?/, "");
-
-  console.log(
-    "[Webhook] Fetched webhook secret from API, length:",
-    REPLICATE_SIGNING_KEY_B64.length,
-    "first 10 chars:",
-    REPLICATE_SIGNING_KEY_B64.substring(0, 10)
-  );
 
   return REPLICATE_SIGNING_KEY_B64;
 }
@@ -126,48 +112,13 @@ function validateReplicateWebhook(
  * Then set the webhook URL in Replicate dashboard or via API
  */
 export async function POST(req: NextRequest) {
-  // Log immediately when webhook is received
-  console.log("[Webhook] Received request", {
-    method: req.method,
-    url: req.url,
-    headers: {
-      webhookId: req.headers.get("webhook-id"),
-      timestamp: req.headers.get("webhook-timestamp"),
-      hasSignature: !!req.headers.get("webhook-signature"),
-      userAgent: req.headers.get("user-agent"),
-    },
-  });
-
-  // Check if request is from ngrok warning page
-  const userAgent = req.headers.get("user-agent") || "";
-  if (userAgent.includes("ngrok")) {
-    console.warn("[Webhook] Possible ngrok warning page redirect detected");
-  }
-
   try {
     // Get raw body for signature validation
     const rawBody = await req.text();
-    console.log("[Webhook] Raw body received", {
-      bodyLength: rawBody.length,
-      bodyPreview: rawBody.substring(0, 500),
-    });
 
     let body: Record<string, unknown>;
     try {
       body = JSON.parse(rawBody);
-      console.log("[Webhook] Parsed payload", {
-        keys: Object.keys(body),
-        hasId: !!body.id,
-        hasStatus: !!body.status,
-        hasInput: !!body.input,
-        inputType: typeof body.input,
-        inputKeys:
-          body.input && typeof body.input === "object" && body.input !== null
-            ? Object.keys(body.input)
-            : "not object",
-        hasOutput: !!body.output,
-        outputType: Array.isArray(body.output) ? "array" : typeof body.output,
-      });
     } catch (error) {
       console.error("[Webhook] Invalid JSON payload", error);
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -226,13 +177,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("[Webhook] Replicate prediction event", {
-      webhookId: id,
-      predictionId,
-      status,
-      hasOutput: !!output,
-      hasError: !!payloadError,
-    });
+    // Process prediction event
 
     // Handle intermediate statuses (respond quickly)
     if (status === "processing" || status === "starting") {
@@ -273,10 +218,6 @@ export async function POST(req: NextRequest) {
           inputMetadata !== null
         ) {
           metadata = inputMetadata as { runId?: string; sceneId?: string };
-          console.log(
-            "[Webhook] Extracted metadata from input.metadata",
-            metadata
-          );
         }
       }
 
@@ -286,10 +227,6 @@ export async function POST(req: NextRequest) {
           runId: input.runId as string,
           sceneId: input.sceneId as string,
         };
-        console.log(
-          "[Webhook] Extracted metadata from input object directly",
-          metadata
-        );
       }
     }
 
@@ -297,26 +234,11 @@ export async function POST(req: NextRequest) {
     if (metadata?.runId && metadata?.sceneId) {
       runId = metadata.runId;
       sceneId = metadata.sceneId;
-      console.log("[Webhook] Using metadata from payload", { runId, sceneId });
     } else {
       // Method 3: Fallback - find most recent pending scene
-      console.error(
-        "[Webhook] Could not extract metadata, full input structure:",
-        JSON.stringify(input, null, 2)
-      );
       console.error("[Webhook] Missing metadata in prediction input", {
         predictionId,
-        metadata,
-        inputKeys:
-          input && typeof input === "object" && input !== null
-            ? Object.keys(input)
-            : "no input or not object",
-        inputType: typeof input,
       });
-
-      console.log(
-        "[Webhook] Attempting fallback: finding most recent pending scene"
-      );
 
       try {
         // Find the most recent scene with null imageUrl
@@ -327,19 +249,9 @@ export async function POST(req: NextRequest) {
           .orderBy(desc(scenes.createdAt))
           .limit(5);
 
-        console.log("[Webhook] Found pending scenes", {
-          count: pendingScenes.length,
-          sceneIds: pendingScenes.map((s) => s.id),
-        });
-
         if (pendingScenes.length > 0) {
           // Use the most recent pending scene
           const fallbackScene = pendingScenes[0];
-          console.log("[Webhook] Using fallback scene", {
-            sceneId: fallbackScene.id,
-            runId: fallbackScene.runId,
-            createdAt: fallbackScene.createdAt,
-          });
 
           // Verify the scene belongs to a valid run
           const [fallbackRun] = await db
@@ -349,13 +261,6 @@ export async function POST(req: NextRequest) {
             .limit(1);
 
           if (fallbackRun) {
-            console.log(
-              "[Webhook] Fallback scene validated, proceeding with processing",
-              {
-                sceneId: fallbackScene.id,
-                runId: fallbackScene.runId,
-              }
-            );
             runId = fallbackScene.runId;
             sceneId = fallbackScene.id;
           } else {
@@ -382,14 +287,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract image URL from output
-    console.log("[Webhook] Processing output", {
-      predictionId,
-      outputType: Array.isArray(output) ? "array" : typeof output,
-      outputLength: Array.isArray(output) ? output.length : "not array",
-      outputPreview: Array.isArray(output)
-        ? output.slice(0, 2)
-        : String(output).substring(0, 200),
-    });
+    // Process output
 
     if (!output || !Array.isArray(output) || output.length === 0) {
       console.error("[Webhook] Invalid output format", {
@@ -413,12 +311,6 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: "Invalid image URL" }, { status: 400 });
     }
-
-    console.log("[Webhook] Extracted image URL", {
-      predictionId,
-      imageUrl: imageUrl.substring(0, 100),
-      imageUrlLength: imageUrl.length,
-    });
 
     // Verify scene exists and belongs to the run
     const [scene] = await db
@@ -449,13 +341,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("[Webhook] Scene validated, downloading image", {
-      predictionId,
-      sceneId,
-      runId,
-      imageUrl: imageUrl.substring(0, 100),
-    });
-
     // Download image from Replicate URL
     let imageResponse: Response;
     try {
@@ -479,12 +364,6 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await imageResponse.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    console.log("[Webhook] Image downloaded", {
-      predictionId,
-      sceneId,
-      imageSize: imageBuffer.length,
-    });
-
     // Get userId from run for R2 path
     const [runData] = await db
       .select({ userId: runs.userId })
@@ -500,21 +379,11 @@ export async function POST(req: NextRequest) {
     const r2Key = `${runData.userId}/runs/${runId}/scenes/${sceneId}.webp`;
 
     // Upload image to R2
-    console.log("[Webhook] Uploading image to R2", {
-      predictionId,
-      sceneId,
-      r2Key,
-    });
 
     let storedKey: string;
     try {
       const uploadResult = await uploadImage(imageBuffer, r2Key, "image/webp");
       storedKey = uploadResult.key;
-      console.log("[Webhook] Image uploaded to R2", {
-        predictionId,
-        sceneId,
-        storedKey,
-      });
     } catch (uploadError) {
       console.error("[Webhook] Failed to upload image to R2", {
         predictionId,
@@ -529,11 +398,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Update scene record with R2 key (not URL - URLs are generated on-demand)
-    console.log("[Webhook] Updating scene record", {
-      predictionId,
-      sceneId,
-      storedKey,
-    });
 
     try {
       await db
@@ -542,11 +406,6 @@ export async function POST(req: NextRequest) {
           imageUrl: storedKey, // Store R2 key, not signed URL (keys are permanent, URLs expire)
         })
         .where(eq(scenes.id, sceneId));
-
-      console.log("[Webhook] Scene record updated successfully", {
-        predictionId,
-        sceneId,
-      });
     } catch (updateError) {
       console.error("[Webhook] Failed to update scene record", {
         predictionId,
@@ -568,12 +427,6 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date(),
         })
         .where(eq(runs.id, runId));
-
-      console.log("[Webhook] Run currentSceneId updated", {
-        predictionId,
-        sceneId,
-        runId,
-      });
     } catch (updateError) {
       console.error("[Webhook] Failed to update run currentSceneId", {
         predictionId,
@@ -590,22 +443,7 @@ export async function POST(req: NextRequest) {
     // Generate URL for SSE broadcast (one-time use for immediate display)
     const publicUrl = await getPublicUrl(storedKey);
 
-    console.log("[Webhook] Successfully processed image", {
-      predictionId,
-      sceneId,
-      runId,
-      storedKey,
-    });
-
     // Notify SSE clients about the scene update
-    const connectionCount = sseConnectionManager.getConnectionCount(runId);
-    console.log("[Webhook] Broadcasting SSE event", {
-      predictionId,
-      sceneId,
-      runId,
-      connectionCount,
-    });
-
     try {
       sseConnectionManager.broadcast(runId, {
         type: "scene-updated",
@@ -614,12 +452,6 @@ export async function POST(req: NextRequest) {
           runId,
           imageUrl: publicUrl, // URL for immediate display (not stored in DB)
         },
-      });
-      console.log("[Webhook] SSE broadcast completed", {
-        predictionId,
-        sceneId,
-        runId,
-        connectionCount,
       });
     } catch (broadcastError) {
       console.error("[Webhook] Failed to broadcast SSE event", {

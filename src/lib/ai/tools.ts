@@ -559,12 +559,6 @@ export function createGenerateSceneImageTool(runId: string) {
         const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
         let normalizedPreviousSceneId: string | null = null;
 
-        console.log("[Scene Generation] Normalizing previousSceneId", {
-          runId,
-          providedPreviousSceneId: previousSceneId,
-          runCurrentSceneId: runData.currentSceneId,
-        });
-
         if (
           previousSceneId &&
           previousSceneId !== ZERO_UUID &&
@@ -580,17 +574,6 @@ export function createGenerateSceneImageTool(runId: string) {
 
           if (previousScene) {
             normalizedPreviousSceneId = previousSceneId;
-            console.log("[Scene Generation] Using provided previousSceneId", {
-              previousSceneId,
-            });
-          } else {
-            console.warn(
-              "[Scene Generation] Provided previousSceneId not found",
-              {
-                previousSceneId,
-                runId,
-              }
-            );
           }
         }
 
@@ -611,28 +594,11 @@ export function createGenerateSceneImageTool(runId: string) {
 
           if (currentScene) {
             normalizedPreviousSceneId = runData.currentSceneId;
-            console.log("[Scene Generation] Using run's currentSceneId", {
-              currentSceneId: runData.currentSceneId,
-            });
-          } else {
-            console.warn(
-              "[Scene Generation] Run's currentSceneId not found in scenes",
-              {
-                currentSceneId: runData.currentSceneId,
-                runId,
-                note: "This is normal for new runs with no scenes yet",
-              }
-            );
           }
         }
 
         // Use null if still no valid previous scene (normal for first scene in run)
         const finalPreviousSceneId = normalizedPreviousSceneId || null;
-
-        console.log("[Scene Generation] Final previousSceneId", {
-          finalPreviousSceneId,
-          wasNormalized: !!normalizedPreviousSceneId,
-        });
 
         // Enhance the prompt with safety and quality checks
         let enhancedPrompt: string;
