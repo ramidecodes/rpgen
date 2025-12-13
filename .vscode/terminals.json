@@ -1,0 +1,20 @@
+{
+  "autorun": false,
+  "terminals": [
+    {
+      "name": "root terminal",
+      "icon": "home"
+    },
+    {
+      "name": "dev terminal",
+      "icon": "terminal",
+      "command": "pnpm dev",
+      "focus": true
+    },
+    {
+      "name": "ngrok terminal",
+      "icon": "cloud",
+      "command": "ngrok http 3000"
+    }
+  ]
+}
