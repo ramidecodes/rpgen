@@ -22,6 +22,7 @@ type GameStore = {
   isRolling: boolean;
   pendingSkillCheck: PendingSkillCheck | null;
   activeScene: string | null;
+  pendingSceneId: string | null; // Scene ID that is currently being generated
 
   // Actions
   setCurrentRun: (run: Run | null) => void;
@@ -29,6 +30,7 @@ type GameStore = {
   setIsRolling: (isRolling: boolean) => void;
   setPendingSkillCheck: (check: PendingSkillCheck | null) => void;
   setActiveScene: (sceneId: string | null) => void;
+  setPendingSceneId: (sceneId: string | null) => void;
   clearPendingSkillCheck: () => void;
 };
 
@@ -38,12 +40,14 @@ export const useGameStore = create<GameStore>((set) => ({
   isRolling: false,
   pendingSkillCheck: null,
   activeScene: null,
+  pendingSceneId: null,
 
   setCurrentRun: (run) => set({ currentRun: run }),
   setCurrentCharacter: (character) => set({ currentCharacter: character }),
   setIsRolling: (isRolling) => set({ isRolling }),
   setPendingSkillCheck: (check) => set({ pendingSkillCheck: check }),
   setActiveScene: (sceneId) => set({ activeScene: sceneId }),
+  setPendingSceneId: (sceneId) => set({ pendingSceneId: sceneId }),
   clearPendingSkillCheck: () =>
     set({ pendingSkillCheck: null, isRolling: false }),
 }));

@@ -530,17 +530,20 @@ export function createGenerateSceneImageTool(runId: string) {
     }) => {
       try {
         // Import here to avoid circular dependencies
-        const { generateImage, createScenePrompt } = await import(
-          "@/lib/ai/scene-generator"
+        const { createScenePrompt } = await import("@/lib/ai/scene-generator");
+        const { createImagePrediction } = await import(
+          "@/lib/ai/image-generator"
         );
         const { db } = await import("@/lib/db");
         const { scenes, runs } = await import("@/lib/db/schema");
-        const { uploadImage } = await import("@/lib/storage/r2");
         const { randomUUID } = await import("node:crypto");
 
-        // Query run to get userId for R2 path
+        // Query run to get userId and currentSceneId
         const [runData] = await db
-          .select({ userId: runs.userId })
+          .select({
+            userId: runs.userId,
+            currentSceneId: runs.currentSceneId,
+          })
           .from(runs)
           .where(eq(runs.id, runId))
           .limit(1);
@@ -549,10 +552,87 @@ export function createGenerateSceneImageTool(runId: string) {
           throw new Error(`Run not found: ${runId}`);
         }
 
-        const userId = runData.userId;
-
-        // Generate scene ID first for use in R2 path
+        // Generate scene ID first for use in metadata
         const sceneId = randomUUID();
+
+        // Normalize previousSceneId: convert zero UUID, empty string, or invalid UUIDs to null
+        const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+        let normalizedPreviousSceneId: string | null = null;
+
+        console.log("[Scene Generation] Normalizing previousSceneId", {
+          runId,
+          providedPreviousSceneId: previousSceneId,
+          runCurrentSceneId: runData.currentSceneId,
+        });
+
+        if (
+          previousSceneId &&
+          previousSceneId !== ZERO_UUID &&
+          previousSceneId.trim() !== ""
+        ) {
+          // Validate that the previous scene exists and belongs to this run
+          const { and } = await import("drizzle-orm");
+          const [previousScene] = await db
+            .select({ id: scenes.id })
+            .from(scenes)
+            .where(and(eq(scenes.id, previousSceneId), eq(scenes.runId, runId)))
+            .limit(1);
+
+          if (previousScene) {
+            normalizedPreviousSceneId = previousSceneId;
+            console.log("[Scene Generation] Using provided previousSceneId", {
+              previousSceneId,
+            });
+          } else {
+            console.warn(
+              "[Scene Generation] Provided previousSceneId not found",
+              {
+                previousSceneId,
+                runId,
+              }
+            );
+          }
+        }
+
+        // If no valid previousSceneId, validate and use run's currentSceneId
+        if (!normalizedPreviousSceneId && runData.currentSceneId) {
+          // Validate that currentSceneId exists and belongs to this run
+          const { and } = await import("drizzle-orm");
+          const [currentScene] = await db
+            .select({ id: scenes.id })
+            .from(scenes)
+            .where(
+              and(
+                eq(scenes.id, runData.currentSceneId),
+                eq(scenes.runId, runId)
+              )
+            )
+            .limit(1);
+
+          if (currentScene) {
+            normalizedPreviousSceneId = runData.currentSceneId;
+            console.log("[Scene Generation] Using run's currentSceneId", {
+              currentSceneId: runData.currentSceneId,
+            });
+          } else {
+            console.warn(
+              "[Scene Generation] Run's currentSceneId not found in scenes",
+              {
+                currentSceneId: runData.currentSceneId,
+                runId,
+                note: "This is normal for new runs with no scenes yet",
+              }
+            );
+          }
+        }
+
+        // Use null if still no valid previous scene (normal for first scene in run)
+        const finalPreviousSceneId = normalizedPreviousSceneId || null;
+
+        console.log("[Scene Generation] Final previousSceneId", {
+          finalPreviousSceneId,
+          wasNormalized: !!normalizedPreviousSceneId,
+        });
 
         // Enhance the prompt with safety and quality checks
         let enhancedPrompt: string;
@@ -568,48 +648,112 @@ export function createGenerateSceneImageTool(runId: string) {
           throw error;
         }
 
-        // Generate the image from Replicate
-        const replicateImageUrl = await generateImage(enhancedPrompt);
-
-        // Ensure we have a valid URL string
-        if (typeof replicateImageUrl !== "string" || !replicateImageUrl) {
-          throw new Error(
-            `Invalid image URL from Replicate: ${typeof replicateImageUrl}`
-          );
+        // Construct webhook URL
+        // Development: Use NGROK_HOST if available
+        // Production: Use NEXT_PUBLIC_APP_URL or WEBHOOK_BASE_URL
+        let webhookBaseUrl: string | undefined;
+        if (process.env.NGROK_HOST) {
+          // Development with ngrok
+          // Handle case where NGROK_HOST might already include protocol
+          const ngrokHost = process.env.NGROK_HOST.trim();
+          if (
+            ngrokHost.startsWith("http://") ||
+            ngrokHost.startsWith("https://")
+          ) {
+            webhookBaseUrl = ngrokHost;
+          } else {
+            webhookBaseUrl = `https://${ngrokHost}`;
+          }
+        } else if (process.env.NEXT_PUBLIC_APP_URL) {
+          // Production
+          webhookBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
+        } else if (process.env.WEBHOOK_BASE_URL) {
+          // Alternative production URL
+          webhookBaseUrl = process.env.WEBHOOK_BASE_URL;
         }
 
-        // Download image from Replicate URL
-        const imageResponse = await fetch(replicateImageUrl);
-        if (!imageResponse.ok) {
-          throw new Error(
-            `Failed to download image from Replicate: ${imageResponse.status} ${imageResponse.statusText}`
+        if (!webhookBaseUrl) {
+          console.warn(
+            "[Scene Generation] Webhook URL not configured - falling back to synchronous generation"
           );
+          // Fallback to synchronous generation (existing behavior)
+          const { generateImage } = await import("@/lib/ai/scene-generator");
+          const { uploadImage } = await import("@/lib/storage/r2");
+          const { getPublicUrl } = await import("@/lib/storage/r2");
+
+          const replicateImageUrl = await generateImage(enhancedPrompt);
+          if (typeof replicateImageUrl !== "string" || !replicateImageUrl) {
+            throw new Error(
+              `Invalid image URL from Replicate: ${typeof replicateImageUrl}`
+            );
+          }
+
+          const imageResponse = await fetch(replicateImageUrl);
+          if (!imageResponse.ok) {
+            throw new Error(
+              `Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`
+            );
+          }
+
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const imageBuffer = Buffer.from(arrayBuffer);
+          const r2Key = `${runData.userId}/runs/${runId}/scenes/${sceneId}.webp`;
+          const { key: storedKey } = await uploadImage(
+            imageBuffer,
+            r2Key,
+            "image/webp"
+          );
+          const publicUrl = await getPublicUrl(storedKey);
+
+          const newSceneResult = await db
+            .insert(scenes)
+            .values({
+              id: sceneId,
+              runId,
+              sceneType: "environment",
+              imageUrl: publicUrl,
+              generationPrompt: enhancedPrompt,
+              narrativeContext,
+              previousSceneId: finalPreviousSceneId,
+            })
+            .returning();
+
+          const newScene = Array.isArray(newSceneResult)
+            ? newSceneResult[0]
+            : (newSceneResult as unknown as Scene[])[0];
+
+          if (!newScene) {
+            throw new Error("Failed to create scene record");
+          }
+
+          await db
+            .update(runs)
+            .set({ currentSceneId: newScene.id })
+            .where(eq(runs.id, runId));
+
+          revalidatePath(`/runs/${runId}/play`);
+
+          return {
+            success: true,
+            sceneId: newScene.id,
+            imageUrl: publicUrl,
+            message: `Scene generated and stored successfully (synchronous fallback)`,
+          };
         }
 
-        const arrayBuffer = await imageResponse.arrayBuffer();
-        const imageBuffer = Buffer.from(arrayBuffer);
+        const webhookUrl = `${webhookBaseUrl}/api/webhooks/replicate`;
 
-        // Construct R2 storage key: <user-id>/runs/<run-id>/scenes/<scene-id>.webp
-        const r2Key = `${userId}/runs/${runId}/scenes/${sceneId}.webp`;
-
-        // Upload image to R2
-        const { key: storedKey } = await uploadImage(
-          imageBuffer,
-          r2Key,
-          "image/webp"
-        );
-
-        // Create scene record in database with R2 key (not URL)
+        // Create scene record with pending state (imageUrl: null)
         const newSceneResult = await db
           .insert(scenes)
           .values({
-            id: sceneId, // Use the pre-generated ID
+            id: sceneId,
             runId,
             sceneType: "environment",
-            imageUrl: storedKey, // Store R2 key, not URL
+            imageUrl: null, // Pending state - will be updated by webhook
             generationPrompt: enhancedPrompt,
             narrativeContext,
-            previousSceneId: previousSceneId || null,
+            previousSceneId: finalPreviousSceneId,
           })
           .returning();
 
@@ -622,20 +766,31 @@ export function createGenerateSceneImageTool(runId: string) {
           throw new Error("Failed to create scene record");
         }
 
-        // Update run's current scene
+        // Trigger non-blocking image generation with webhook
+        const predictionId = await createImagePrediction(
+          enhancedPrompt,
+          webhookUrl,
+          {
+            runId,
+            sceneId,
+          }
+        );
+
+        // Update run's current scene immediately (non-blocking)
         await db
           .update(runs)
           .set({ currentSceneId: newScene.id })
           .where(eq(runs.id, runId));
 
-        // Revalidate the play page to show the new scene
+        // Revalidate the play page to show the new scene (pending state)
         revalidatePath(`/runs/${runId}/play`);
 
         return {
           success: true,
           sceneId: newScene.id,
-          imageUrl: storedKey, // Return R2 key
-          message: `Scene generated and stored successfully`,
+          predictionId,
+          imageUrl: null, // Pending - will be updated via webhook
+          message: `Scene generation triggered successfully (pending)`,
         };
       } catch (error) {
         console.error("Scene generation failed:", error);

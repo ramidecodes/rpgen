@@ -11,7 +11,13 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useGameStore } from "@/lib/store/game-store";
 import { useGameChat } from "@/hooks/use-game-chat";
 import { useEffect, useRef, useState } from "react";
-import type { Run, Character, Campaign, Universe, Scene } from "@/lib/db/schema";
+import type {
+  Run,
+  Character,
+  Campaign,
+  Universe,
+  Scene,
+} from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
 import type { QuestThread } from "@/lib/db/schemas/campaign";
 import { cn } from "@/lib/utils";
@@ -34,7 +40,8 @@ export function GamePlayClient({
   messages,
   currentScene,
 }: GamePlayClientProps) {
-  const { setCurrentRun, setCurrentCharacter } = useGameStore();
+  const { setCurrentRun, setCurrentCharacter, setPendingSceneId } =
+    useGameStore();
   const gameChat = useGameChat({
     runId: run.id,
     messages,
@@ -51,44 +58,89 @@ export function GamePlayClient({
     setCurrentCharacter(character);
   }, [run, character, setCurrentRun, setCurrentCharacter]);
 
-  // Poll for scene updates when Visual Engine Agent generates new scenes
+  // Subscribe to SSE for real-time scene updates
   useEffect(() => {
-    // Only poll when game is active (not loading)
+    // Only subscribe when game is active (not loading)
     if (gameChat.isLoading) {
       return;
     }
 
-    const pollInterval = setInterval(async () => {
+    const eventSource = new EventSource(`/api/runs/${run.id}/scene-events`);
+
+    eventSource.onmessage = (event) => {
       try {
-        const { scene } = await getCurrentSceneAction(run.id);
-        if (scene) {
-          // Update scene state if we have a new scene (different ID)
-          setCurrentSceneState((prevScene) => {
-            if (prevScene?.id !== scene.id) {
-              return scene;
-            }
-            return prevScene;
-          });
-        } else {
-          // Scene might have been deleted or doesn't exist
-          setCurrentSceneState(null);
+        const data = JSON.parse(event.data);
+        if (data.type === "scene-updated") {
+          const { sceneId, imageUrl } = data.data;
+
+          // Clear pending state when scene is updated
+          setPendingSceneId(null);
+
+          // Fetch the full scene data to ensure we have the latest state
+          getCurrentSceneAction(run.id)
+            .then(({ scene }) => {
+              if (scene) {
+                setCurrentSceneState(scene);
+                // Ensure pending state is cleared
+                if (scene.imageUrl) {
+                  setPendingSceneId(null);
+                }
+              } else if (imageUrl) {
+                // If scene fetch fails but we have imageUrl, update current scene
+                setCurrentSceneState((prevScene) => {
+                  if (prevScene?.id === sceneId) {
+                    return {
+                      ...prevScene,
+                      imageUrl,
+                    };
+                  }
+                  return prevScene;
+                });
+                setPendingSceneId(null);
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching scene after SSE update:", error);
+              // Fallback: update imageUrl if we have it and it matches current scene
+              setCurrentSceneState((prevScene) => {
+                if (prevScene?.id === sceneId && imageUrl) {
+                  return {
+                    ...prevScene,
+                    imageUrl,
+                  };
+                }
+                return prevScene;
+              });
+              setPendingSceneId(null);
+            });
         }
       } catch (error) {
-        // Silently handle errors during polling to avoid disrupting gameplay
-        console.error("Error polling for scene updates:", error);
+        console.error("Error parsing SSE event:", error);
       }
-    }, 5000); // Poll every 5 seconds
+    };
 
-    // Cleanup interval on unmount
+    eventSource.onerror = (error) => {
+      console.error("SSE connection error:", error);
+      // EventSource will automatically reconnect
+    };
+
+    // Cleanup on unmount
     return () => {
-      clearInterval(pollInterval);
+      eventSource.close();
     };
   }, [run.id, gameChat.isLoading]);
 
   // Update scene state when prop changes (initial load or server-side updates)
   useEffect(() => {
     setCurrentSceneState(currentScene || null);
-  }, [currentScene]);
+    // Track pending state: if scene has no imageUrl, it's pending
+    if (currentScene && !currentScene.imageUrl) {
+      setPendingSceneId(currentScene.id);
+    } else if (currentScene?.imageUrl) {
+      // Clear pending state when image is available
+      setPendingSceneId(null);
+    }
+  }, [currentScene, setPendingSceneId]);
 
   // Trigger initial GM introduction when campaign has no messages
   // Only trigger if there are truly no messages (neither messages prop nor chat messages)

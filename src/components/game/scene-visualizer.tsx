@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { ZoomIn, AlertCircle, ImageIcon } from "lucide-react";
 import type { Scene } from "@/lib/db/schema";
+import { useGameStore } from "@/lib/store/game-store";
+import { cn } from "@/lib/utils";
 
 interface SceneVisualizerProps {
   scene?: Scene | null;
@@ -32,6 +34,10 @@ export function SceneVisualizer({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { pendingSceneId } = useGameStore();
+
+  // Check if this scene is pending generation
+  const isPending = scene?.id === pendingSceneId || !scene?.imageUrl;
 
   // Reset image state when scene changes
   useEffect(() => {
@@ -112,8 +118,37 @@ export function SceneVisualizer({
     );
   }
 
+  // Pending state - scene is being generated
+  if (!scene.imageUrl) {
+    return (
+      <Card className={className}>
+        <CardContent className="space-y-3 pt-6">
+          <div className="aspect-video w-full rounded-md bg-muted animate-pulse flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50 animate-pulse" />
+              <p className="text-sm">Generating scene...</p>
+            </div>
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p className="line-clamp-2">
+              <strong>Scene:</strong> {scene.narrativeContext}
+            </p>
+            <p>
+              <strong>Status:</strong> Pending generation
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card className={className}>
+    <Card
+      className={cn(
+        className,
+        isPending && "relative border-2 border-primary/30 animate-pulse"
+      )}
+    >
       <CardContent className="space-y-3 pt-6">
         {/* Scene Image */}
         <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
@@ -144,7 +179,9 @@ export function SceneVisualizer({
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
-              <DialogTitle className="sr-only">Scene Image - Full Size</DialogTitle>
+              <DialogTitle className="sr-only">
+                Scene Image - Full Size
+              </DialogTitle>
               <div className="relative aspect-video">
                 <Image
                   src={scene.imageUrl}
