@@ -15,6 +15,7 @@ import { GamePlayClient } from "./game-play-client";
 import { getPublicUrl } from "@/lib/storage/r2";
 import type { UIMessage } from "@/types/ui-message";
 import type { Scene } from "@/lib/db/schema";
+import { getQuestsByRunId } from "@/lib/db/queries/quests";
 
 interface PlayPageProps {
   params: Promise<{
@@ -151,6 +152,9 @@ export default async function PlayPage({ params }: PlayPageProps) {
   // Deduplicate tool parts by toolCallId across all messages - keep output version, remove input-only version
   const deduplicatedMessages = deduplicateToolPartsAcrossMessages(uiMessages);
 
+  // Query quests separately
+  const quests = await getQuestsByRunId(run.id);
+
   return (
     <GamePlayClient
       run={run}
@@ -159,6 +163,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       universe={universe}
       messages={deduplicatedMessages}
       currentScene={currentScene}
+      quests={quests}
     />
   );
 }

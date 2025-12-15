@@ -6,6 +6,7 @@ import {
   campaigns,
   universes,
   messages,
+  scenes,
 } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
@@ -15,6 +16,7 @@ import {
   createCampaignManagerAgent,
   extractTextFromUIMessages,
 } from "@/agents/campaign-manager";
+import { getActiveQuestsByRunId } from "@/lib/db/queries/quests";
 import {
   createVisualEngineAgent,
   extractCharacterAction,
@@ -24,6 +26,7 @@ import type { UIMessage, UIMessagePart } from "@/types/ui-message";
 import { isTextUIPart } from "@/types/ui-message";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
+import { sseConnectionManager } from "@/lib/sse/connection-manager";
 
 export async function POST(req: Request) {
   try {
@@ -150,16 +153,26 @@ export async function POST(req: Request) {
     // This handles HITL tool results added via addToolOutput (immutable pattern)
     await persistAssistantMessagesWithToolOutputs(incomingMessages, run.id);
 
-    // Create mutable state copy for tool execution
-    const campaignState: CampaignState = JSON.parse(JSON.stringify(run.state));
+    // Query active quests for read-only context (GMA narrative awareness)
+    const activeQuests = await getActiveQuestsByRunId(run.id);
 
-    // Create Game Master Agent
+    // Build campaignState from separate columns for in-memory state management
+    const campaignState: CampaignState = {
+      activeFronts: run.activeFronts || [],
+      narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
+      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      currentContext: run.currentContext || null,
+    };
+
+    // Create Game Master Agent (GMA) - Narration only, no state mutations
+    // GMA has read-only access to quests and state for narrative context
     const gma = createGameMasterAgent({
       runId,
       campaign,
       character,
       universe,
       campaignState,
+      activeQuests, // Read-only quest context for narrative awareness
     });
 
     // Create the streaming response
@@ -188,19 +201,8 @@ export async function POST(req: Request) {
           ? [...processedMessages, latestAssistantMessage]
           : processedMessages;
 
-        // Update campaign state if modified by GMA
-        if (gma.hasStateChanged(run.state)) {
-          console.log(
-            "[API] Campaign state modified by GMA, persisting changes"
-          );
-          await db
-            .update(runs)
-            .set({
-              state: campaignState,
-              updatedAt: new Date(),
-            })
-            .where(eq(runs.id, run.id));
-        }
+        // GMA does NOT modify state - no state persistence needed here
+        // All state mutations are handled by CMA in background
 
         // Trigger background Campaign Manager Agent for state reconciliation
         // (After EVERY assistant message - needed to analyze GMA narration)
@@ -242,7 +244,6 @@ export async function POST(req: Request) {
         // Log completion metrics
         console.log("[API] Chat turn completed", {
           runId,
-          hasStateChanges: gma.hasStateChanged(run.state),
           messageCount: result.messages?.length || 0,
         });
       },
@@ -452,7 +453,10 @@ async function triggerBackgroundStateReconciliation(
       return;
     }
 
-    // Create Campaign Manager Agent with current state
+    // Query active quests for CMA state management context
+    const activeQuests = await getActiveQuestsByRunId(run.id);
+
+    // Create Campaign Manager Agent with current state and active quests
     // The agent will create a deep copy internally for comparison
     const cma = createCampaignManagerAgent({
       runId: run.id,
@@ -460,6 +464,7 @@ async function triggerBackgroundStateReconciliation(
       character,
       universe,
       campaignState,
+      activeQuests, // Full quest context for state management
       recentMessages,
     });
 
@@ -473,16 +478,40 @@ async function triggerBackgroundStateReconciliation(
 
     // Persist any additional state changes from background processing
     // Compare against the original state copy
+    // Note: Quest changes are persisted directly by quest tools, so we only persist JSONB columns
     if (cma.hasStateChanged(originalState)) {
       console.log("[API] Background agent modified state, persisting changes");
       const updatedState = cma.getCampaignState();
+
+      // Persist to separate columns (not state JSONB)
       await db
         .update(runs)
         .set({
-          state: updatedState,
+          relationships: updatedState.knowledgeGraph,
+          activeFronts: updatedState.activeFronts,
+          narrativeVectors: updatedState.narrativeVectors,
+          currentContext: updatedState.currentContext,
           updatedAt: new Date(),
         })
         .where(eq(runs.id, run.id));
+
+      // Notify subscribed clients via SSE about the state change
+      try {
+        sseConnectionManager.broadcast(run.id, {
+          type: "campaign-state-updated",
+          data: {
+            state: updatedState,
+          },
+        });
+      } catch (broadcastError) {
+        console.error("[API] Failed to broadcast campaign state SSE event", {
+          runId: run.id,
+          error:
+            broadcastError instanceof Error
+              ? broadcastError.message
+              : String(broadcastError),
+        });
+      }
     }
 
     console.log("[API] Background state reconciliation completed", {
@@ -518,15 +547,32 @@ async function triggerVisualEngineAgent(
     }
 
     console.log("[API] Starting Visual Engine Agent for scene generation");
+    const placeholderSceneId = `pending-${run.id}-${Date.now()}`;
+    try {
+      sseConnectionManager.broadcast(run.id, {
+        type: "scene-generation-started",
+        data: {
+          runId: run.id,
+          sceneId: placeholderSceneId,
+          narrativeContext: campaignState.currentContext,
+          placeholder: true,
+        },
+      });
+    } catch (broadcastError) {
+      console.error("[API] Failed to broadcast early VEA start", {
+        runId: run.id,
+        error:
+          broadcastError instanceof Error
+            ? broadcastError.message
+            : String(broadcastError),
+      });
+    }
+    const previousSceneId = run.currentSceneId;
 
     // Extract character action from the latest user message
     const characterAction = extractCharacterAction(incomingMessages);
 
     // Get current scene for comparison
-    const { db } = await import("@/lib/db");
-    const { scenes } = await import("@/lib/db/schema");
-    const { eq } = await import("drizzle-orm");
-
     const currentScene = run.currentSceneId
       ? await db
           .select({

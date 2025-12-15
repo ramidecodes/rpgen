@@ -8,10 +8,10 @@ import { sseConnectionManager } from "@/lib/sse/connection-manager";
 
 /**
  * SSE endpoint for real-time scene update events
- * 
+ *
  * Clients subscribe to this endpoint to receive instant notifications
  * when new scenes are generated for a run.
- * 
+ *
  * GET /api/runs/[runId]/scene-events
  */
 export async function GET(
@@ -65,7 +65,7 @@ export async function GET(
           try {
             const keepalive = `: keepalive ${Date.now()}\n\n`;
             controller.enqueue(new TextEncoder().encode(keepalive));
-          } catch (error) {
+          } catch (_error) {
             // Connection is dead, stop keepalive
             clearInterval(keepaliveInterval);
             sseConnectionManager.removeConnection(connectionId);
@@ -78,7 +78,7 @@ export async function GET(
           sseConnectionManager.removeConnection(connectionId);
           try {
             controller.close();
-          } catch (error) {
+          } catch (_error) {
             // Connection already closed, ignore
           }
         });
@@ -90,7 +90,7 @@ export async function GET(
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         "X-Accel-Buffering": "no", // Disable nginx buffering
       },
     });
@@ -102,4 +102,3 @@ export async function GET(
     );
   }
 }
-

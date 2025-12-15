@@ -5,12 +5,14 @@ import { ChatInterface } from "@/components/game/chat-interface";
 import { InputArea } from "@/components/game/input-area";
 import { CharacterDetailsDialog } from "@/components/game/character-details-dialog";
 import { CampaignDetailsDialog } from "@/components/game/campaign-details-dialog";
+import { QuestLogsDialog } from "@/components/game/quest-logs-dialog";
+import { RelationshipsDialog } from "@/components/game/relationships-dialog";
 import { SceneVisualizer } from "@/components/game/scene-visualizer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useGameStore } from "@/lib/store/game-store";
 import { useGameChat } from "@/hooks/use-game-chat";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type {
   Run,
   Character,
@@ -19,10 +21,10 @@ import type {
   Scene,
 } from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
-import type { QuestThread, CampaignState } from "@/lib/db/schemas/campaign";
+import type { CampaignState } from "@/lib/db/schemas/campaign";
+import type { Quest } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { getCurrentSceneAction } from "@/app/actions/scenes";
-import { getRunStateAction } from "@/app/actions/game";
 import {
   detectStateChanges,
   notifyStateChanges,
@@ -35,6 +37,7 @@ type GamePlayClientProps = {
   universe: Universe;
   messages: UIMessage[];
   currentScene?: Scene | null;
+  quests: Quest[];
 };
 
 export function GamePlayClient({
@@ -44,6 +47,7 @@ export function GamePlayClient({
   universe,
   messages,
   currentScene,
+  quests,
 }: GamePlayClientProps) {
   const { setCurrentRun, setCurrentCharacter, setPendingSceneId } =
     useGameStore();
@@ -54,11 +58,29 @@ export function GamePlayClient({
   const hasTriggeredInitialMessage = useRef(false);
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [questsDialogOpen, setQuestsDialogOpen] = useState(false);
+  const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
   const [currentSceneState, setCurrentSceneState] = useState<Scene | null>(
     currentScene || null
   );
-  const previousCampaignStateRef = useRef<CampaignState>(run.state);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingStartRef = useRef<number | null>(null);
+  const pendingClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Build CampaignState from separate columns for state change detection
+  const buildCampaignState = useCallback<() => CampaignState>(
+    () => ({
+      activeFronts: run.activeFronts || [],
+      narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
+      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      currentContext: run.currentContext || null,
+    }),
+    [
+      run.activeFronts,
+      run.narrativeVectors,
+      run.relationships,
+      run.currentContext,
+    ]
+  );
+  const previousCampaignStateRef = useRef<CampaignState>(buildCampaignState());
 
   useEffect(() => {
     setCurrentRun(run);
@@ -80,8 +102,19 @@ export function GamePlayClient({
         if (data.type === "scene-updated") {
           const { sceneId, imageUrl } = data.data;
 
-          // Clear pending state when scene is updated
-          setPendingSceneId(null);
+          // Clear pending after a minimal delay to ensure the UI renders the pulse
+          const clearPending = () => setPendingSceneId(null);
+          if (pendingClearTimeoutRef.current) {
+            clearTimeout(pendingClearTimeoutRef.current);
+          }
+          const startedAt = pendingStartRef.current;
+          if (startedAt) {
+            const elapsed = Date.now() - startedAt;
+            const remaining = Math.max(300 - elapsed, 0);
+            pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
+          } else {
+            clearPending();
+          }
 
           // Fetch the full scene data to ensure we have the latest state
           getCurrentSceneAction(run.id)
@@ -121,6 +154,62 @@ export function GamePlayClient({
               setPendingSceneId(null);
             });
         }
+
+        if (data.type === "scene-generation-started") {
+          const { sceneId } = data.data || {};
+          if (typeof sceneId === "string") {
+            pendingStartRef.current = Date.now();
+            if (pendingClearTimeoutRef.current) {
+              clearTimeout(pendingClearTimeoutRef.current);
+            }
+            // Always set to ensure the pulse triggers even for repeated ids
+            setPendingSceneId(sceneId);
+            // Only fetch if we don't have a scene yet; otherwise keep the current image visible
+            if (!currentSceneState) {
+              getCurrentSceneAction(run.id)
+                .then(({ scene }) => {
+                  if (scene) {
+                    setCurrentSceneState(scene);
+                  }
+                })
+                .catch((error) => {
+                  console.error(
+                    "Error fetching scene after pending event:",
+                    error
+                  );
+                });
+            }
+          }
+        }
+
+        if (data.type === "scene-generation-cancelled") {
+          const { placeholderId } = data.data || {};
+          setPendingSceneId((prev) =>
+            placeholderId && prev === placeholderId ? null : prev
+          );
+        }
+
+        // Fallback: clear pending if nothing changes after a timeout for placeholder ids
+        if (data.type === "scene-generation-started") {
+          const { sceneId } = data.data || {};
+          if (typeof sceneId === "string" && sceneId.startsWith("pending-")) {
+            setTimeout(() => {
+              setPendingSceneId((prev) =>
+                prev === sceneId ? null : prev
+              );
+            }, 60000);
+          }
+        }
+
+        if (data.type === "campaign-state-updated" && data.data?.state) {
+          const newState = data.data.state as CampaignState;
+          const oldState = previousCampaignStateRef.current;
+          const changes = detectStateChanges(oldState, newState);
+          if (changes.length > 0) {
+            notifyStateChanges(changes);
+            previousCampaignStateRef.current = newState;
+          }
+        }
       } catch (error) {
         console.error("Error parsing SSE event:", error);
       }
@@ -149,44 +238,10 @@ export function GamePlayClient({
     }
   }, [currentScene, setPendingSceneId]);
 
-  // Poll for campaign state changes and show toast notifications
+  // Initialize previous state reference once
   useEffect(() => {
-    // Initialize previous state
-    previousCampaignStateRef.current = run.state;
-
-    // Poll for state updates every 5 seconds
-    const pollState = async () => {
-      try {
-        const result = await getRunStateAction(run.id);
-        if (result.success && result.state) {
-          const newState = result.state;
-          const oldState = previousCampaignStateRef.current;
-
-          // Detect changes
-          const changes = detectStateChanges(oldState, newState);
-          if (changes.length > 0) {
-            // Show toast notifications
-            notifyStateChanges(changes);
-            // Update previous state
-            previousCampaignStateRef.current = newState;
-          }
-        }
-      } catch (error) {
-        console.error("Error polling campaign state:", error);
-      }
-    };
-
-    // Poll immediately, then every 5 seconds
-    pollState();
-    pollingIntervalRef.current = setInterval(pollState, 5000);
-
-    // Cleanup on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, [run.id, run.state]);
+    previousCampaignStateRef.current = buildCampaignState();
+  }, [buildCampaignState]);
 
   // Trigger initial GM introduction when campaign has no messages
   // Only trigger if there are truly no messages (neither messages prop nor chat messages)
@@ -252,17 +307,18 @@ export function GamePlayClient({
             {/* Right Column - Game Information Panel */}
             <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
               {/* Top Section - Scene Visualizer */}
-              <div className="shrink-0">
+              <div className="shrink-0 overflow-hidden rounded-xl">
                 <SceneVisualizer
                   key={currentSceneState?.id}
                   scene={currentSceneState}
                   isLoading={false}
-                  className="h-auto"
+                  className="h-[360px] md:h-[440px]"
+                  fullBleed
                 />
               </div>
 
               {/* Bottom Section - Campaign Details */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+              <div className="flex flex-1 flex-col gap-2">
                 {/* Character Stats - Compact and Clickable */}
                 <Card
                   className={cn(
@@ -271,8 +327,8 @@ export function GamePlayClient({
                   )}
                   onClick={() => setCharacterDialogOpen(true)}
                 >
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
+                  <CardContent className="p-2">
+                    <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 shrink-0">
                         <AvatarImage
                           src={character.properties?.imageUrl}
@@ -287,13 +343,13 @@ export function GamePlayClient({
                             .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">
+                      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                        <span className="font-semibold truncate">
                           {character.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {character.properties?.profession || "Adventurer"}
-                        </div>
+                        </span>
+                        <span className="text-muted-foreground truncate">
+                          · {character.properties?.profession || "Adventurer"}
+                        </span>
                       </div>
                     </div>
                   </CardContent>
@@ -307,26 +363,58 @@ export function GamePlayClient({
                   )}
                   onClick={() => setCampaignDialogOpen(true)}
                 >
-                  <CardContent className="p-3 space-y-2">
-                    <div className="text-xs font-semibold">Campaign</div>
-                    <div className="text-xs text-muted-foreground">
-                      {run.state.activeFronts.length} fronts,{" "}
-                      {
-                        run.state.questThreads.filter(
-                          (q: QuestThread) => q.status === "active"
-                        ).length
-                      }{" "}
-                      quests
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold">Campaign</span>
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        <span>{(run.activeFronts || []).length} fronts</span>
+                        <span>
+                          Hope{" "}
+                          {((run.narrativeVectors?.hope || 0.5) * 100).toFixed(0)}%
+                        </span>
+                        <span>
+                          Chaos{" "}
+                          {((run.narrativeVectors?.chaos || 0.5) * 100).toFixed(0)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2 text-xs">
-                      <div>
-                        Hope:{" "}
-                        {(run.state.narrativeVectors.hope * 100).toFixed(0)}%
-                      </div>
-                      <div>
-                        Chaos:{" "}
-                        {(run.state.narrativeVectors.chaos * 100).toFixed(0)}%
-                      </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quests - Compact and Clickable */}
+                <Card
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-muted/50",
+                    questsDialogOpen && "ring-2 ring-ring"
+                  )}
+                  onClick={() => setQuestsDialogOpen(true)}
+                >
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold">Quests</span>
+                      <span className="text-muted-foreground">
+                        {quests.filter((q) => q.status === "active").length} active ·{" "}
+                        {quests.length} total
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Relationships - Compact and Clickable */}
+                <Card
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-muted/50",
+                    relationshipsDialogOpen && "ring-2 ring-ring"
+                  )}
+                  onClick={() => setRelationshipsDialogOpen(true)}
+                >
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold">Relationships</span>
+                      <span className="text-muted-foreground">
+                        {(run.relationships?.nodes || []).length} entities ·{" "}
+                        {(run.relationships?.edges || []).length} connections
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -347,6 +435,16 @@ export function GamePlayClient({
         campaign={campaign}
         open={campaignDialogOpen}
         onOpenChange={setCampaignDialogOpen}
+      />
+      <QuestLogsDialog
+        runId={run.id}
+        open={questsDialogOpen}
+        onOpenChange={setQuestsDialogOpen}
+      />
+      <RelationshipsDialog
+        run={run}
+        open={relationshipsDialogOpen}
+        onOpenChange={setRelationshipsDialogOpen}
       />
     </div>
   );

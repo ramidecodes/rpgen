@@ -5,10 +5,14 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { runs, campaigns, characters, universes } from "@/lib/db/schema";
 import { createRunSchema, type CreateRunInput } from "@/lib/db/schemas/run";
-import { generateCampaignState } from "@/lib/ai/campaign-generator";
+import {
+  generateRunState,
+  generateInitialQuests,
+} from "@/lib/ai/campaign-generator";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq } from "drizzle-orm";
 import { deleteFolder } from "@/lib/storage/r2";
+import { quests } from "@/lib/db/schema";
 
 export async function createRun(data: CreateRunInput) {
   const { userId: clerkUserId } = await auth();
@@ -71,24 +75,48 @@ export async function createRun(data: CreateRunInput) {
     );
   }
 
-  // Generate initial state tailored to the character
-  const initialState = await generateCampaignState(
+  // Generate initial state tailored to the character (without quests)
+  const initialState = await generateRunState(
     universe,
     campaign.genres,
     character
   );
 
-  // Create Run
+  // Generate initial quests separately
+  const initialQuestsData = await generateInitialQuests(
+    universe,
+    campaign.genres,
+    character
+  );
+
+  // Create Run with separate columns (not state JSONB)
   const [newRun] = await db
     .insert(runs)
     .values({
       userId: userProfile.id,
       campaignId: campaign.id,
       characterId: character.id,
-      state: initialState,
+      relationships: initialState.knowledgeGraph,
+      activeFronts: initialState.activeFronts,
+      narrativeVectors: initialState.narrativeVectors,
+      currentContext: initialState.currentContext,
       status: "active",
     })
     .returning();
+
+  // Insert initial quests into quests table
+  if (initialQuestsData.questThreads.length > 0) {
+    await db.insert(quests).values(
+      initialQuestsData.questThreads.map((quest) => ({
+        runId: newRun.id,
+        title: quest.title,
+        description: quest.description,
+        status: quest.status || "active",
+        clues: quest.clues || [],
+        logs: quest.logs || [],
+      }))
+    );
+  }
 
   redirect(`/runs/${newRun.id}`);
 }

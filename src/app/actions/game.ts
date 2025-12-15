@@ -12,10 +12,10 @@ import {
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq, desc } from "drizzle-orm";
 import { streamText, stepCountIs } from "ai";
-import { createGameMasterTools } from "@/lib/ai/tools";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import { z } from "zod";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
+import { getQuestsByRunId } from "@/lib/db/queries/quests";
 
 const openrouter = getOpenRouterClient();
 const MODEL_NAME = getTextModel("base");
@@ -91,7 +91,28 @@ export async function continueGame(input: z.infer<typeof continueGameSchema>) {
       content: msg.content as string | unknown[],
     }));
 
+  // Query quests separately
+  const allQuests = await getQuestsByRunId(run.id);
+
+  // Build campaignState from separate columns
+  const campaignState: CampaignState = {
+    activeFronts: run.activeFronts || [],
+    narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
+    knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+    currentContext: run.currentContext || null,
+  };
+
   // Build system prompt with context
+  const questContext =
+    allQuests.length > 0
+      ? allQuests
+          .map(
+            (q) =>
+              `- "${q.title}": ${q.description} (${q.status}, ${q.clues.length} clues)`
+          )
+          .join("\n")
+      : "No quests";
+
   const systemPrompt = `You are the Game Master Agent (GMA) for a text-based RPG campaign.
 
 UNIVERSE CONTEXT:
@@ -105,15 +126,17 @@ CAMPAIGN CONTEXT:
 - Name: ${campaign.name}
 - Genres: ${campaign.genres.join(", ")}
 - Current State:
-  - Active Fronts: ${JSON.stringify(run.state.activeFronts)}
-  - Narrative Vectors: Hope=${run.state.narrativeVectors.hope.toFixed(
+  - Active Fronts: ${JSON.stringify(campaignState.activeFronts)}
+  - Narrative Vectors: Hope=${campaignState.narrativeVectors.hope.toFixed(
     2
-  )}, Chaos=${run.state.narrativeVectors.chaos.toFixed(2)}
-  - Quest Threads: ${run.state.questThreads.length} active
-  - Knowledge Graph: ${run.state.knowledgeGraph.nodes.length} nodes, ${
-    run.state.knowledgeGraph.edges.length
+  )}, Chaos=${campaignState.narrativeVectors.chaos.toFixed(2)}
+  - Knowledge Graph: ${campaignState.knowledgeGraph.nodes.length} nodes, ${
+    campaignState.knowledgeGraph.edges.length
   } edges
-  - Current Context: ${run.state.currentContext || "Beginning of campaign"}
+  - Current Context: ${campaignState.currentContext || "Beginning of campaign"}
+
+QUESTS:
+${questContext}
 
 CHARACTER CONTEXT:
 - Name: ${character.name}
@@ -130,20 +153,15 @@ CHARACTER CONTEXT:
   }...
 
 GAME MASTER INSTRUCTIONS:
-1. You are a living world simulator. Use tools to update the campaign state dynamically.
-2. Check Active Fronts every turn. If the player ignores a Front, advance it by 1 step.
-3. When a player action requires a skill check, use the requestSkillCheck tool with the appropriate attribute and difficulty.
-4. After tool execution, narrate the consequences naturally, incorporating state changes into your description.
-5. Keep narrative engaging and responsive to player choices.
-6. You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations.
+1. You are a storyteller and narrator. Focus on immersive storytelling.
+2. When a player action requires a skill check, use the requestSkillCheck tool with the appropriate attribute and difficulty.
+3. Keep narrative engaging and responsive to player choices.
+4. Reference quests naturally in your narration when relevant.
 
 IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.`;
 
-  // Create mutable state copy for tool execution
-  const campaignState: CampaignState = JSON.parse(JSON.stringify(run.state));
-
-  // Create tools with state context
-  const toolsWithState = createGameMasterTools(campaignState);
+  // Note: This action is deprecated in favor of the chat API route
+  // Keeping for backward compatibility but tools are not used here
 
   // Prepare messages array for AI SDK
   // Don't type explicitly - let TypeScript infer, then assert when passing to streamText
@@ -176,15 +194,13 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
     }
   }
 
-  // Stream text with tools
-  // Type assertion is safe because we've filtered out "data" role messages
-  // and properly structured all messages with valid roles
+  // Stream text without tools (this action is deprecated)
+  // The chat API route handles tool execution properly
   const result = streamText({
     model: openrouter.chat(MODEL_NAME),
     messages: aiMessages as never,
-    tools: toolsWithState,
-    stopWhen: stepCountIs(5), // Allow up to 5 tool/thought steps before stopping
-    onFinish: async ({ text, toolCalls, toolResults }) => {
+    stopWhen: stepCountIs(5),
+    onFinish: async ({ text }) => {
       // Save assistant message
       await db.insert(messages).values({
         runId: run.id,
@@ -200,29 +216,6 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
           content: validatedInput.userMessage,
         });
       }
-
-      // Update campaign state if world mutation tools were executed
-      let stateUpdated = false;
-      if (toolCalls && toolResults) {
-        for (const toolCall of toolCalls) {
-          // Skip HITL tools (they don't modify state directly)
-          if (toolCall.toolName === "requestSkillCheck") {
-            continue;
-          }
-          stateUpdated = true;
-        }
-      }
-
-      // Persist updated state if tools modified it
-      if (stateUpdated) {
-        await db
-          .update(runs)
-          .set({
-            state: campaignState,
-            updatedAt: new Date(),
-          })
-          .where(eq(runs.id, run.id));
-      }
     },
   });
 
@@ -231,10 +224,19 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
 
 /**
  * Fetch run state for client-side polling
+ * Returns state from separate columns and quests from quests table
  */
 export async function getRunStateAction(runId: string): Promise<{
   success: boolean;
   state?: CampaignState;
+  quests?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    description: string;
+    clues: string[];
+    logs: string[];
+  }>;
   error?: string;
 }> {
   try {
@@ -249,7 +251,13 @@ export async function getRunStateAction(runId: string): Promise<{
     }
 
     const [run] = await db
-      .select({ state: runs.state })
+      .select({
+        relationships: runs.relationships,
+        activeFronts: runs.activeFronts,
+        narrativeVectors: runs.narrativeVectors,
+        currentContext: runs.currentContext,
+        userId: runs.userId,
+      })
       .from(runs)
       .where(eq(runs.id, runId))
       .limit(1);
@@ -259,19 +267,32 @@ export async function getRunStateAction(runId: string): Promise<{
     }
 
     // Verify ownership
-    const [runWithUser] = await db
-      .select({ userId: runs.userId })
-      .from(runs)
-      .where(eq(runs.id, runId))
-      .limit(1);
-
-    if (runWithUser?.userId !== userProfile.id) {
+    if (run.userId !== userProfile.id) {
       return { success: false, error: "Unauthorized" };
     }
 
+    // Build CampaignState from separate columns
+    const state: CampaignState = {
+      activeFronts: run.activeFronts || [],
+      narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
+      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      currentContext: run.currentContext || null,
+    };
+
+    // Query quests separately
+    const questsList = await getQuestsByRunId(runId);
+
     return {
       success: true,
-      state: run.state as CampaignState,
+      state,
+      quests: questsList.map((q) => ({
+        id: q.id,
+        title: q.title,
+        status: q.status,
+        description: q.description,
+        clues: q.clues,
+        logs: q.logs,
+      })),
     };
   } catch (error) {
     console.error("[getRunStateAction] Error:", error);

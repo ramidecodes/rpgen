@@ -198,6 +198,15 @@ export async function triggerSceneGenerationAction(
       return { success: false, error: "Unauthorized" };
     }
 
+    // Build CampaignState from separate columns
+    const campaignState = {
+      activeFronts: runData.run.activeFronts || [],
+      narrativeVectors:
+        runData.run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
+      knowledgeGraph: runData.run.relationships || { nodes: [], edges: [] },
+      currentContext: runData.run.currentContext || null,
+    };
+
     // Import the visual engine agent and trigger generation
     const { createVisualEngineAgent } = await import("@/agents/visual-engine");
 
@@ -207,7 +216,7 @@ export async function triggerSceneGenerationAction(
       campaign: runData.campaign,
       character: runData.character,
       universe: runData.universe,
-      campaignState: runData.run.state,
+      campaignState,
       currentScene: null,
       recentMessages: [],
       characterAction: narrativeContext || "Manual scene generation requested",

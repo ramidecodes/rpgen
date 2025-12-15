@@ -13,7 +13,8 @@ import { Calendar, Play } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import type { Front, QuestThread } from "@/lib/db/schemas/campaign";
+import type { Front } from "@/lib/db/schemas/campaign";
+import { getQuestsByRunId } from "@/lib/db/queries/quests";
 
 interface RunPageProps {
   params: Promise<{
@@ -59,6 +60,9 @@ export default async function RunPage({ params }: RunPageProps) {
   if (run.userId !== userProfile.id) {
     redirect("/campaigns");
   }
+
+  // Query quests separately
+  const quests = await getQuestsByRunId(run.id);
 
   // Resolve cover image key to URL if needed
   const coverImageUrl =
@@ -120,11 +124,15 @@ export default async function RunPage({ params }: RunPageProps) {
                           Active Fronts
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.activeFronts.map(
-                            (front: Front, index: number) => (
-                              <li key={`${front.name}-${index}`}>
-                                {front.name}
-                              </li>
+                          {(run.activeFronts || []).length === 0 ? (
+                            <li className="text-muted-foreground">None</li>
+                          ) : (
+                            (run.activeFronts || []).map(
+                              (front: Front, index: number) => (
+                                <li key={`${front.name}-${index}`}>
+                                  {front.name}
+                                </li>
+                              )
                             )
                           )}
                         </ul>
@@ -134,22 +142,22 @@ export default async function RunPage({ params }: RunPageProps) {
                           Quest Threads
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {run.state.questThreads.map(
-                            (quest: QuestThread, index: number) => (
-                              <li key={`${quest.title}-${index}`}>
-                                {quest.title}
-                              </li>
-                            )
+                          {quests.length === 0 ? (
+                            <li className="text-muted-foreground">None</li>
+                          ) : (
+                            quests.map((quest) => (
+                              <li key={quest.id}>{quest.title}</li>
+                            ))
                           )}
                         </ul>
                       </div>
                     </div>
-                    {run.state.currentContext && (
+                    {run.currentContext && (
                       <div className="mt-4 bg-muted/50 p-4 rounded-lg">
                         <h4 className="font-medium text-sm text-muted-foreground mb-2">
                           Current Context
                         </h4>
-                        <p className="text-sm">{run.state.currentContext}</p>
+                        <p className="text-sm">{run.currentContext}</p>
                       </div>
                     )}
                   </div>
