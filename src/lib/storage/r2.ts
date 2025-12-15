@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -155,6 +156,8 @@ export async function deleteFile(key: string): Promise<void> {
 
 /**
  * Deletes all files with a given prefix (folder) from Cloudflare R2
+ * Handles pagination for folders with more than 1000 files
+ * Uses bulk deletion (DeleteObjects) for efficiency
  * @param prefix - The prefix (folder path) to delete all files under
  * @returns void
  */
@@ -171,36 +174,62 @@ export async function deleteFolder(prefix: string): Promise<void> {
     // Ensure prefix ends with / for folder-like behavior
     const folderPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
-    // List all objects with the prefix
-    const listCommand = new ListObjectsV2Command({
-      Bucket: R2_BUCKET_NAME,
-      Prefix: folderPrefix,
-    });
+    // Collect all object keys to delete (handling pagination)
+    const allKeys: string[] = [];
+    let continuationToken: string | undefined;
 
-    const listResponse = await S3.send(listCommand);
+    do {
+      // List objects with the prefix (handles pagination)
+      const listCommand = new ListObjectsV2Command({
+        Bucket: R2_BUCKET_NAME,
+        Prefix: folderPrefix,
+        ContinuationToken: continuationToken,
+      });
 
-    if (!listResponse.Contents || listResponse.Contents.length === 0) {
+      const listResponse = await S3.send(listCommand);
+
+      if (listResponse.Contents && listResponse.Contents.length > 0) {
+        // Collect keys from this page
+        for (const object of listResponse.Contents) {
+          if (object.Key) {
+            allKeys.push(object.Key);
+          }
+        }
+      }
+
+      // Check if there are more objects to list
+      continuationToken = listResponse.IsTruncated
+        ? listResponse.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
+
+    if (allKeys.length === 0) {
       return; // No files to delete
     }
 
-    // Delete all files
-    const deletePromises = listResponse.Contents.map((object) => {
-      if (!object.Key) {
-        return Promise.resolve();
-      }
+    // Delete objects in batches of 1000 (S3/R2 limit for DeleteObjects)
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
+      const batch = allKeys.slice(i, i + BATCH_SIZE);
 
-      const deleteCommand = new DeleteObjectCommand({
+      const deleteCommand = new DeleteObjectsCommand({
         Bucket: R2_BUCKET_NAME,
-        Key: object.Key,
+        Delete: {
+          Objects: batch.map((key) => ({ Key: key })),
+          Quiet: true, // Don't return deleted objects in response
+        },
       });
 
-      return S3.send(deleteCommand).catch((error) => {
-        // Log error but continue with other deletions
-        console.error(`Error deleting file ${object.Key} from R2:`, error);
-      });
-    });
-
-    await Promise.all(deletePromises);
+      try {
+        await S3.send(deleteCommand);
+      } catch (error) {
+        // Log error but continue with other batches
+        console.error(
+          `Error deleting batch of ${batch.length} files from R2:`,
+          error
+        );
+      }
+    }
   } catch (error) {
     // Log error but don't throw - folder might not exist
     console.error("Error deleting folder from R2:", error);
