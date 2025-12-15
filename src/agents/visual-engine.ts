@@ -161,6 +161,42 @@ function createVisualEngineTools(
 // ============================================================================
 
 /**
+ * Check if the latest assistant message contains meaningful narrative text.
+ * Returns false if the message only contains tool calls without narrative text.
+ * Uses simple heuristics to avoid unnecessary scene generation for tool-call-only messages.
+ */
+export function hasNarrativeText(messages: UIMessage[]): boolean {
+  // Find the latest assistant message
+  const lastAssistantMessage = messages
+    .filter((msg) => msg.role === "assistant")
+    .pop();
+
+  // No assistant messages exist
+  if (!lastAssistantMessage) {
+    return false;
+  }
+
+  // Check if message has parts
+  if (!Array.isArray(lastAssistantMessage.parts) || lastAssistantMessage.parts.length === 0) {
+    return false;
+  }
+
+  // Check for text parts with non-empty content
+  for (const part of lastAssistantMessage.parts) {
+    if (isTextUIPart(part)) {
+      const text = part.text.trim();
+      // If we find at least one non-empty text part, there's narrative text
+      if (text.length > 0) {
+        return true;
+      }
+    }
+  }
+
+  // No non-empty text parts found (only tool calls or empty text)
+  return false;
+}
+
+/**
  * Extract the character's most recent action from messages
  * Useful for determining if location/setting changes occurred
  */

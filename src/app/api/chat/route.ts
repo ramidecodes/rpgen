@@ -18,6 +18,7 @@ import {
 import {
   createVisualEngineAgent,
   extractCharacterAction,
+  hasNarrativeText,
 } from "@/agents/visual-engine";
 import type { UIMessage, UIMessagePart } from "@/types/ui-message";
 import { isTextUIPart } from "@/types/ui-message";
@@ -507,6 +508,15 @@ async function triggerVisualEngineAgent(
   incomingMessages: UIMessage[]
 ): Promise<void> {
   try {
+    // Early exit: Skip VEA if latest assistant message has no narrative text
+    // This prevents duplicate scene generation for tool-call-only messages (e.g., requestSkillCheck)
+    if (!hasNarrativeText(recentMessages)) {
+      console.log(
+        "[API] Skipping Visual Engine Agent - no narrative text in latest assistant message"
+      );
+      return;
+    }
+
     console.log("[API] Starting Visual Engine Agent for scene generation");
 
     // Extract character action from the latest user message
