@@ -254,6 +254,7 @@ export function GamePlayClient({
               {/* Top Section - Scene Visualizer */}
               <div className="shrink-0">
                 <SceneVisualizer
+                  key={currentSceneState?.id}
                   scene={currentSceneState}
                   isLoading={false}
                   className="h-auto"

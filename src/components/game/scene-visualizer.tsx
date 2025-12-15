@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -38,12 +38,6 @@ export function SceneVisualizer({
 
   // Check if this scene is pending generation
   const isPending = scene?.id === pendingSceneId || !scene?.imageUrl;
-
-  // Reset image state when scene changes
-  useEffect(() => {
-    setImageLoaded(false);
-    setImageError(false);
-  }, [scene?.id]);
 
   const handleImageLoad = () => {
     setImageLoaded(true);
@@ -130,9 +124,7 @@ export function SceneVisualizer({
             </div>
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
-            <p className="line-clamp-2">
-              <strong>Scene:</strong> {scene.narrativeContext}
-            </p>
+            <p className="line-clamp-2">{scene.narrativeContext}</p>
             <p>
               <strong>Status:</strong> Pending generation
             </p>
@@ -199,13 +191,7 @@ export function SceneVisualizer({
 
         {/* Scene Metadata */}
         <div className="space-y-1 text-xs text-muted-foreground">
-          <p className="line-clamp-2">
-            <strong>Scene:</strong> {scene.narrativeContext}
-          </p>
-          <p>
-            <strong>Generated:</strong>{" "}
-            {new Date(scene.createdAt).toLocaleDateString()}
-          </p>
+          <p className="line-clamp-2">{scene.narrativeContext}</p>
         </div>
       </CardContent>
     </Card>
