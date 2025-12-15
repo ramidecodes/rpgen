@@ -98,7 +98,7 @@
 
     - Handles the heavy lifting of generating the initial Narrative Graph.
     - Takes `campaignId` and `characterId` as input.
-    - Generates state using `generateCampaignState` (updated to include Character context).
+- Generates state using `generateRunState` (updated to include Character context) and seeds starter quests via `generateInitialQuests`.
     - Creates Run record with generated state.
 
   - **`startCampaign`** (Deprecated):
