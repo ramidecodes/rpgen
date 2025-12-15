@@ -11,8 +11,6 @@ import {
   integer,
   foreignKey,
 } from "drizzle-orm/pg-core";
-import type { CampaignState } from "./schemas/campaign";
-
 export const userProfiles = pgTable(
   "user_profiles",
   {
@@ -132,7 +130,44 @@ export const runs = pgTable("runs", {
   characterId: uuid("character_id")
     .references(() => characters.id)
     .notNull(),
-  state: jsonb("state").$type<CampaignState>().notNull(),
+  // Split state into separate columns for better queryability
+  relationships: jsonb("relationships")
+    .$type<{
+      nodes: Array<{
+        id: string;
+        type: string;
+        label: string;
+        description: string | null;
+        data: Record<string, unknown> | null;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        relation: string;
+        weight: number;
+      }>;
+    }>()
+    .default({ nodes: [], edges: [] })
+    .notNull(),
+  activeFronts: jsonb("active_fronts")
+    .$type<
+      Array<{
+        name: string;
+        description: string;
+        doomClock: number;
+        maxDoom: number;
+      }>
+    >()
+    .default([])
+    .notNull(),
+  narrativeVectors: jsonb("narrative_vectors")
+    .$type<{
+      hope: number;
+      chaos: number;
+    }>()
+    .default({ hope: 0.5, chaos: 0.5 })
+    .notNull(),
+  currentContext: text("current_context"),
   status: varchar("status", { length: 20 }).default("active").notNull(),
   currentSceneId: uuid("current_scene_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -163,6 +198,29 @@ export const scenes = pgTable(
       foreignColumns: [table.id],
       name: "scenes_previous_scene_id_fkey",
     }),
+  ]
+);
+
+// Define quests table - separate table for quest management
+export const quests = pgTable(
+  "quests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .references(() => runs.id, { onDelete: "cascade" })
+      .notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    status: varchar("status", { length: 20 }).default("active").notNull(), // "active" | "completed" | "failed" | "dormant"
+    description: text("description").notNull(),
+    clues: jsonb("clues").$type<string[]>().default([]).notNull(),
+    logs: jsonb("logs").$type<string[]>().default([]).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("quests_run_id_idx").on(table.runId),
+    index("quests_status_idx").on(table.status),
+    index("quests_created_at_idx").on(table.createdAt),
   ]
 );
 
@@ -207,3 +265,6 @@ export type NewMessage = typeof messages.$inferInsert;
 
 export type Scene = typeof scenes.$inferSelect;
 export type NewScene = typeof scenes.$inferInsert;
+
+export type Quest = typeof quests.$inferSelect;
+export type NewQuest = typeof quests.$inferInsert;

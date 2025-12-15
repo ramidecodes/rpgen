@@ -29,12 +29,14 @@ export const frontSchema = z.object({
     .describe("Steps until the impending doom happens"),
 });
 
-// 3. Quest Threads
+// 3. Quest Threads (for validation/type checking - quests are now in separate table)
 export const questThreadSchema = z.object({
+  id: z.string().uuid().optional(),
   title: z.string(),
   status: z.enum(["active", "completed", "failed", "dormant"]),
   description: z.string(),
   clues: z.array(z.string()),
+  logs: z.array(z.string()).optional(),
 });
 
 // 4. Knowledge Graph
@@ -59,11 +61,11 @@ export const knowledgeGraphSchema = z.object({
 });
 
 // --- Full Campaign State Schema ---
-// This is the "Blackbox" state stored in the DB
+// Note: questThreads are now stored in separate quests table, not in state
+// This schema is used for in-memory state management (fronts, vectors, relationships)
 export const campaignStateSchema = z.object({
   activeFronts: z.array(frontSchema),
   narrativeVectors: narrativeVectorsSchema,
-  questThreads: z.array(questThreadSchema),
   knowledgeGraph: knowledgeGraphSchema,
   // Optional: Summary of the last turn or current situation for context
   currentContext: z.string().nullable(),
