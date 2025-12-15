@@ -19,9 +19,14 @@ import type {
   Scene,
 } from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
-import type { QuestThread } from "@/lib/db/schemas/campaign";
+import type { QuestThread, CampaignState } from "@/lib/db/schemas/campaign";
 import { cn } from "@/lib/utils";
 import { getCurrentSceneAction } from "@/app/actions/scenes";
+import { getRunStateAction } from "@/app/actions/game";
+import {
+  detectStateChanges,
+  notifyStateChanges,
+} from "@/lib/utils/campaign-state-toasts";
 
 type GamePlayClientProps = {
   run: Run;
@@ -52,6 +57,8 @@ export function GamePlayClient({
   const [currentSceneState, setCurrentSceneState] = useState<Scene | null>(
     currentScene || null
   );
+  const previousCampaignStateRef = useRef<CampaignState>(run.state);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setCurrentRun(run);
@@ -88,11 +95,11 @@ export function GamePlayClient({
               } else if (imageUrl) {
                 // If scene fetch fails but we have imageUrl, update current scene
                 setCurrentSceneState((prevScene) => {
-                  if (prevScene?.id === sceneId) {
+                  if (prevScene && prevScene.id === sceneId) {
                     return {
                       ...prevScene,
                       imageUrl,
-                    };
+                    } as Scene;
                   }
                   return prevScene;
                 });
@@ -103,11 +110,11 @@ export function GamePlayClient({
               console.error("Error fetching scene after SSE update:", error);
               // Fallback: update imageUrl if we have it and it matches current scene
               setCurrentSceneState((prevScene) => {
-                if (prevScene?.id === sceneId && imageUrl) {
+                if (prevScene && prevScene.id === sceneId && imageUrl) {
                   return {
                     ...prevScene,
                     imageUrl,
-                  };
+                  } as Scene;
                 }
                 return prevScene;
               });
@@ -128,7 +135,7 @@ export function GamePlayClient({
     return () => {
       eventSource.close();
     };
-  }, [run.id, gameChat.isLoading]);
+  }, [run.id, gameChat.isLoading, setPendingSceneId]);
 
   // Update scene state when prop changes (initial load or server-side updates)
   useEffect(() => {
@@ -141,6 +148,45 @@ export function GamePlayClient({
       setPendingSceneId(null);
     }
   }, [currentScene, setPendingSceneId]);
+
+  // Poll for campaign state changes and show toast notifications
+  useEffect(() => {
+    // Initialize previous state
+    previousCampaignStateRef.current = run.state;
+
+    // Poll for state updates every 5 seconds
+    const pollState = async () => {
+      try {
+        const result = await getRunStateAction(run.id);
+        if (result.success && result.state) {
+          const newState = result.state;
+          const oldState = previousCampaignStateRef.current;
+
+          // Detect changes
+          const changes = detectStateChanges(oldState, newState);
+          if (changes.length > 0) {
+            // Show toast notifications
+            notifyStateChanges(changes);
+            // Update previous state
+            previousCampaignStateRef.current = newState;
+          }
+        }
+      } catch (error) {
+        console.error("Error polling campaign state:", error);
+      }
+    };
+
+    // Poll immediately, then every 5 seconds
+    pollState();
+    pollingIntervalRef.current = setInterval(pollState, 5000);
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [run.id, run.state]);
 
   // Trigger initial GM introduction when campaign has no messages
   // Only trigger if there are truly no messages (neither messages prop nor chat messages)

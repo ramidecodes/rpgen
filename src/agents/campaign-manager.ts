@@ -3,6 +3,8 @@ import { createGameMasterTools } from "@/lib/ai/tools";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import type { Character, Universe, Campaign } from "@/lib/db/schema";
+import type { UIMessage } from "@/types/ui-message";
+import { isTextUIPart } from "@/types/ui-message";
 
 // ============================================================================
 // Tool Set Types
@@ -22,13 +24,14 @@ export type CampaignManagerAgentOptions = {
   character: Character;
   universe: Universe;
   campaignState: CampaignState;
-  transcript: Array<{ role: string; content: string }>; // Recent transcript subset
+  recentMessages: UIMessage[]; // Recent messages in UIMessage format
 };
 
 export type CampaignManagerAgent = {
   getAgent: () => ToolLoopAgent<never, CampaignManagerTools, never>;
   getCampaignState: () => CampaignState;
   hasStateChanged: (originalState: CampaignState) => boolean;
+  getOriginalState: () => CampaignState; // Return the original state copy for comparison
 };
 
 // ============================================================================
@@ -54,6 +57,12 @@ export function createCampaignManagerAgent(
   options: CampaignManagerAgentOptions
 ): CampaignManagerAgent {
   const { campaignState } = options;
+
+  // Create deep copy of original state for comparison
+  const originalStateCopy: CampaignState = JSON.parse(
+    JSON.stringify(campaignState)
+  );
+
   const openrouter = getOpenRouterClient();
   const model = openrouter.chat(getTextModel("reasoning"));
 
@@ -97,6 +106,7 @@ export function createCampaignManagerAgent(
     getCampaignState: () => campaignState,
     hasStateChanged: (originalState: CampaignState) =>
       JSON.stringify(campaignState) !== JSON.stringify(originalState),
+    getOriginalState: () => originalStateCopy,
   };
 }
 
@@ -140,21 +150,39 @@ OUTPUT: Only use tools to mutate state. No text responses or narration.`;
 }
 
 /**
- * Extract recent transcript for background processing
- * Returns last N messages formatted for the CMA
+ * Extract text from UIMessage parts for CMA processing
+ * Returns CoreMessage format with text content extracted from text parts only
  */
-export function extractTranscriptForProcessing(
-  messages: Array<{ role: string; content: unknown }>,
+export function extractTextFromUIMessages(
+  messages: UIMessage[],
   maxMessages = 20
-): Array<{ role: string; content: string }> {
+): Array<{ role: "system" | "user" | "assistant"; content: string }> {
   return messages
     .slice(-maxMessages)
-    .map((msg) => ({
-      role: msg.role,
-      content:
-        typeof msg.content === "string"
-          ? msg.content
-          : JSON.stringify(msg.content),
-    }))
-    .filter((msg) => msg.content.trim().length > 0);
+    .filter((msg) => {
+      // Only include system, user, assistant messages
+      return (
+        msg.role === "system" || msg.role === "user" || msg.role === "assistant"
+      );
+    })
+    .map((msg) => {
+      // Extract text from text parts only
+      const textParts: string[] = [];
+      if (Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (isTextUIPart(part)) {
+            const text = part.text.trim();
+            if (text.length > 0) {
+              textParts.push(text);
+            }
+          }
+        }
+      }
+
+      return {
+        role: msg.role as "system" | "user" | "assistant",
+        content: textParts.join(" ").trim() || "", // Join text parts, fallback to empty string
+      };
+    })
+    .filter((msg) => msg.content.length > 0); // Remove empty messages
 }

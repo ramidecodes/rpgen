@@ -228,3 +228,56 @@ IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yours
 
   return result;
 }
+
+/**
+ * Fetch run state for client-side polling
+ */
+export async function getRunStateAction(runId: string): Promise<{
+  success: boolean;
+  state?: CampaignState;
+  error?: string;
+}> {
+  try {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const userProfile = await getUserProfileByClerkId(clerkUserId);
+    if (!userProfile) {
+      return { success: false, error: "User profile not found" };
+    }
+
+    const [run] = await db
+      .select({ state: runs.state })
+      .from(runs)
+      .where(eq(runs.id, runId))
+      .limit(1);
+
+    if (!run) {
+      return { success: false, error: "Run not found" };
+    }
+
+    // Verify ownership
+    const [runWithUser] = await db
+      .select({ userId: runs.userId })
+      .from(runs)
+      .where(eq(runs.id, runId))
+      .limit(1);
+
+    if (runWithUser?.userId !== userProfile.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    return {
+      success: true,
+      state: run.state as CampaignState,
+    };
+  } catch (error) {
+    console.error("[getRunStateAction] Error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}

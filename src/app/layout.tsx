@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Special_Elite, Jersey_25 } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 const specialElite = Special_Elite({
@@ -56,6 +57,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster />
           </ThemeProvider>
         </body>
       </html>

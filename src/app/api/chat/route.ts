@@ -13,7 +13,7 @@ import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { createGameMasterAgent } from "@/agents/game-master";
 import {
   createCampaignManagerAgent,
-  extractTranscriptForProcessing,
+  extractTextFromUIMessages,
 } from "@/agents/campaign-manager";
 import {
   createVisualEngineAgent,
@@ -187,9 +187,11 @@ export async function POST(req: Request) {
           ? [...processedMessages, latestAssistantMessage]
           : processedMessages;
 
-        // Update campaign state if modified
+        // Update campaign state if modified by GMA
         if (gma.hasStateChanged(run.state)) {
-          console.log("[API] Campaign state modified, persisting changes");
+          console.log(
+            "[API] Campaign state modified by GMA, persisting changes"
+          );
           await db
             .update(runs)
             .set({
@@ -197,18 +199,25 @@ export async function POST(req: Request) {
               updatedAt: new Date(),
             })
             .where(eq(runs.id, run.id));
-
-          // Trigger background Campaign Manager Agent for state reconciliation
-          // (Only when state changes - correct behavior for state reconciliation)
-          await triggerBackgroundStateReconciliation(
-            run,
-            character,
-            campaign,
-            universe,
-            campaignState,
-            allRecentMessages
-          );
         }
+
+        // Trigger background Campaign Manager Agent for state reconciliation
+        // (After EVERY assistant message - needed to analyze GMA narration)
+        // Fire-and-forget pattern: don't await to avoid blocking the chat response
+        triggerBackgroundStateReconciliation(
+          run,
+          character,
+          campaign,
+          universe,
+          campaignState,
+          allRecentMessages
+        ).catch((error) => {
+          // Log errors but don't fail the main request
+          console.error(
+            "[API] Campaign Manager Agent error (non-blocking):",
+            error
+          );
+        });
 
         // Trigger Visual Engine Agent for scene generation (non-blocking)
         // (After EVERY assistant message - needed to assess narrative changes)
@@ -223,7 +232,10 @@ export async function POST(req: Request) {
           incomingMessages
         ).catch((error) => {
           // Log errors but don't fail the main request
-          console.error("[API] Visual Engine Agent error (non-blocking):", error);
+          console.error(
+            "[API] Visual Engine Agent error (non-blocking):",
+            error
+          );
         });
 
         // Log completion metrics
@@ -430,44 +442,43 @@ async function triggerBackgroundStateReconciliation(
   try {
     console.log("[API] Starting background state reconciliation");
 
-    // Extract transcript for CMA processing
-    const transcript = extractTranscriptForProcessing(
-      recentMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.parts || [],
-      }))
-    );
+    // Extract text from UIMessage parts for CMA processing
+    const modelMessages = extractTextFromUIMessages(recentMessages, 20);
 
-    // Create Campaign Manager Agent
+    // Skip if no meaningful messages to process
+    if (modelMessages.length === 0) {
+      console.log("[API] No text content found in messages, skipping CMA");
+      return;
+    }
+
+    // Create Campaign Manager Agent with current state
+    // The agent will create a deep copy internally for comparison
     const cma = createCampaignManagerAgent({
       runId: run.id,
       campaign,
       character,
       universe,
       campaignState,
-      transcript,
+      recentMessages,
     });
 
-    // Execute background processing (no streaming, just state mutations)
-    // Pass transcript messages to generate method (filter to valid ModelMessage roles)
-    const modelMessages = transcript
-      .filter((msg) => msg.role !== "tool") // Remove tool messages for generate call
-      .map((msg) => ({
-        role: msg.role as "system" | "user" | "assistant",
-        content: msg.content,
-      }));
+    // Get original state copy for comparison
+    const originalState = cma.getOriginalState();
 
+    // Execute background processing (no streaming, just state mutations)
     const result = await cma.getAgent().generate({
       messages: modelMessages,
     });
 
     // Persist any additional state changes from background processing
-    if (cma.hasStateChanged(campaignState)) {
+    // Compare against the original state copy
+    if (cma.hasStateChanged(originalState)) {
       console.log("[API] Background agent modified state, persisting changes");
+      const updatedState = cma.getCampaignState();
       await db
         .update(runs)
         .set({
-          state: cma.getCampaignState(),
+          state: updatedState,
           updatedAt: new Date(),
         })
         .where(eq(runs.id, run.id));
@@ -475,7 +486,7 @@ async function triggerBackgroundStateReconciliation(
 
     console.log("[API] Background state reconciliation completed", {
       toolCalls: result.toolCalls?.length || 0,
-      stateChanged: cma.hasStateChanged(campaignState),
+      stateChanged: cma.hasStateChanged(originalState),
     });
   } catch (error) {
     console.error("[API] Background state reconciliation failed:", error);

@@ -133,7 +133,7 @@ UNIVERSE CONTEXT:
 CAMPAIGN CONTEXT:
 - Name: ${campaign.name}
 - Genres: ${campaign.genres.join(", ")}
-- Current State:
+- Current State (for your awareness - do NOT mention these technical details in narration):
   - Active Fronts: ${JSON.stringify(campaignState.activeFronts)}
   - Narrative Vectors: Hope=${campaignState.narrativeVectors.hope.toFixed(
     2
@@ -165,6 +165,12 @@ GAME MASTER INSTRUCTIONS:
 4. After tool execution, narrate the consequences naturally, incorporating state changes into your description.
 5. Keep narrative engaging and responsive to player choices.
 6. You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations.
+
+NARRATION RULES:
+- NEVER mention technical state details in your narration (e.g., "The doom clock advances", "Hope increases by 0.2", "Quest thread created").
+- Instead, describe the narrative consequences: "Time is running out", "A sense of hope fills the air", "A new objective presents itself".
+- Focus on immersive, descriptive storytelling that makes the player feel the consequences, not see the mechanics.
+- Use the campaign state information to inform your narration, but translate it into narrative language.
 
 IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.`;
 }
