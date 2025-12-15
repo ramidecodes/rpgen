@@ -60,19 +60,10 @@ export function detectStateChanges(
     }
   }
 
-  // Check for new quests
-  for (const newQuest of newState.questThreads) {
-    const oldQuest = oldState.questThreads.find(
-      (q) => q.title === newQuest.title
-    );
-    if (!oldQuest) {
-      // New quest created
-      changes.push({
-        type: "quest",
-        data: { quest: newQuest },
-      });
-    }
-  }
+  // Note: Quest changes are now tracked separately via quests table
+  // Quest creation/updates are handled by CMA tools and persisted directly
+  // We can't detect quest changes here since quests are in a separate table
+  // If needed, quest change detection can be added by comparing quest arrays
 
   // Check for narrative vector changes (significant deltas > 0.1)
   const hopeDelta =

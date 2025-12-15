@@ -74,6 +74,30 @@ export function createVisualEngineAgent(
   // Create tools with runId bound directly at creation time
   const tools = createVisualEngineTools(options.runId, options);
 
+  // Track whether a start signal has been emitted this cycle
+  let hasEmittedStart = false;
+  const emitStart = async (sceneId?: string) => {
+    if (hasEmittedStart) return;
+    hasEmittedStart = true;
+    const placeholderId = sceneId || `pending-${options.runId}-${Date.now()}`;
+    try {
+      const { sseConnectionManager } = await import(
+        "@/lib/sse/connection-manager"
+      );
+      sseConnectionManager.broadcast(options.runId, {
+        type: "scene-generation-started",
+        data: {
+          runId: options.runId,
+          sceneId: placeholderId,
+          narrativeContext: options.campaignState.currentContext,
+          placeholder: !sceneId,
+        },
+      });
+    } catch (error) {
+      console.error("[VEA] Failed to broadcast generation start", error);
+    }
+  };
+
   // Create the ToolLoopAgent
   const agent = new ToolLoopAgent({
     model,
@@ -92,6 +116,14 @@ export function createVisualEngineAgent(
       // Stop after limited tool cycles (3 max for background processing)
       stepCountIs(3),
     ],
+
+    // Emit start when tools sequence begins
+    prepareStep: async (context) => {
+      const toolName = context?.step?.toolName;
+      if (!hasEmittedStart && toolName) {
+        await emitStart();
+      }
+    },
   });
 
   return {

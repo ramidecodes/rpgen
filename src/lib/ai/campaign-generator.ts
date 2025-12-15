@@ -1,15 +1,24 @@
 import { generateObject } from "ai";
 import {
   campaignStateSchema,
+  questThreadSchema,
   type CampaignState,
 } from "@/lib/db/schemas/campaign";
 import type { Universe, Character } from "@/lib/db/schema";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
+import { z } from "zod";
 
 const openrouter = getOpenRouterClient();
 const MODEL_NAME = getTextModel("base");
 
-export async function generateCampaignState(
+// Schema for generating initial quests separately
+const initialQuestsSchema = z.object({
+  questThreads: z.array(questThreadSchema),
+});
+
+export type InitialQuests = z.infer<typeof initialQuestsSchema>;
+
+export async function generateRunState(
   universe: Universe,
   genres: string[],
   character?: Character
@@ -19,10 +28,10 @@ export async function generateCampaignState(
     3. Character: "${character.name}"
        - Profession: ${character.properties?.profession || "Unknown"}
        - Stats: Strength ${character.stats.strength}, Agility ${
-         character.stats.agility
-       }, Intelligence ${character.stats.intelligence}, Scholarship ${
-         character.stats.scholarship
-       }, Intuition ${character.stats.intuition}
+        character.stats.agility
+      }, Intelligence ${character.stats.intelligence}, Scholarship ${
+        character.stats.scholarship
+      }, Intuition ${character.stats.intuition}
        - Backstory: ${
          character.properties?.backstory?.substring(0, 300) ||
          "No backstory provided"
@@ -98,5 +107,64 @@ ${characterContext}
   } catch (error) {
     console.error("Error generating campaign state:", error);
     throw new Error("Failed to generate initial campaign state");
+  }
+}
+
+/**
+ * Generate initial quests separately from campaign state
+ * This allows quests to be inserted into the quests table
+ */
+export async function generateInitialQuests(
+  universe: Universe,
+  genres: string[],
+  character?: Character
+): Promise<InitialQuests> {
+  const characterContext = character
+    ? `
+    3. Character: "${character.name}"
+       - Profession: ${character.properties?.profession || "Unknown"}
+       - Backstory: ${
+         character.properties?.backstory?.substring(0, 300) ||
+         "No backstory provided"
+       }...
+    `
+    : "";
+
+  const prompt = `
+    Generate 1-2 initial quest threads for a new RPG campaign.
+
+    CONTEXT:
+    1. Universe: "${universe.name}"
+       - Description: ${universe.description}
+    
+    2. Campaign Genres/Tone: ${genres.join(", ")}
+${characterContext}
+    TASK:
+    Create 1-2 broad starting hooks or mysteries for the campaign${
+      character
+        ? ` that ${character.name} would naturally encounter given their background`
+        : ""
+    }.
+    
+    Each quest should have:
+    - A clear title
+    - A description of the objective
+    - Status: "active"
+    - Empty clues array (clues will be discovered during gameplay)
+    - Empty logs array (logs will be added during gameplay)
+  `;
+
+  try {
+    const result = await generateObject({
+      model: openrouter.chat(MODEL_NAME),
+      schema: initialQuestsSchema,
+      prompt,
+    });
+
+    return result.object as InitialQuests;
+  } catch (error) {
+    console.error("Error generating initial quests:", error);
+    // Return empty quests on error
+    return { questThreads: [] };
   }
 }

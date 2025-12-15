@@ -2,7 +2,7 @@ import { ToolLoopAgent, stepCountIs } from "ai";
 import { createGameMasterTools } from "@/lib/ai/tools";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
-import type { Character, Universe, Campaign } from "@/lib/db/schema";
+import type { Character, Universe, Campaign, Quest } from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
 import { isTextUIPart } from "@/types/ui-message";
 
@@ -12,6 +12,7 @@ import { isTextUIPart } from "@/types/ui-message";
 
 export type GameMasterTools = ReturnType<typeof createGameMasterTools>;
 
+// CMA has all state-mutating tools (no HITL tools)
 export type CampaignManagerTools = Omit<GameMasterTools, "requestSkillCheck">;
 
 // ============================================================================
@@ -24,6 +25,7 @@ export type CampaignManagerAgentOptions = {
   character: Character;
   universe: Universe;
   campaignState: CampaignState;
+  activeQuests: Quest[]; // Active quests for state management context
   recentMessages: UIMessage[]; // Recent messages in UIMessage format
 };
 
@@ -39,24 +41,26 @@ export type CampaignManagerAgent = {
 // ============================================================================
 
 /**
- * Creates a Campaign Manager Agent (CMA) - Background agent for deterministic state reconciliation.
+ * Creates a Campaign Manager Agent (CMA) - Background agent for complete state management.
  *
  * Responsibilities:
+ * - Complete state management responsibility (ALL state mutations)
  * - Reconcile/persist campaign state using deterministic logic
  * - Process recent transcript without user-facing narration
  * - Handle state mutations without HITL interactions
- * - Emit structured logs/telemetry for observability
+ * - Manage quests, fronts, narrative vectors, and relationships
  *
  * Key differences from GMA:
  * - No HITL tools (requestSkillCheck disabled)
- * - Only state-mutating tools enabled
+ * - ALL state-mutating tools enabled (quests, fronts, vectors, relationships)
  * - No user-facing streaming output
  * - Deterministic processing for state consistency
+ * - Sole state manager (GMA does NOT modify state)
  */
 export function createCampaignManagerAgent(
   options: CampaignManagerAgentOptions
 ): CampaignManagerAgent {
-  const { campaignState } = options;
+  const { campaignState, runId } = options;
 
   // Create deep copy of original state for comparison
   const originalStateCopy: CampaignState = JSON.parse(
@@ -69,14 +73,15 @@ export function createCampaignManagerAgent(
   // Build system prompt for background processing
   const systemPrompt = buildSystemPrompt(options);
 
-  // Create tools with state context (exclude HITL tools)
-  const allTools = createGameMasterTools(campaignState);
+  // Create tools with state context and runId (exclude HITL tools)
+  // runId is required for quest tools to access database
+  const allTools = createGameMasterTools(campaignState, runId);
   const stateMutationTools: CampaignManagerTools = {
     updateNarrativeVector: allTools.updateNarrativeVector,
     manageRelationship: allTools.manageRelationship,
     advanceFront: allTools.advanceFront,
     createQuest: allTools.createQuest,
-    logEvent: allTools.logEvent,
+    updateQuest: allTools.updateQuest,
   };
 
   // Create the ToolLoopAgent for background processing
@@ -91,7 +96,7 @@ export function createCampaignManagerAgent(
       "manageRelationship",
       "advanceFront",
       "createQuest",
-      "logEvent",
+      "updateQuest",
     ],
 
     // Stop conditions for background processing
@@ -111,9 +116,21 @@ export function createCampaignManagerAgent(
 }
 
 function buildSystemPrompt(options: CampaignManagerAgentOptions): string {
-  const { campaign, character, universe, campaignState } = options;
+  const { campaign, character, universe, campaignState, activeQuests } =
+    options;
 
-  return `You are the Campaign Manager Agent (CMA) - a background state reconciliation system.
+  // Format active quests for context
+  const questContext =
+    activeQuests.length > 0
+      ? activeQuests
+          .map(
+            (q) =>
+              `- "${q.title}" (ID: ${q.id}): ${q.description} - ${q.clues.length} clues, ${q.logs.length} logs`
+          )
+          .join("\n")
+      : "No active quests";
+
+  return `You are the Campaign Manager Agent (CMA) - the SOLE state management system for this campaign.
 
 UNIVERSE CONTEXT:
 - Name: ${universe.name}
@@ -122,12 +139,18 @@ UNIVERSE CONTEXT:
 
 CAMPAIGN CONTEXT:
 - Name: ${campaign.name}
-- Current State:
+- Current State (you manage ALL of this):
   - Active Fronts: ${JSON.stringify(campaignState.activeFronts)}
   - Narrative Vectors: Hope=${campaignState.narrativeVectors.hope.toFixed(
     2
   )}, Chaos=${campaignState.narrativeVectors.chaos.toFixed(2)}
-  - Quest Threads: ${campaignState.questThreads.length} active
+  - Knowledge Graph: ${campaignState.knowledgeGraph.nodes.length} nodes, ${
+    campaignState.knowledgeGraph.edges.length
+  } edges
+  - Current Context: ${campaignState.currentContext || "Beginning of campaign"}
+
+ACTIVE QUESTS (you manage these):
+${questContext}
 
 CHARACTER CONTEXT:
 - Name: ${character.name}
@@ -135,16 +158,27 @@ CHARACTER CONTEXT:
     character.stats.intelligence
   }, SCH=${character.stats.scholarship}, INTU=${character.stats.intuition}
 
-BACKGROUND PROCESSING INSTRUCTIONS:
-1. You are NOT an interactive Game Master. Do not produce narration or chat text.
-2. Analyze the recent transcript for state changes that need reconciliation.
-3. Use deterministic logic to update campaign state based on established patterns.
-4. Advance Fronts that have been ignored or need progression.
-5. Update narrative vectors based on overall campaign momentum.
-6. Create quests for emerging story threads.
-7. Log significant events that impact the world state.
-8. Do NOT use requestSkillCheck - this is handled by the interactive GMA.
-9. Focus on state consistency and world evolution, not player interaction.
+STATE MANAGEMENT INSTRUCTIONS:
+1. You are NOT an interactive Game Master. Do NOT produce narration or chat text.
+2. You are the SOLE state manager - GMA does NOT modify state, only you do.
+3. Analyze the recent transcript for state changes that need reconciliation.
+4. Use deterministic logic to update campaign state based on established patterns.
+5. When player actions relate to active quests, use updateQuest with addLog parameter.
+6. When new information is discovered, use updateQuest with addClue parameter.
+7. When quests are completed or failed, use updateQuest with status parameter (can combine with addLog for final entry).
+8. Prefer single updateQuest calls that update multiple fields (status + log + clue) when appropriate.
+9. Advance Fronts that have been ignored or need progression.
+10. Update narrative vectors based on overall campaign momentum.
+11. Create quests for emerging story threads.
+12. Manage relationships in the knowledge graph.
+13. Do NOT use requestSkillCheck - this is handled by the interactive GMA.
+14. Focus on state consistency and world evolution, not player interaction.
+
+TOOL USAGE EXAMPLES:
+- Player completes objective: updateQuest(questId, { status: "completed", addLog: "Objective completed successfully" })
+- Player discovers clue: updateQuest(questId, { addClue: "Found mysterious note in the library" })
+- Player makes progress: updateQuest(questId, { addLog: "Reached the ancient temple", logType: "progress" })
+- Multiple updates: updateQuest(questId, { status: "completed", addLog: "Quest finished", addClue: "Final clue discovered" })
 
 OUTPUT: Only use tools to mutate state. No text responses or narration.`;
 }

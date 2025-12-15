@@ -1,16 +1,17 @@
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { createGameMasterTools } from "@/lib/ai/tools";
+import { requestSkillCheckTool } from "@/lib/ai/tools";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
-import type { Character, Universe, Campaign } from "@/lib/db/schema";
+import type { Character, Universe, Campaign, Quest } from "@/lib/db/schema";
 
 // ============================================================================
 // Tool Set Types
 // ============================================================================
 
-export type GameMasterTools = ReturnType<typeof createGameMasterTools>;
-
-export type CampaignManagerTools = Omit<GameMasterTools, "requestSkillCheck">;
+// GMA only has requestSkillCheck tool (HITL tool for player interactions)
+export type GameMasterTools = {
+  requestSkillCheck: typeof requestSkillCheckTool;
+};
 
 // ============================================================================
 // Types
@@ -22,7 +23,7 @@ export type GameMasterAgentOptions = {
   character: Character;
   universe: Universe;
   campaignState: CampaignState;
-  runIdContext?: string; // Additional context from run
+  activeQuests: Quest[]; // Read-only quest context for narrative awareness
 };
 
 export type CallOptions = {
@@ -35,8 +36,6 @@ export type CallOptions = {
 
 export type GameMasterAgent = {
   getAgent: () => ToolLoopAgent<never, GameMasterTools, never>;
-  getCampaignState: () => CampaignState;
-  hasStateChanged: (originalState: CampaignState) => boolean;
 };
 
 // ============================================================================
@@ -47,36 +46,41 @@ export type GameMasterAgent = {
  * Creates a Game Master Agent (GMA) - Interactive agent that handles user-facing chat interactions.
  *
  * Responsibilities:
- * - Narration and pacing
+ * - Narration and pacing ONLY
  * - Issuing HITL skill checks (requestSkillCheck tool)
- * - Proposing world updates through state-mutating tools
- * - Managing conversation flow with tool loop control
+ * - NO state mutations (all state management handled by CMA)
+ *
+ * Key Design:
+ * - Strict separation of concerns: GMA narrates, CMA manages state
+ * - Fast, responsive player interactions without state mutation overhead
+ * - Read-only access to quests and state for narrative context only
  *
  * Uses ToolLoopAgent with:
- * - Phased tool access (HITL first, then narration/world-tools)
+ * - Single tool: requestSkillCheck (HITL tool for player skill checks)
+ * - No state-mutating tools (removed for performance and clarity)
  * - stopWhen conditions to prevent tool spam
- * - prepareStep for message context management
  */
 export function createGameMasterAgent(
   options: GameMasterAgentOptions
 ): GameMasterAgent {
-  const { campaignState } = options;
   const openrouter = getOpenRouterClient();
   const model = openrouter.chat(getTextModel("base"));
 
-  // Build system prompt with comprehensive context
+  // Build system prompt with comprehensive context (read-only)
   const systemPrompt = buildSystemPrompt(options);
 
-  // Create tools with state context
-  const tools = createGameMasterTools(campaignState);
+  // Create tools - ONLY requestSkillCheck (HITL tool)
+  const tools: GameMasterTools = {
+    requestSkillCheck: requestSkillCheckTool,
+  };
 
-  // Create the ToolLoopAgent with phased tool control
+  // Create the ToolLoopAgent with single tool
   const agent = new ToolLoopAgent({
     model,
     instructions: systemPrompt,
     tools,
 
-    // Phase 1: Allow HITL skill check requests first
+    // Only allow HITL skill check requests
     activeTools: ["requestSkillCheck"],
 
     // Stop conditions to prevent tool spam
@@ -84,42 +88,27 @@ export function createGameMasterAgent(
       // Stop after reasonable tool cycles (5 max)
       stepCountIs(5),
     ],
-
-    // Prepare each step with context management
-    prepareStep: ({ messages }) => {
-      // Phase tool access based on step context
-      const lastMessage = messages[messages.length - 1];
-
-      if (lastMessage?.role === "tool") {
-        // After tool execution, allow world-state tools for response
-        return {
-          activeTools: [
-            "updateNarrativeVector",
-            "manageRelationship",
-            "advanceFront",
-            "createQuest",
-            "logEvent",
-          ],
-        };
-      }
-
-      // Default: Allow HITL checks
-      return {
-        activeTools: ["requestSkillCheck"],
-      };
-    },
   });
 
   return {
     getAgent: () => agent,
-    getCampaignState: () => campaignState,
-    hasStateChanged: (originalState: CampaignState) =>
-      JSON.stringify(campaignState) !== JSON.stringify(originalState),
   };
 }
 
 function buildSystemPrompt(options: GameMasterAgentOptions): string {
-  const { campaign, character, universe, campaignState } = options;
+  const { campaign, character, universe, campaignState, activeQuests } =
+    options;
+
+  // Format active quests for context
+  const questContext =
+    activeQuests.length > 0
+      ? activeQuests
+          .map(
+            (q) =>
+              `- "${q.title}": ${q.description} (${q.clues.length} clues, ${q.logs.length} logs)`
+          )
+          .join("\n")
+      : "No active quests";
 
   return `You are the Game Master Agent (GMA) for a text-based RPG campaign.
 
@@ -133,16 +122,18 @@ UNIVERSE CONTEXT:
 CAMPAIGN CONTEXT:
 - Name: ${campaign.name}
 - Genres: ${campaign.genres.join(", ")}
-- Current State (for your awareness - do NOT mention these technical details in narration):
+- Current State (READ-ONLY for narrative context - you CANNOT modify this):
   - Active Fronts: ${JSON.stringify(campaignState.activeFronts)}
   - Narrative Vectors: Hope=${campaignState.narrativeVectors.hope.toFixed(
     2
   )}, Chaos=${campaignState.narrativeVectors.chaos.toFixed(2)}
-  - Quest Threads: ${campaignState.questThreads.length} active
   - Knowledge Graph: ${campaignState.knowledgeGraph.nodes.length} nodes, ${
     campaignState.knowledgeGraph.edges.length
   } edges
   - Current Context: ${campaignState.currentContext || "Beginning of campaign"}
+
+ACTIVE QUESTS (READ-ONLY for narrative context):
+${questContext}
 
 CHARACTER CONTEXT:
 - Name: ${character.name}
@@ -159,18 +150,21 @@ CHARACTER CONTEXT:
   }...
 
 GAME MASTER INSTRUCTIONS:
-1. You are a living world simulator. Use tools to update the campaign state dynamically.
-2. Check Active Fronts every turn. If the player ignores a Front, advance it by 1 step.
+1. You are a storyteller and narrator. Your ONLY job is to narrate the game world and handle player interactions.
+2. You CANNOT modify campaign state (quests, fronts, vectors, relationships). That is handled by the Campaign Manager Agent (CMA) in the background.
 3. When a player action requires a skill check, use the requestSkillCheck tool with the appropriate attribute and difficulty.
-4. After tool execution, narrate the consequences naturally, incorporating state changes into your description.
+4. Use quest and state information to inform your narration, but focus on immersive storytelling.
 5. Keep narrative engaging and responsive to player choices.
-6. You can perform multi-step reasoning (Reason -> Act -> Narrate) when needed to handle complex situations.
+6. Do NOT mention technical state details in your narration (e.g., "The doom clock advances", "Hope increases by 0.2").
+7. Instead, describe the narrative consequences: "Time is running out", "A sense of hope fills the air", "A new objective presents itself".
 
 NARRATION RULES:
-- NEVER mention technical state details in your narration (e.g., "The doom clock advances", "Hope increases by 0.2", "Quest thread created").
-- Instead, describe the narrative consequences: "Time is running out", "A sense of hope fills the air", "A new objective presents itself".
 - Focus on immersive, descriptive storytelling that makes the player feel the consequences, not see the mechanics.
-- Use the campaign state information to inform your narration, but translate it into narrative language.
+- Use quest and state information to inform your narration, but translate it into narrative language.
+- Reference active quests naturally in your narration when relevant.
+- Never break character or mention game mechanics directly.
 
-IMPORTANT: For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.`;
+IMPORTANT: 
+- For skill checks, use requestSkillCheck tool. Do NOT execute it yourself - wait for the player to roll the dice.
+- You have NO state-mutating tools. All state management is handled by the Campaign Manager Agent (CMA) in the background.`;
 }

@@ -30,9 +30,7 @@ function extractImageUrl(output: unknown): string {
     if (prediction.status === "failed" || prediction.error) {
       throw new Error(
         `Replicate prediction failed: ${
-          prediction.error
-            ? JSON.stringify(prediction.error)
-            : "Unknown error"
+          prediction.error ? JSON.stringify(prediction.error) : "Unknown error"
         }`
       );
     }
@@ -74,10 +72,7 @@ function extractImageUrl(output: unknown): string {
           : null;
 
       // If String() conversion or valueOf() gives us a URL, use it
-      if (
-        typeof stringValue === "string" &&
-        stringValue.startsWith("http")
-      ) {
+      if (typeof stringValue === "string" && stringValue.startsWith("http")) {
         console.log("[Replicate] Extracted URL from object valueOf", {
           url: stringValue,
         });
@@ -335,7 +330,7 @@ export async function generateImageUrl(
     console.log("[Replicate] Starting image generation", {
       model,
       promptLength: prompt.length,
-      promptPreview: prompt.substring(0, 100) + "...",
+      promptPreview: `${prompt.substring(0, 100)}...`,
       input: { ...input, prompt: `[${prompt.length} chars]` },
     });
 
@@ -406,11 +401,15 @@ export async function generateImageUrl(
         return extractImageUrl(prediction.output);
       } else if (prediction.status === "failed") {
         throw new Error(
-          `Replicate prediction failed. Prediction ID: ${prediction.id || "unknown"}`
+          `Replicate prediction failed. Prediction ID: ${
+            prediction.id || "unknown"
+          }`
         );
       } else {
         throw new Error(
-          `Replicate prediction not completed. Status: ${prediction.status}. Prediction ID: ${prediction.id || "unknown"}`
+          `Replicate prediction not completed. Status: ${
+            prediction.status
+          }. Prediction ID: ${prediction.id || "unknown"}`
         );
       }
     }
@@ -430,7 +429,7 @@ export async function generateImageUrl(
       // Still try to extract URL in case there's a hidden property
       try {
         return extractImageUrl(output);
-      } catch (extractError) {
+      } catch (_extractError) {
         // If extraction fails, provide helpful error message
         throw new Error(
           "Replicate returned empty object array. Images may be generating successfully, but the response format is unexpected. Consider using webhook-based image generation for async processing."
@@ -487,7 +486,7 @@ export async function generateImageUrl(
 /**
  * Create a Replicate prediction with webhook support for async processing
  * This is an alternative to generateImageUrl() for truly non-blocking image generation
- * 
+ *
  * @param prompt - The detailed prompt for image generation
  * @param webhookUrl - The webhook URL to receive completion events
  * @param metadata - Metadata to include in the prediction (e.g., runId, sceneId)
@@ -552,7 +551,9 @@ export async function createImagePrediction(
     });
 
     if (!prediction.id) {
-      throw new Error("Replicate prediction creation failed: No prediction ID returned");
+      throw new Error(
+        "Replicate prediction creation failed: No prediction ID returned"
+      );
     }
 
     console.log("[Replicate] Prediction created", {

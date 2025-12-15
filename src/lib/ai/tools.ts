@@ -1,9 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { CampaignState } from "@/lib/db/schemas/campaign";
 import type { Scene } from "@/lib/db/schema";
+import {
+  createQuest as createQuestQuery,
+  updateQuest as updateQuestQuery,
+  getQuestById,
+} from "@/lib/db/queries/quests";
 
 // --- Interactive Tools (HITL - Client triggers) ---
 
@@ -25,8 +29,9 @@ export const requestSkillCheckTool = tool({
   // No execute function - this is a HITL tool that requires client-side handling
 } as const);
 
-// Factory function to create tools with state context
-export function createGameMasterTools(state: CampaignState) {
+// Factory function to create tools with state context and runId
+// runId is required for quest tools that need database access
+export function createGameMasterTools(state: CampaignState, runId: string) {
   // Validate state structure
   if (!state || typeof state !== "object") {
     throw new Error("Invalid campaign state: state must be an object");
@@ -45,7 +50,6 @@ export function createGameMasterTools(state: CampaignState) {
           ? state.narrativeVectors.chaos
           : 0.5,
     },
-    questThreads: Array.isArray(state.questThreads) ? state.questThreads : [],
     knowledgeGraph: {
       nodes: Array.isArray(state.knowledgeGraph?.nodes)
         ? state.knowledgeGraph.nodes
@@ -206,7 +210,7 @@ Only advance Fronts that are relevant to the current situation. Don't advance al
       },
     }),
     createQuest: tool({
-      description: `Create a new quest thread when the player discovers or accepts a new objective. Use this for:
+      description: `Create a new quest when the player discovers or accepts a new objective. Use this for:
 - Main story objectives that drive the campaign forward
 - Side quests that offer optional content
 - Mystery threads that need investigation
@@ -227,54 +231,126 @@ Only create quests that are meaningful and relevant. Don't create duplicate ques
         title: string;
         description: string;
       }) => {
-        validatedState.questThreads.push({
+        // Create quest in database
+        const newQuest = await createQuestQuery({
+          runId,
           title,
           description,
           status: "active",
           clues: [],
+          logs: [],
         });
+
         return {
           success: true,
+          questId: newQuest.id,
           message: `Quest "${title}" created`,
         };
       },
     }),
-    logEvent: tool({
-      description: `Log significant events that impact the world or story. Use this for:
-- Major story beats and plot developments
-- Important NPC interactions or revelations
-- World-changing events (not routine actions)
-- Discoveries that affect future gameplay
-Use 'critical' sparingly - only for truly game-changing moments. Most events should be 'medium' or 'high'.`,
+    updateQuest: tool({
+      description: `Update a quest with status changes, log entries, or clues. This is a unified tool for all quest updates. Use this when:
+- Player actions relate to active quests (add log entry)
+- New information is discovered (add clue)
+- Quests are completed or failed (update status)
+- Multiple updates are needed (can combine status + log + clue in single call)
+Prefer single updateQuest calls that update multiple fields when appropriate.`,
       inputSchema: z.object({
-        description: z.string().describe("Description of the event"),
-        type: z
+        questId: z.string().uuid().describe("ID of the quest to update"),
+        status: z
+          .enum(["active", "completed", "failed", "dormant"])
+          .optional()
+          .describe("Update quest status"),
+        addLog: z
           .string()
           .optional()
-          .describe("Type of event (e.g., 'combat', 'social', 'discovery')"),
-        importance: z
+          .describe("Append a new log entry to quest's logs array"),
+        addClue: z
+          .string()
+          .optional()
+          .describe("Append a new clue to quest's clues array"),
+        logType: z
+          .string()
+          .optional()
+          .describe(
+            "Type of log entry (e.g., 'progress', 'discovery', 'failure')"
+          ),
+        logImportance: z
           .enum(["low", "medium", "high", "critical"])
           .optional()
-          .describe("Importance level of the event"),
+          .describe("Importance level of the log entry"),
       }),
       execute: async ({
-        description,
-        type,
-        importance,
+        questId,
+        status,
+        addLog,
+        addClue,
+        logType,
+        logImportance,
       }: {
-        description: string;
-        type?: string;
-        importance?: "low" | "medium" | "high" | "critical";
+        questId: string;
+        status?: "active" | "completed" | "failed" | "dormant";
+        addLog?: string;
+        addClue?: string;
+        logType?: string;
+        logImportance?: "low" | "medium" | "high" | "critical";
       }) => {
-        const eventLog = `[${type || "general"}] ${description} (${
-          importance || "medium"
-        })`;
-        validatedState.currentContext = validatedState.currentContext
-          ? `${validatedState.currentContext}\n\n${eventLog}`
-          : eventLog;
+        // Verify quest exists and belongs to this run
+        const quest = await getQuestById(questId);
+        if (!quest) {
+          return {
+            success: false,
+            message: `Quest with ID "${questId}" not found`,
+          };
+        }
+        if (quest.runId !== runId) {
+          return {
+            success: false,
+            message: `Quest does not belong to this run`,
+          };
+        }
+
+        // Build update object
+        const updates: {
+          status?: "active" | "completed" | "failed" | "dormant";
+          logs?: string[];
+          clues?: string[];
+        } = {};
+
+        if (status !== undefined) {
+          updates.status = status;
+        }
+
+        if (addLog) {
+          const formattedLog = `[${logType || "general"}] ${addLog} (${
+            logImportance || "medium"
+          })`;
+          updates.logs = [...quest.logs, formattedLog];
+        }
+
+        if (addClue) {
+          updates.clues = [...quest.clues, addClue];
+        }
+
+        // At least one update must be provided
+        if (Object.keys(updates).length === 0) {
+          return {
+            success: false,
+            message:
+              "At least one update (status, addLog, or addClue) must be provided",
+          };
+        }
+
+        // Update quest atomically
+        const updatedQuest = await updateQuestQuery(questId, updates);
+
         return {
           success: true,
-          message: `Event logged: ${description}`,
+          questId: updatedQuest.id,
+          status: updatedQuest.status,
+          logCount: updatedQuest.logs.length,
+          clueCount: updatedQuest.clues.length,
+          message: `Quest "${updatedQuest.title}" updated successfully`,
         };
       },
     }),
@@ -537,6 +613,7 @@ export function createGenerateSceneImageTool(runId: string) {
         const { db } = await import("@/lib/db");
         const { scenes, runs } = await import("@/lib/db/schema");
         const { randomUUID } = await import("node:crypto");
+        const { and, eq } = await import("drizzle-orm");
 
         // Query run to get userId and currentSceneId
         const [runData] = await db
@@ -565,7 +642,6 @@ export function createGenerateSceneImageTool(runId: string) {
           previousSceneId.trim() !== ""
         ) {
           // Validate that the previous scene exists and belongs to this run
-          const { and } = await import("drizzle-orm");
           const [previousScene] = await db
             .select({ id: scenes.id })
             .from(scenes)
@@ -580,7 +656,6 @@ export function createGenerateSceneImageTool(runId: string) {
         // If no valid previousSceneId, validate and use run's currentSceneId
         if (!normalizedPreviousSceneId && runData.currentSceneId) {
           // Validate that currentSceneId exists and belongs to this run
-          const { and } = await import("drizzle-orm");
           const [currentScene] = await db
             .select({ id: scenes.id })
             .from(scenes)
@@ -733,6 +808,33 @@ export function createGenerateSceneImageTool(runId: string) {
         }
 
         // Trigger non-blocking image generation with webhook
+        // Notify UI immediately that generation has started (before prediction call)
+        try {
+          const { sseConnectionManager } = await import(
+            "@/lib/sse/connection-manager"
+          );
+          sseConnectionManager.broadcast(runId, {
+            type: "scene-generation-started",
+            data: {
+              runId,
+              sceneId,
+              narrativeContext,
+            },
+          });
+        } catch (broadcastError) {
+          console.error(
+            "[Scene Generation] Failed to broadcast pending scene (tool)",
+            {
+              runId,
+              sceneId,
+              error:
+                broadcastError instanceof Error
+                  ? broadcastError.message
+                  : String(broadcastError),
+            }
+          );
+        }
+
         const predictionId = await createImagePrediction(
           enhancedPrompt,
           webhookUrl,
@@ -747,6 +849,30 @@ export function createGenerateSceneImageTool(runId: string) {
           .update(runs)
           .set({ currentSceneId: newScene.id })
           .where(eq(runs.id, runId));
+
+        // Notify subscribed clients that a new scene generation has started
+        try {
+          const { sseConnectionManager } = await import(
+            "@/lib/sse/connection-manager"
+          );
+          sseConnectionManager.broadcast(runId, {
+            type: "scene-generation-started",
+            data: {
+              runId,
+              sceneId: newScene.id,
+              narrativeContext,
+            },
+          });
+        } catch (broadcastError) {
+          console.error("[Scene Generation] Failed to broadcast pending scene", {
+            runId,
+            sceneId,
+            error:
+              broadcastError instanceof Error
+                ? broadcastError.message
+                : String(broadcastError),
+          });
+        }
 
         // Revalidate the play page to show the new scene (pending state)
         revalidatePath(`/runs/${runId}/play`);
