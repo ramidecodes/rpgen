@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { runs, campaigns, characters, universes } from "@/lib/db/schema";
@@ -7,7 +8,7 @@ import { createRunSchema, type CreateRunInput } from "@/lib/db/schemas/run";
 import { generateCampaignState } from "@/lib/ai/campaign-generator";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { deleteFolder } from "@/lib/storage/r2";
 
 export async function createRun(data: CreateRunInput) {
   const { userId: clerkUserId } = await auth();
@@ -116,7 +117,16 @@ export async function deleteRun(runId: string) {
     return { success: false, error: "Unauthorized" };
   }
 
-  // Delete run (messages cascade automatically via schema)
+  // Delete entire run folder from R2 if it exists
+  const runFolderPrefix = `${userProfile.id}/runs/${runId}/`;
+  try {
+    await deleteFolder(runFolderPrefix);
+  } catch (error) {
+    // Log error but don't fail deletion
+    console.error("Error deleting run folder from R2:", error);
+  }
+
+  // Delete run from database (messages and scenes cascade automatically via schema)
   await db.delete(runs).where(eq(runs.id, runId));
 
   return { success: true };
