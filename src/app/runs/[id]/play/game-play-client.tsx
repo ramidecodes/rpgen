@@ -29,6 +29,7 @@ import {
   detectStateChanges,
   notifyStateChanges,
 } from "@/lib/utils/campaign-state-toasts";
+import { BookOpen, ScrollText, Network } from "lucide-react";
 
 type GamePlayClientProps = {
   run: Run;
@@ -361,6 +362,48 @@ export function GamePlayClient({
                           · {character.properties?.profession || "Adventurer"}
                         </span>
                       </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold">
+                            {character.stats.strength}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            STR
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold">
+                            {character.stats.agility}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            AGI
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold">
+                            {character.stats.intelligence}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            INT
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold">
+                            {character.stats.scholarship}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            SCH
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold">
+                            {character.stats.intuition}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            INTU
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -375,23 +418,50 @@ export function GamePlayClient({
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold">Campaign</span>
-                      <div className="flex items-center gap-3 text-muted-foreground">
-                        <span>{(run.activeFronts || []).length} fronts</span>
-                        <span>
-                          Hope{" "}
-                          {((run.narrativeVectors?.hope || 0.5) * 100).toFixed(
-                            0
-                          )}
-                          %
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="size-4 shrink-0" />
+                        <span className="font-semibold">Campaign</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground">
+                          {(run.activeFronts || []).length} fronts
                         </span>
-                        <span>
-                          Chaos{" "}
-                          {((run.narrativeVectors?.chaos || 0.5) * 100).toFixed(
-                            0
-                          )}
-                          %
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-10 shrink-0">
+                              Hope
+                            </span>
+                            <div className="w-16 bg-muted rounded-full h-2 overflow-hidden">
+                              <div
+                                className="h-2 rounded-full transition-all"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    (run.narrativeVectors?.hope || 0.5) * 100
+                                  )}%`,
+                                  backgroundColor: "hsl(168 50% 45% / 0.7)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-10 shrink-0">
+                              Chaos
+                            </span>
+                            <div className="w-16 bg-muted rounded-full h-2 overflow-hidden">
+                              <div
+                                className="h-2 rounded-full transition-all"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    (run.narrativeVectors?.chaos || 0.5) * 100
+                                  )}%`,
+                                  backgroundColor: "hsl(348 50% 45% / 0.7)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -407,7 +477,10 @@ export function GamePlayClient({
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold">Quests</span>
+                      <div className="flex items-center gap-2">
+                        <ScrollText className="size-4 shrink-0" />
+                        <span className="font-semibold">Quests</span>
+                      </div>
                       <span className="text-muted-foreground">
                         {quests.filter((q) => q.status === "active").length}{" "}
                         active · {quests.length} total
@@ -426,7 +499,10 @@ export function GamePlayClient({
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold">Relationships</span>
+                      <div className="flex items-center gap-2">
+                        <Network className="size-4 shrink-0" />
+                        <span className="font-semibold">Relationships</span>
+                      </div>
                       <span className="text-muted-foreground">
                         {(run.relationships?.nodes || []).length} entities ·{" "}
                         {(run.relationships?.edges || []).length} connections
