@@ -83,6 +83,7 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
   const shouldShowLoader =
     isLoading && (!lastAssistantMessage || !lastAssistantHasContent) && !error;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasScrolledInitiallyRef = useRef(false);
 
   // Auto-scroll to bottom when new messages arrive
   const prevMessageCountRef = useRef(messages.length);
@@ -90,6 +91,17 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
     if (messages.length !== prevMessageCountRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       prevMessageCountRef.current = messages.length;
+    }
+  }, [messages.length]);
+
+  // Initial scroll on mount when messages are loaded
+  useEffect(() => {
+    if (!hasScrolledInitiallyRef.current && messages.length > 0) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        hasScrolledInitiallyRef.current = true;
+      });
     }
   }, [messages.length]);
 
@@ -102,9 +114,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                  typeof (error as { message?: unknown }).message === "string"
-                ? ((error as { message?: string }).message ?? "")
-                : "The Game Master ran into an error. Please try again."}
+                typeof (error as { message?: unknown }).message === "string"
+              ? (error as { message?: string }).message ?? ""
+              : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -231,12 +243,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                        ? (
-                            skillCheckPart as {
-                              result?: unknown;
-                            }
-                          ).result
-                        : undefined;
+                      ? (
+                          skillCheckPart as {
+                            result?: unknown;
+                          }
+                        ).result
+                      : undefined;
 
                   let detailMeta: {
                     rollValue?: number;
