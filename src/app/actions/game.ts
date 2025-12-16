@@ -12,7 +12,7 @@ import {
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { eq, desc } from "drizzle-orm";
 import { streamText, stepCountIs } from "ai";
-import type { CampaignState } from "@/lib/db/schemas/campaign";
+import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 import { z } from "zod";
 import { getOpenRouterClient, getTextModel } from "@/lib/ai/provider";
 import { getQuestsByRunId } from "@/lib/db/queries/quests";
@@ -95,10 +95,14 @@ export async function continueGame(input: z.infer<typeof continueGameSchema>) {
   const allQuests = await getQuestsByRunId(run.id);
 
   // Build campaignState from separate columns
+  const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+  const rawKnowledgeGraph =
+    (run.relationships as KnowledgeGraph | null) ?? EMPTY_KNOWLEDGE_GRAPH;
+
   const campaignState: CampaignState = {
     activeFronts: run.activeFronts || [],
     narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
-    knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+    knowledgeGraph: rawKnowledgeGraph,
     currentContext: run.currentContext || null,
   };
 
@@ -272,10 +276,14 @@ export async function getRunStateAction(runId: string): Promise<{
     }
 
     // Build CampaignState from separate columns
+    const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+    const rawKnowledgeGraph =
+      (run.relationships as KnowledgeGraph | null) ?? EMPTY_KNOWLEDGE_GRAPH;
+
     const state: CampaignState = {
       activeFronts: run.activeFronts || [],
       narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
-      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      knowledgeGraph: rawKnowledgeGraph,
       currentContext: run.currentContext || null,
     };
 

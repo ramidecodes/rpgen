@@ -112,7 +112,12 @@ export function SceneVisualizer({
                 : "No scene available"}
             </span>
             {onRetry && (
-              <Button variant="outline" size="sm" onClick={onRetry} className="ml-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+                className="ml-2"
+              >
                 Retry
               </Button>
             )}
@@ -155,65 +160,61 @@ export function SceneVisualizer({
     return renderWrapper(body, metadata);
   }
 
-  return (
-    renderWrapper(
-      <div className="relative h-full min-h-[260px] w-full overflow-hidden rounded-xl bg-muted">
-        {!imageLoaded && (
-          <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
+  return renderWrapper(
+    <div className="relative h-full min-h-[260px] w-full overflow-hidden rounded-xl bg-muted">
+      {!imageLoaded && (
+        <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
+      )}
+      <Image
+        src={scene.imageUrl}
+        alt="Current scene"
+        fill
+        className={cn(
+          "object-cover transition-opacity duration-300",
+          imageLoaded ? "opacity-100" : "opacity-0"
         )}
-        <Image
-          src={scene.imageUrl}
-          alt="Current scene"
-          fill
-          className={cn(
-            "object-cover transition-opacity duration-300",
-            imageLoaded ? "opacity-100" : "opacity-0"
-          )}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-        />
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+      />
 
-        {/* Zoom Button */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute right-2 top-2 opacity-75 hover:opacity-100"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl">
-            <DialogTitle className="sr-only">
-              Scene Image - Full Size
-            </DialogTitle>
-            <div className="relative aspect-video">
-              <Image
-                src={scene.imageUrl}
-                alt="Current scene - full size"
-                fill
-                className="object-contain"
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-                sizes="100vw"
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {fullBleed ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
-            <p className="line-clamp-2">{scene.narrativeContext}</p>
+      {/* Zoom Button */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="absolute right-2 top-2 opacity-75 hover:opacity-100"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl">
+          <DialogTitle className="sr-only">Scene Image - Full Size</DialogTitle>
+          <div className="relative aspect-video">
+            <Image
+              src={scene.imageUrl}
+              alt="Current scene - full size"
+              fill
+              className="object-contain"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              sizes="100vw"
+            />
           </div>
-        ) : null}
-      </div>,
-      !fullBleed ? (
-        <div className="space-y-1 text-xs text-muted-foreground">
+        </DialogContent>
+      </Dialog>
+
+      {fullBleed ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
           <p className="line-clamp-2">{scene.narrativeContext}</p>
         </div>
-      ) : undefined
-    )
+      ) : null}
+    </div>,
+    !fullBleed ? (
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p className="line-clamp-2">{scene.narrativeContext}</p>
+      </div>
+    ) : undefined
   );
 }

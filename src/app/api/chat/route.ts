@@ -1,4 +1,4 @@
-import { createAgentUIStreamResponse } from "ai";
+import { createAgentUIStreamResponse, type Agent } from "ai";
 import { db } from "@/lib/db";
 import {
   runs,
@@ -24,7 +24,7 @@ import {
 } from "@/agents/visual-engine";
 import type { UIMessage, UIMessagePart } from "@/types/ui-message";
 import { isTextUIPart } from "@/types/ui-message";
-import type { CampaignState } from "@/lib/db/schemas/campaign";
+import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
 import { sseConnectionManager } from "@/lib/sse/connection-manager";
 
@@ -157,10 +157,14 @@ export async function POST(req: Request) {
     const activeQuests = await getActiveQuestsByRunId(run.id);
 
     // Build campaignState from separate columns for in-memory state management
+    const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+    const rawKnowledgeGraph =
+      (run.relationships as KnowledgeGraph | null) ?? EMPTY_KNOWLEDGE_GRAPH;
+
     const campaignState: CampaignState = {
       activeFronts: run.activeFronts || [],
       narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
-      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      knowledgeGraph: rawKnowledgeGraph,
       currentContext: run.currentContext || null,
     };
 
@@ -177,8 +181,12 @@ export async function POST(req: Request) {
 
     // Create the streaming response
     const response = createAgentUIStreamResponse({
-      agent: gma.getAgent(),
-      messages: processedMessages,
+      agent: gma.getAgent() as unknown as Agent<
+        never,
+        Record<string, never>,
+        never
+      >,
+      uiMessages: processedMessages,
       onFinish: async (result) => {
         console.log("[API] Agent execution finished");
 
@@ -567,7 +575,6 @@ async function triggerVisualEngineAgent(
             : String(broadcastError),
       });
     }
-    const previousSceneId = run.currentSceneId;
 
     // Extract character action from the latest user message
     const characterAction = extractCharacterAction(incomingMessages);

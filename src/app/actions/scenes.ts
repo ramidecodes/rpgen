@@ -14,6 +14,7 @@ import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getPublicUrl } from "@/lib/storage/r2";
 import type { Scene } from "@/lib/db/schema";
+import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 
 /**
  * Get the current scene for a specific run
@@ -199,11 +200,18 @@ export async function triggerSceneGenerationAction(
     }
 
     // Build CampaignState from separate columns
-    const campaignState = {
+    const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+    const rawKnowledgeGraph =
+      (runData.run.relationships as KnowledgeGraph | null) ??
+      EMPTY_KNOWLEDGE_GRAPH;
+
+    const campaignState: CampaignState = {
       activeFronts: runData.run.activeFronts || [],
-      narrativeVectors:
-        runData.run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
-      knowledgeGraph: runData.run.relationships || { nodes: [], edges: [] },
+      narrativeVectors: runData.run.narrativeVectors || {
+        hope: 0.5,
+        chaos: 0.5,
+      },
+      knowledgeGraph: rawKnowledgeGraph,
       currentContext: runData.run.currentContext || null,
     };
 

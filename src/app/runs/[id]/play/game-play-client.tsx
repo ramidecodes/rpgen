@@ -21,7 +21,7 @@ import type {
   Scene,
 } from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
-import type { CampaignState } from "@/lib/db/schemas/campaign";
+import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 import type { Quest } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { getCurrentSceneAction } from "@/app/actions/scenes";
@@ -66,20 +66,23 @@ export function GamePlayClient({
   const pendingStartRef = useRef<number | null>(null);
   const pendingClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Build CampaignState from separate columns for state change detection
-  const buildCampaignState = useCallback<() => CampaignState>(
-    () => ({
+  const buildCampaignState = useCallback<() => CampaignState>(() => {
+    const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+    const rawKnowledgeGraph =
+      (run.relationships as KnowledgeGraph | null) ?? EMPTY_KNOWLEDGE_GRAPH;
+
+    return {
       activeFronts: run.activeFronts || [],
       narrativeVectors: run.narrativeVectors || { hope: 0.5, chaos: 0.5 },
-      knowledgeGraph: run.relationships || { nodes: [], edges: [] },
+      knowledgeGraph: rawKnowledgeGraph,
       currentContext: run.currentContext || null,
-    }),
-    [
-      run.activeFronts,
-      run.narrativeVectors,
-      run.relationships,
-      run.currentContext,
-    ]
-  );
+    };
+  }, [
+    run.activeFronts,
+    run.narrativeVectors,
+    run.relationships,
+    run.currentContext,
+  ]);
   const previousCampaignStateRef = useRef<CampaignState>(buildCampaignState());
 
   useEffect(() => {
@@ -111,7 +114,10 @@ export function GamePlayClient({
           if (startedAt) {
             const elapsed = Date.now() - startedAt;
             const remaining = Math.max(300 - elapsed, 0);
-            pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
+            pendingClearTimeoutRef.current = setTimeout(
+              clearPending,
+              remaining
+            );
           } else {
             clearPending();
           }
@@ -184,9 +190,12 @@ export function GamePlayClient({
 
         if (data.type === "scene-generation-cancelled") {
           const { placeholderId } = data.data || {};
-          setPendingSceneId((prev) =>
-            placeholderId && prev === placeholderId ? null : prev
-          );
+          if (placeholderId) {
+            const currentPending = useGameStore.getState().pendingSceneId;
+            if (currentPending === placeholderId) {
+              setPendingSceneId(null);
+            }
+          }
         }
 
         // Fallback: clear pending if nothing changes after a timeout for placeholder ids
@@ -194,9 +203,10 @@ export function GamePlayClient({
           const { sceneId } = data.data || {};
           if (typeof sceneId === "string" && sceneId.startsWith("pending-")) {
             setTimeout(() => {
-              setPendingSceneId((prev) =>
-                prev === sceneId ? null : prev
-              );
+              const currentPending = useGameStore.getState().pendingSceneId;
+              if (currentPending === sceneId) {
+                setPendingSceneId(null);
+              }
             }, 60000);
           }
         }
@@ -224,7 +234,7 @@ export function GamePlayClient({
     return () => {
       eventSource.close();
     };
-  }, [run.id, gameChat.isLoading, setPendingSceneId]);
+  }, [run.id, gameChat.isLoading, setPendingSceneId, currentSceneState]);
 
   // Update scene state when prop changes (initial load or server-side updates)
   useEffect(() => {
@@ -370,11 +380,17 @@ export function GamePlayClient({
                         <span>{(run.activeFronts || []).length} fronts</span>
                         <span>
                           Hope{" "}
-                          {((run.narrativeVectors?.hope || 0.5) * 100).toFixed(0)}%
+                          {((run.narrativeVectors?.hope || 0.5) * 100).toFixed(
+                            0
+                          )}
+                          %
                         </span>
                         <span>
                           Chaos{" "}
-                          {((run.narrativeVectors?.chaos || 0.5) * 100).toFixed(0)}%
+                          {((run.narrativeVectors?.chaos || 0.5) * 100).toFixed(
+                            0
+                          )}
+                          %
                         </span>
                       </div>
                     </div>
@@ -393,8 +409,8 @@ export function GamePlayClient({
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold">Quests</span>
                       <span className="text-muted-foreground">
-                        {quests.filter((q) => q.status === "active").length} active ·{" "}
-                        {quests.length} total
+                        {quests.filter((q) => q.status === "active").length}{" "}
+                        active · {quests.length} total
                       </span>
                     </div>
                   </CardContent>

@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getQuestsAction } from "@/app/actions/quests";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -127,10 +132,10 @@ export function QuestLogsDialog({
                     quest.status === "active"
                       ? "default"
                       : quest.status === "completed"
-                      ? "secondary"
-                      : quest.status === "failed"
-                      ? "destructive"
-                      : "outline";
+                        ? "secondary"
+                        : quest.status === "failed"
+                          ? "destructive"
+                          : "outline";
                   return (
                     <AccordionItem
                       key={quest.id}
@@ -212,7 +217,8 @@ export function QuestLogsDialog({
                           <div className="text-[11px] text-muted-foreground">
                             Created:{" "}
                             {new Date(quest.createdAt).toLocaleString()} •
-                            Updated: {new Date(quest.updatedAt).toLocaleString()}
+                            Updated:{" "}
+                            {new Date(quest.updatedAt).toLocaleString()}
                           </div>
                         </div>
                       </AccordionContent>

@@ -119,10 +119,12 @@ export function createVisualEngineAgent(
 
     // Emit start when tools sequence begins
     prepareStep: async (context) => {
-      const toolName = context?.step?.toolName;
+      const lastStep = context.steps[context.steps.length - 1];
+      const toolName = lastStep?.toolCalls?.[0]?.toolName;
       if (!hasEmittedStart && toolName) {
         await emitStart();
       }
+      return {};
     },
   });
 
@@ -209,7 +211,10 @@ export function hasNarrativeText(messages: UIMessage[]): boolean {
   }
 
   // Check if message has parts
-  if (!Array.isArray(lastAssistantMessage.parts) || lastAssistantMessage.parts.length === 0) {
+  if (
+    !Array.isArray(lastAssistantMessage.parts) ||
+    lastAssistantMessage.parts.length === 0
+  ) {
     return false;
   }
 

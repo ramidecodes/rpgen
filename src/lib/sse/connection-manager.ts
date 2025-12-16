@@ -1,6 +1,6 @@
 /**
  * SSE Connection Manager
- * 
+ *
  * Manages Server-Sent Events (SSE) connections for real-time scene updates.
  * Supports multiple clients subscribing to the same run.
  */
@@ -90,9 +90,7 @@ class SSEConnectionManager {
 
     for (const connection of connections) {
       try {
-        connection.controller.enqueue(
-          new TextEncoder().encode(eventData)
-        );
+        connection.controller.enqueue(new TextEncoder().encode(eventData));
       } catch (error) {
         // Connection is dead, mark for removal
         console.error("[SSE] Failed to send event to connection", {
@@ -141,4 +139,3 @@ class SSEConnectionManager {
 
 // Singleton instance
 export const sseConnectionManager = new SSEConnectionManager();
-

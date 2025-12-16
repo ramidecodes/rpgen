@@ -864,14 +864,17 @@ export function createGenerateSceneImageTool(runId: string) {
             },
           });
         } catch (broadcastError) {
-          console.error("[Scene Generation] Failed to broadcast pending scene", {
-            runId,
-            sceneId,
-            error:
-              broadcastError instanceof Error
-                ? broadcastError.message
-                : String(broadcastError),
-          });
+          console.error(
+            "[Scene Generation] Failed to broadcast pending scene",
+            {
+              runId,
+              sceneId,
+              error:
+                broadcastError instanceof Error
+                  ? broadcastError.message
+                  : String(broadcastError),
+            }
+          );
         }
 
         // Revalidate the play page to show the new scene (pending state)
