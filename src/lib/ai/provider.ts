@@ -91,6 +91,7 @@ export const getOpenRouterClient = (): ReturnType<typeof createOpenRouter> => {
 
   openRouterClient = createOpenRouter({
     apiKey,
+    compatibility: "strict",
     headers: {
       "HTTP-Referer": referer,
       "X-Title": "RPG Generator",
