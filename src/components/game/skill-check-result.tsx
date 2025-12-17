@@ -1,7 +1,5 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type SkillCheckResultProps = {
@@ -22,67 +20,157 @@ export function SkillCheckResult({
   attribute,
 }: SkillCheckResultProps) {
   return (
-    <Card className="border-primary/40 bg-primary/5">
-      <CardContent className="p-4 space-y-3">
-        {/* Success/Failure Header */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={success ? "default" : "destructive"}
-              className={cn(
-                "text-sm font-semibold",
-                success
-                  ? "bg-green-600/20 border-green-500/50 text-green-400"
-                  : "bg-red-600/20 border-red-500/50 text-red-400"
-              )}
-            >
-              {success ? "✓ Success" : "✗ Failure"}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="text-xs font-mono border-primary/50 bg-primary/10 text-primary"
-            >
-              {attribute.toUpperCase()}
-            </Badge>
+    <div className="relative overflow-hidden rounded-lg bg-card p-6 shadow-[0_0_25px_rgba(0,255,200,0.12)]">
+      {/* Glowing border effect */}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-lg border-2",
+          success
+            ? "border-primary/80 shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
+            : "border-destructive/80 shadow-[0_0_20px_hsl(var(--destructive)/0.3)]"
+        )}
+        style={{
+          boxShadow: success
+            ? "0 0 20px hsl(var(--primary) / 0.3), inset 0 0 16px hsl(var(--primary) / 0.14)"
+            : "0 0 20px hsl(var(--destructive) / 0.3), inset 0 0 16px hsl(var(--destructive) / 0.14)",
+        }}
+      />
+
+      <div className="relative z-10">
+        {/* Top Badges */}
+        <div className="mb-6 flex items-center gap-3">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold",
+              success
+                ? "bg-primary text-primary-foreground"
+                : "bg-destructive text-destructive-foreground"
+            )}
+          >
+            {success ? (
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <title>Success</title>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <title>Failure</title>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            )}
+            <span>{success ? "Success" : "Failure"}</span>
+          </div>
+          <div className="rounded-full border border-primary/50 bg-primary/20 px-2.5 py-1 text-xs font-semibold text-primary">
+            {attribute.toUpperCase()}
           </div>
         </div>
 
-        {/* Calculation and DC Comparison in Single Row */}
-        <div className="flex items-center gap-2 flex-wrap text-sm">
-          <span className="text-muted-foreground">Roll:</span>
-          <Badge variant="secondary" className="font-mono text-sm px-3 py-1">
-            {rollValue}
-          </Badge>
-          <span className="text-muted-foreground">+</span>
-          <span className="text-muted-foreground">Stat:</span>
-          <Badge variant="secondary" className="font-mono text-sm px-3 py-1">
-            {statValue}
-          </Badge>
-          <span className="text-muted-foreground">=</span>
-          <span className="text-muted-foreground">Total:</span>
-          <Badge
-            variant="outline"
-            className="font-mono text-sm px-3 py-1 font-semibold border-primary/50 bg-primary/10 text-primary"
-          >
-            {total}
-          </Badge>
-          <span className="text-muted-foreground">vs DC:</span>
-          <Badge variant="secondary" className="font-mono text-sm px-3 py-1">
-            {difficulty}
-          </Badge>
-          <span className="text-muted-foreground">
-            {total >= difficulty ? "≥" : "<"}
-          </span>
-          <span
+        {/* Main Equation Section */}
+        <div className="flex items-center justify-center gap-3">
+          {/* The Roll */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted shadow-inner">
+              <span className="text-lg font-bold text-foreground">
+                {rollValue}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              The Roll
+            </span>
+          </div>
+
+          {/* Plus Operator */}
+          <div
             className={cn(
-              "font-medium",
-              success ? "text-green-400" : "text-red-400"
+              "flex h-14 w-5 items-center justify-center text-xl font-bold",
+              success ? "text-primary" : "text-destructive"
             )}
           >
-            {success ? "Passed" : "Failed"}
-          </span>
+            +
+          </div>
+
+          {/* Character Attribute */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted shadow-inner">
+              <span className="text-lg font-bold text-foreground">
+                {statValue}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              Attribute
+            </span>
+          </div>
+
+          {/* Equals Operator */}
+          <div
+            className={cn(
+              "flex h-14 w-5 items-center justify-center text-xl font-bold",
+              success ? "text-primary" : "text-destructive"
+            )}
+          >
+            =
+          </div>
+
+          {/* Total (Highlighted) */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div
+              className={cn(
+                "flex h-14 w-14 items-center justify-center rounded-lg shadow-lg",
+                success
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-destructive text-destructive-foreground"
+              )}
+            >
+              <span className="text-lg font-bold">{total}</span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              Total
+            </span>
+          </div>
+
+          {/* Greater Than or Equal Operator */}
+          <div
+            className={cn(
+              "flex h-14 w-5 items-center justify-center text-xl font-bold",
+              success ? "text-primary" : "text-destructive"
+            )}
+          >
+            {total >= difficulty ? "≥" : "<"}
+          </div>
+
+          {/* Difficulty */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted shadow-inner">
+              <span className="text-lg font-bold text-foreground">
+                {difficulty}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              Difficulty
+            </span>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

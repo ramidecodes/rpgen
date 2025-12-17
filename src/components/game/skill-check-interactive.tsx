@@ -1,7 +1,5 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { D20Anime } from "@/components/hero/d20-anime";
 import { useRef, useEffect, useState } from "react";
@@ -26,14 +24,13 @@ export function SkillCheckInteractive({
   onSubmitRoll,
 }: SkillCheckInteractiveProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const badgeRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const diceContainerRef = useRef<HTMLButtonElement>(null);
   const [isRolling, setIsRolling] = useState(false);
   const rollAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current || !badgeRef.current) {
+    if (!containerRef.current) {
       return;
     }
 
@@ -44,14 +41,6 @@ export function SkillCheckInteractive({
       translateY: [-10, 0],
       duration: 500,
       easing: "easeOutElastic(1, 0.6)",
-    });
-
-    // Pulse animation for the badge
-    const pulseAnim = animate(badgeRef.current, {
-      scale: [1, 1.05, 1],
-      duration: 1500,
-      easing: "easeInOutSine",
-      loop: true,
     });
 
     // Glow animation if glow element exists
@@ -67,7 +56,6 @@ export function SkillCheckInteractive({
 
     return () => {
       entranceAnim.pause();
-      pulseAnim.pause();
     };
   }, []);
 
@@ -120,60 +108,53 @@ export function SkillCheckInteractive({
       {/* Background Glow Effect */}
       <div
         ref={glowRef}
-        className="absolute inset-0 bg-primary/10 blur-xl rounded-lg pointer-events-none"
+        className="pointer-events-none absolute inset-0 rounded-lg bg-primary/10 blur-2xl"
       />
-      <Card className="relative border-primary/30 bg-primary/5">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div ref={badgeRef} className="inline-block">
-              <Badge
-                variant="outline"
-                className="text-sm font-semibold border-primary/50 bg-primary/10 text-primary"
-              >
-                🎲 Skill Check Required
-              </Badge>
+      <div className="relative overflow-hidden rounded-lg bg-card p-6 shadow-[0_0_25px_rgba(0,255,200,0.12)]">
+        {/* Glowing border effect */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-lg border-2 border-primary/80 shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
+          style={{
+            boxShadow:
+              "0 0 20px hsl(var(--primary) / 0.3), inset 0 0 16px hsl(var(--primary) / 0.14)",
+          }}
+        />
+
+        <div className="relative z-10">
+          {/* Top Badges */}
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+              <span>{attribute.toUpperCase()}</span>
+              {characterStat !== undefined && (
+                <span className="rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                  {characterStat}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 flex-wrap">
+          {/* Info Section */}
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Attribute:
-                </span>
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {attribute.toUpperCase()}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  DC:
-                </span>
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {difficulty}
-                </Badge>
-              </div>
-              {characterStat !== undefined && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Your {attribute}:
+                <span className="text-muted-foreground">DC:</span>
+                <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted shadow-inner">
+                  <span className="text-lg font-bold text-foreground">
+                    {difficulty}
                   </span>
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    {characterStat}
-                  </Badge>
                 </div>
-              )}
+              </div>
             </div>
 
             {reason && (
-              <div className="text-sm text-muted-foreground italic border-l-2 border-primary/30 pl-3">
+              <div className="border-l-2 border-primary/50 pl-4 text-sm italic text-muted-foreground">
                 {reason}
               </div>
             )}
           </div>
 
           {/* Interactive Die */}
-          <div className="flex flex-col items-center gap-3 pt-2">
+          <div className="flex flex-col items-center gap-4">
             <button
               ref={diceContainerRef}
               onClick={handleRollDice}
@@ -186,22 +167,22 @@ export function SkillCheckInteractive({
                 }
               }}
               className={cn(
-                "flex items-center justify-center h-32 w-full transition-transform cursor-pointer hover:scale-105 active:scale-95",
+                "flex items-center justify-center transition-transform cursor-pointer hover:scale-105 active:scale-95",
                 isRolling && "pointer-events-none cursor-not-allowed"
               )}
             >
-              <D20Anime className="w-24 h-24" />
+              <D20Anime className="h-20 w-20" />
             </button>
             <Button
               onClick={handleRollDice}
               disabled={isRolling}
-              className="w-full"
+              className="w-full cursor-pointer bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
             >
               {isRolling ? "Rolling..." : "Roll d20"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
