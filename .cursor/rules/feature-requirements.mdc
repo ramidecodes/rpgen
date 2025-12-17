@@ -7,11 +7,12 @@ alwayalwaysApply: false
 
 ## When to Apply This Rule:
 
-This rule applies **ONLY** when the user requests implementation of a **new feature** or **new functionality**. Apply this rule when you detect:
+This rule applies when the user requests implementation of a **new feature** or **new functionality**. Apply this rule when you detect:
 
 - Requests to implement, add, create, or build new features
 - Requests for new functionality that doesn't exist yet
 - Feature requests that require planning and documentation
+- Request to udpate a document in `docs/features/`
 
 **Do NOT apply this rule for:**
 
@@ -27,18 +28,16 @@ This rule applies **ONLY** when the user requests implementation of a **new feat
 
 2. **FRED Generation Process**:
 
-   - Use the template structure from `docs/fred-template.md` as the base format
-   - Follow the formatting style used in existing documents in `docs/features/` (markdown with bold headers, bullet points, etc.)
    - Generate a comprehensive document covering all template sections:
-     - Feature Name
-     - Goal
-     - User Story
-     - Functional Requirements
-     - Data Requirements (if applicable)
-     - User Flow
-     - Acceptance Criteria
-     - Edge Cases
-     - Non-Functional Requirements (if applicable)
+   - Feature Name: Short, descriptive title for the feature.
+   - Goal: What problem does this feature solve? Why does it exist?
+   - User Story: As a [user type], I want to [goal], so that I can [benefit].
+     -Functional Requirements: List core behaviors the feature must support. Be specific and measurable.
+   - Data Requirements (optional): What new tables, fields, or relationships are needed? What existing data do we reuse?
+   - User Flow: Step-by-step actions the user performs from start to finish.
+   - Acceptance Criteria: Clear conditions defining when this feature is “done”.
+   - Edge Cases: List tricky scenarios the system must handle.
+   - Non-Functional Requirements (Optional): Performance, security, UX constraints
 
 3. **File Naming**:
 
