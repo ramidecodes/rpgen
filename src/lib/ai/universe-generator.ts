@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import {
   generatedUniverseSchema,
   type Ontology,
@@ -34,13 +34,13 @@ export async function generateUniverse(
   `;
 
   try {
-    const { object } = await generateObject({
+    const result = await generateText({
       model: openrouter.chat(MODEL_NAME),
-      schema: generatedUniverseSchema,
       prompt,
+      output: Output.object({ schema: generatedUniverseSchema }),
     });
 
-    return object;
+    return result.output;
   } catch (error) {
     console.error("Error generating universe:", error);
     throw new Error("Failed to generate universe content");

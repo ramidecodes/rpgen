@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import {
   campaignStateSchema,
   questThreadSchema,
@@ -11,9 +11,10 @@ import { z } from "zod";
 const openrouter = getOpenRouterClient();
 const MODEL_NAME = getTextModel("base");
 
-// Schema for generating initial quests separately
+// Schema for generating initial quests separately (without IDs - DB generates them)
+const initialQuestThreadSchema = questThreadSchema.omit({ id: true });
 const initialQuestsSchema = z.object({
-  questThreads: z.array(questThreadSchema),
+  questThreads: z.array(initialQuestThreadSchema),
 });
 
 export type InitialQuests = z.infer<typeof initialQuestsSchema>;
@@ -28,10 +29,10 @@ export async function generateRunState(
     3. Character: "${character.name}"
        - Profession: ${character.properties?.profession || "Unknown"}
        - Stats: Strength ${character.stats.strength}, Agility ${
-         character.stats.agility
-       }, Intelligence ${character.stats.intelligence}, Scholarship ${
-         character.stats.scholarship
-       }, Intuition ${character.stats.intuition}
+        character.stats.agility
+      }, Intelligence ${character.stats.intelligence}, Scholarship ${
+        character.stats.scholarship
+      }, Intuition ${character.stats.intuition}
        - Backstory: ${
          character.properties?.backstory?.substring(0, 300) ||
          "No backstory provided"
@@ -97,13 +98,13 @@ ${characterContext}
   `;
 
   try {
-    const result = await generateObject({
+    const result = await generateText({
       model: openrouter.chat(MODEL_NAME),
-      schema: campaignStateSchema,
       prompt,
+      output: Output.object({ schema: campaignStateSchema }),
     });
 
-    return result.object as CampaignState;
+    return result.output as CampaignState;
   } catch (error) {
     console.error("Error generating campaign state:", error);
     throw new Error("Failed to generate initial campaign state");
@@ -152,16 +153,17 @@ ${characterContext}
     - Status: "active"
     - Empty clues array (clues will be discovered during gameplay)
     - Empty logs array (logs will be added during gameplay)
+    - Do NOT include an id field - IDs are generated automatically by the database
   `;
 
   try {
-    const result = await generateObject({
+    const result = await generateText({
       model: openrouter.chat(MODEL_NAME),
-      schema: initialQuestsSchema,
       prompt,
+      output: Output.object({ schema: initialQuestsSchema }),
     });
 
-    return result.object as InitialQuests;
+    return result.output as InitialQuests;
   } catch (error) {
     console.error("Error generating initial quests:", error);
     // Return empty quests on error

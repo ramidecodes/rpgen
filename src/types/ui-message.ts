@@ -1,86 +1,73 @@
 /**
  * AI SDK v6 UI Message Types
- * Proper type definitions for UIMessage and related types
+ * Re-exported from 'ai' package with optional id for messages that haven't been persisted yet
  */
 
-// Base UIMessage structure based on AI SDK v6
-export interface UIMessage {
+import type {
+  UIMessage as AISDKUIMessage,
+  UIMessagePart as AISDKUIMessagePart,
+  TextUIPart as AISDKTextUIPart,
+  ToolUIPart as AISDKToolUIPart,
+  DataUIPart as AISDKDataUIPart,
+  FileUIPart as AISDKFileUIPart,
+  ReasoningUIPart as AISDKReasoningUIPart,
+  UIDataTypes,
+  UITools,
+} from "ai";
+import {
+  isTextUIPart as aiIsTextUIPart,
+  isToolUIPart as aiIsToolUIPart,
+  isDataUIPart as aiIsDataUIPart,
+  isFileUIPart as aiIsFileUIPart,
+  isReasoningUIPart as aiIsReasoningUIPart,
+} from "ai";
+
+/**
+ * UIMessage with optional id (for messages that haven't been persisted to DB yet)
+ * Extends AI SDK v6's UIMessage but makes id optional
+ */
+export type UIMessage = Omit<AISDKUIMessage, "id"> & {
   id?: string;
-  role: "system" | "user" | "assistant";
-  parts?: UIMessagePart[];
-}
+};
 
-// Base UIMessagePart structure
-export interface UIMessagePart {
-  type: string;
-  [key: string]: unknown;
-}
+/**
+ * UIMessagePart - re-exported directly from AI SDK v6 with default generics
+ */
+export type UIMessagePart = AISDKUIMessagePart<UIDataTypes, UITools>;
 
-// Text part
-export interface TextUIPart extends UIMessagePart {
-  type: "text";
-  text: string;
-}
+/**
+ * TextUIPart - re-exported directly from AI SDK v6
+ */
+export type TextUIPart = AISDKTextUIPart;
 
-// Tool part
-export interface ToolUIPart extends UIMessagePart {
-  type: "tool-call" | "tool-result";
-  toolCallId: string;
-  toolName?: string;
-  args?: unknown;
-  result?: unknown;
-}
+/**
+ * ToolUIPart - re-exported directly from AI SDK v6 with default generics
+ */
+export type ToolUIPart = AISDKToolUIPart<UITools>;
 
-// Data part
-export interface DataUIPart extends UIMessagePart {
-  type: "data";
-  data: unknown;
-}
+/**
+ * DataUIPart - re-exported directly from AI SDK v6 with default generics
+ */
+export type DataUIPart = AISDKDataUIPart<UIDataTypes>;
 
-// File part
-export interface FileUIPart extends UIMessagePart {
-  type: "file";
-  file: {
-    name: string;
-    type: string;
-    size: number;
-    url: string;
-  };
-}
+/**
+ * FileUIPart - re-exported directly from AI SDK v6
+ */
+export type FileUIPart = AISDKFileUIPart;
 
-// Reasoning part
-export interface ReasoningUIPart extends UIMessagePart {
-  type: "reasoning";
-  text: string;
-}
+/**
+ * ReasoningUIPart - re-exported directly from AI SDK v6
+ */
+export type ReasoningUIPart = AISDKReasoningUIPart;
 
-// Union type for all UI parts
-export type UIMessagePartUnion =
-  | TextUIPart
-  | ToolUIPart
-  | DataUIPart
-  | FileUIPart
-  | ReasoningUIPart;
+/**
+ * Union type for all UI parts - re-exported from AI SDK v6
+ */
+export type UIMessagePartUnion = UIMessagePart;
 
-// Type guards
-export function isTextUIPart(part: UIMessagePart): part is TextUIPart {
-  return part.type === "text";
-}
-
-export function isToolUIPart(part: UIMessagePart): part is ToolUIPart {
-  return part.type === "tool-call" || part.type === "tool-result";
-}
-
-export function isDataUIPart(part: UIMessagePart): part is DataUIPart {
-  return part.type === "data";
-}
-
-export function isFileUIPart(part: UIMessagePart): part is FileUIPart {
-  return part.type === "file";
-}
-
-export function isReasoningUIPart(
-  part: UIMessagePart
-): part is ReasoningUIPart {
-  return part.type === "reasoning";
-}
+// Re-export type guards from AI SDK v6
+export const isTextUIPart = aiIsTextUIPart;
+export const isToolUIPart = aiIsToolUIPart;
+export const isDataUIPart = aiIsDataUIPart;
+export const isFileUIPart = aiIsFileUIPart;
+export const isReasoningUIPart = aiIsReasoningUIPart;

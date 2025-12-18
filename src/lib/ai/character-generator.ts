@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import {
   characterBackstorySchema,
   type CharacterStats,
@@ -51,13 +51,13 @@ export async function generateCharacterBackstory(
   `;
 
   try {
-    const { object } = await generateObject({
+    const result = await generateText({
       model: openrouter.chat(MODEL_NAME),
-      schema: characterBackstorySchema,
       prompt,
+      output: Output.object({ schema: characterBackstorySchema }),
     });
 
-    return object;
+    return result.output;
   } catch (error) {
     console.error("Error generating character backstory:", error);
     throw new Error("Failed to generate character backstory");
