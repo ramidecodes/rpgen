@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD CONSTRAINT "messages_run_role_content_unique" UNIQUE("run_id","role","content");

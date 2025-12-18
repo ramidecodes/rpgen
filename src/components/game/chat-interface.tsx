@@ -114,9 +114,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                typeof (error as { message?: unknown }).message === "string"
-              ? (error as { message?: string }).message ?? ""
-              : "The Game Master ran into an error. Please try again."}
+                  typeof (error as { message?: unknown }).message === "string"
+                ? ((error as { message?: string }).message ?? "")
+                : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -186,48 +186,8 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
               if (isSkillCheckPart(part)) {
                 const skillCheckPart = part as SkillCheckToolPart;
 
-                // Input-available state: show interactive dice UI
-                if (
-                  skillCheckPart.state === "input-available" &&
-                  skillCheckPart.input
-                ) {
-                  const { input } = skillCheckPart;
-                  if (
-                    input.attribute &&
-                    typeof input.difficulty === "number" &&
-                    typeof input.reason === "string"
-                  ) {
-                    const attribute = input.attribute;
-                    const characterStat =
-                      currentCharacter?.stats?.[
-                        attribute as keyof typeof currentCharacter.stats
-                      ];
-
-                    return (
-                      <div
-                        key={`${message.id}-skill-check-${
-                          skillCheckPart.toolCallId ?? "pending"
-                        }`}
-                        className="mt-2"
-                      >
-                        <SkillCheckInteractive
-                          attribute={attribute}
-                          difficulty={input.difficulty}
-                          reason={input.reason}
-                          characterStat={characterStat}
-                          toolCallId={skillCheckPart.toolCallId ?? ""}
-                          onSubmitRoll={(rollValue) =>
-                            gameChat.submitSkillCheckResult(
-                              rollValue,
-                              skillCheckPart.toolCallId ?? ""
-                            )
-                          }
-                        />
-                      </div>
-                    );
-                  }
-                }
-
+                // CRITICAL: Check for output-available FIRST
+                // Only show interactive component if NO output exists for this toolCallId
                 // Result state: render a compact summary of the roll.
                 if (
                   skillCheckPart.state === "result" ||
@@ -243,12 +203,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                      ? (
-                          skillCheckPart as {
-                            result?: unknown;
-                          }
-                        ).result
-                      : undefined;
+                        ? (
+                            skillCheckPart as {
+                              result?: unknown;
+                            }
+                          ).result
+                        : undefined;
 
                   let detailMeta: {
                     rollValue?: number;
@@ -301,6 +261,64 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           difficulty={detailMeta.difficulty}
                           success={detailMeta.success}
                           attribute={detailMeta.attribute}
+                        />
+                      </div>
+                    );
+                  }
+                }
+
+                // Input-available state: show interactive dice UI ONLY if no output exists
+                // Check if there's another part with output for this toolCallId
+                const hasOutputForThisToolCallId = message.parts?.some((otherPart) => {
+                  if (isSkillCheckPart(otherPart)) {
+                    const otherSkillCheck = otherPart as SkillCheckToolPart;
+                    return (
+                      otherSkillCheck.toolCallId === skillCheckPart.toolCallId &&
+                      (otherSkillCheck.state === "result" ||
+                        otherSkillCheck.state === "output-available") &&
+                      ("output" in otherSkillCheck || "result" in otherSkillCheck)
+                    );
+                  }
+                  return false;
+                });
+
+                // Only show interactive if no output exists for this toolCallId
+                if (
+                  !hasOutputForThisToolCallId &&
+                  skillCheckPart.state === "input-available" &&
+                  skillCheckPart.input
+                ) {
+                  const { input } = skillCheckPart;
+                  if (
+                    input.attribute &&
+                    typeof input.difficulty === "number" &&
+                    typeof input.reason === "string"
+                  ) {
+                    const attribute = input.attribute;
+                    const characterStat =
+                      currentCharacter?.stats?.[
+                        attribute as keyof typeof currentCharacter.stats
+                      ];
+
+                    return (
+                      <div
+                        key={`${message.id}-skill-check-${
+                          skillCheckPart.toolCallId ?? "pending"
+                        }`}
+                        className="mt-2"
+                      >
+                        <SkillCheckInteractive
+                          attribute={attribute}
+                          difficulty={input.difficulty}
+                          reason={input.reason}
+                          characterStat={characterStat}
+                          toolCallId={skillCheckPart.toolCallId ?? ""}
+                          onSubmitRoll={(rollValue) =>
+                            gameChat.submitSkillCheckResult(
+                              rollValue,
+                              skillCheckPart.toolCallId ?? ""
+                            )
+                          }
                         />
                       </div>
                     );

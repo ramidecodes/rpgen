@@ -8,7 +8,7 @@ import {
   messages,
   scenes,
 } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { createGameMasterAgent } from "@/agents/game-master";
@@ -23,7 +23,7 @@ import {
   hasNarrativeText,
 } from "@/agents/visual-engine";
 import type { UIMessage, UIMessagePart } from "@/types/ui-message";
-import { isTextUIPart } from "@/types/ui-message";
+import { isTextUIPart, isToolUIPart } from "@/types/ui-message";
 import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
 import { sseConnectionManager } from "@/lib/sse/connection-manager";
@@ -124,9 +124,13 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 403 });
     }
 
-    // Load existing messages for context
+    // Load existing messages for initial context (used for model preparation)
     const existingMessages = await db
-      .select()
+      .select({
+        id: messages.id,
+        role: messages.role,
+        content: messages.content,
+      })
       .from(messages)
       .where(eq(messages.runId, run.id))
       .orderBy(desc(messages.createdAt))
@@ -139,19 +143,87 @@ export async function POST(req: Request) {
       parts: msg.content as UIMessage["parts"],
     }));
 
-    // Filter and prepare messages for model processing
-    const processedMessages = prepareMessagesForModel([
-      ...storedMessages,
-      ...incomingMessages,
+    // Reload messages for fresh deduplication (ensures incoming messages are filtered correctly)
+    // Note: Database constraint will prevent duplicates atomically even if deduplication misses something
+    const freshExistingMessages = await db
+      .select({
+        id: messages.id,
+        role: messages.role,
+        content: messages.content,
+      })
+      .from(messages)
+      .where(eq(messages.runId, run.id))
+      .orderBy(desc(messages.createdAt))
+      .limit(50);
+
+    const freshStoredMessages = freshExistingMessages.reverse().map((msg) => ({
+      id: msg.id,
+      role: msg.role as UIMessage["role"],
+      parts: msg.content as UIMessage["parts"],
+    }));
+
+    // Deduplicate incoming messages before combining
+    // Following AI SDK v6 best practices: validate and deduplicate before processing
+    const deduplicatedIncoming = deduplicateIncomingMessages(
+      incomingMessages,
+      freshStoredMessages
+    );
+
+    console.log(
+      `[API] Deduplication: ${incomingMessages.length} incoming -> ${
+        deduplicatedIncoming.length
+      } unique (filtered ${
+        incomingMessages.length - deduplicatedIncoming.length
+      } duplicates)`
+    );
+
+    // Persist user message before streaming (AI SDK v6 best practice)
+    // Deduplication already filtered out duplicates, so we can persist directly
+    const lastUserMessage = findLastMeaningfulUserMessage(deduplicatedIncoming);
+
+    if (lastUserMessage && !isWhitespaceOnlyMessage(lastUserMessage)) {
+      await persistMessage(run.id, lastUserMessage);
+      console.log("[API] Persisted new user message (before streaming)");
+    }
+
+    // CRITICAL: Merge tool results from incomingMessages into storedMessages in-memory
+    // This ensures the agent sees tool results (e.g., skill check outcomes) when generating the response
+    // Tool results are merged BEFORE creating processedMessages so the agent can continue the narrative
+    const messagesWithToolResults = mergeToolResultsIntoMessages(
+      storedMessages,
+      deduplicatedIncoming
+    );
+
+    // Now combine - no duplicates possible, tool results already merged
+    let processedMessages = prepareMessagesForModel([
+      ...messagesWithToolResults,
+      ...deduplicatedIncoming,
     ]);
+
+    // CRITICAL: Ensure processedMessages is never empty
+    // createAgentUIStreamResponse requires at least one message
+    // This can happen when whitespace trigger messages are filtered and no stored messages exist
+    if (processedMessages.length === 0) {
+      console.warn(
+        "[API] processedMessages is empty after filtering, adding synthetic initial message"
+      );
+      processedMessages = [
+        {
+          id: "synthetic-initial-message",
+          role: "user" as const,
+          parts: [
+            {
+              type: "text",
+              text: " ",
+            },
+          ],
+        },
+      ];
+    }
 
     // Check for empty initial message (unused for now, but function is available)
     const _isEmptyInitialMessage =
       checkForEmptyInitialMessage(incomingMessages);
-
-    // Persist assistant messages with tool outputs from incoming messages
-    // This handles HITL tool results added via addToolOutput (immutable pattern)
-    await persistAssistantMessagesWithToolOutputs(incomingMessages, run.id);
 
     // Query active quests for read-only context (GMA narrative awareness)
     const activeQuests = await getActiveQuestsByRunId(run.id);
@@ -190,23 +262,25 @@ export async function POST(req: Request) {
       onFinish: async (result) => {
         console.log("[API] Agent execution finished");
 
-        // Persist user message if it was meaningful
-        const lastUserMessage = findLastMeaningfulUserMessage(incomingMessages);
-        if (lastUserMessage) {
-          await persistMessage(run.id, lastUserMessage);
+        // Process incomingMessages for tool-result parts for DB persistence
+        // Note: Tool results were already merged in-memory before agent execution
+        // (see mergeToolResultsIntoMessages call above) so the agent could see them.
+        // This DB persistence ensures tool results are saved to the database.
+        await processIncomingMessagesForToolResults(run.id, incomingMessages);
+
+        // User messages are already persisted before streaming (AI SDK v6 best practice)
+        // Only persist assistant message here
+
+        // Persist assistant message from result.responseMessage (AI SDK v6 best practice)
+        // This is the NEW message generated by the agent, not historical messages
+        if (result.responseMessage) {
+          await persistAssistantMessage(run.id, result.responseMessage);
+          console.log("[API] Persisted assistant response message");
         }
 
-        // Persist assistant message with tool calls/results
-        await persistAssistantMessage(run.id, result);
-
-        // Extract latest assistant message from result.messages
-        const latestAssistantMessage = result.messages
-          ?.filter((msg) => msg.role === "assistant")
-          .pop();
-
         // Build complete message context including latest assistant message
-        const allRecentMessages: UIMessage[] = latestAssistantMessage
-          ? [...processedMessages, latestAssistantMessage]
+        const allRecentMessages: UIMessage[] = result.responseMessage
+          ? [...processedMessages, result.responseMessage]
           : processedMessages;
 
         // GMA does NOT modify state - no state persistence needed here
@@ -344,8 +418,12 @@ function findLastMeaningfulUserMessage(
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role === "user") {
-      // Check if it has non-empty parts
-      if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+      // Check if it has non-empty parts and is not whitespace-only
+      if (
+        Array.isArray(msg.parts) &&
+        msg.parts.length > 0 &&
+        !isWhitespaceOnlyMessage(msg)
+      ) {
         return msg;
       }
     }
@@ -354,87 +432,701 @@ function findLastMeaningfulUserMessage(
 }
 
 /**
- * Persist a message to the database
+ * Check if a message is whitespace-only (used for trigger messages)
  */
-async function persistMessage(
-  runId: string,
-  message: UIMessage
-): Promise<void> {
-  await db.insert(messages).values({
-    runId,
-    role: message.role,
-    content: message.parts || [],
+function isWhitespaceOnlyMessage(message: UIMessage): boolean {
+  if (!Array.isArray(message.parts) || message.parts.length === 0) {
+    return true;
+  }
+
+  // Check if all text parts are empty/whitespace
+  const hasNonEmptyText = message.parts.some((part) => {
+    if (isTextUIPart(part)) {
+      return part.text.trim().length > 0;
+    }
+    // Non-text parts (like tool parts) are not considered whitespace
+    return true;
+  });
+
+  return !hasNonEmptyText;
+}
+
+/**
+ * Deduplicate incoming messages against stored messages
+ * Returns only messages that don't already exist in stored messages
+ * Uses ID-based matching first, then content-based matching
+ * This runs BEFORE combining messages for processing to prevent duplicates
+ */
+function deduplicateIncomingMessages(
+  incomingMessages: UIMessage[],
+  storedMessages: Array<{ id?: string; role: string; parts?: unknown }>
+): UIMessage[] {
+  // Convert storedMessages to format expected by isMessageInHistory (with content field)
+  const storedMessagesForComparison = storedMessages.map((msg) => ({
+    id: msg.id,
+    role: msg.role,
+    content: msg.parts, // Use parts as content for comparison
+  }));
+
+  return incomingMessages.filter((incoming) => {
+    // Filter out whitespace-only messages (trigger messages from skill check submission)
+    // These should never be persisted or processed
+    if (incoming.role === "user" && isWhitespaceOnlyMessage(incoming)) {
+      console.log(
+        `[API] Filtered whitespace-only trigger message (role: ${incoming.role})`
+      );
+      return false;
+    }
+
+    // Phase 1: ID-based check (most reliable)
+    if (incoming.id) {
+      const existsById = storedMessages.some(
+        (stored) => stored.id === incoming.id
+      );
+      if (existsById) {
+        console.log(
+          `[API] Filtered duplicate incoming message by ID: ${incoming.id}`
+        );
+        return false;
+      }
+    }
+
+    // Phase 2: Content-based check (for messages without IDs)
+    const isDuplicate = isMessageInHistory(
+      incoming,
+      storedMessagesForComparison
+    );
+    if (isDuplicate) {
+      console.log(
+        `[API] Filtered duplicate incoming message by content (role: ${incoming.role})`
+      );
+      return false;
+    }
+
+    return true;
   });
 }
 
 /**
- * Persist assistant messages with tool outputs from incoming messages
- * This handles HITL tool results added via addToolOutput (immutable pattern)
+ * Check if a message already exists in the existing messages history
+ * Uses ID-based matching first, then content-based matching
+ * This avoids expensive DB queries by using already-loaded existingMessages
+ * Checks ALL messages of the same role, not just the most recent
  */
-async function persistAssistantMessagesWithToolOutputs(
-  incomingMessages: UIMessage[],
-  runId: string
-): Promise<void> {
-  for (const msg of incomingMessages) {
-    if (msg.role !== "assistant" || !msg.parts || !Array.isArray(msg.parts)) {
+function isMessageInHistory(
+  message: UIMessage,
+  existingMessages: Array<{ id?: string; role: string; content: unknown }>
+): boolean {
+  // Phase 1: ID-based check (most reliable)
+  if (message.id) {
+    const existsById = existingMessages.some(
+      (existing) => existing.id === message.id
+    );
+    if (existsById) {
+      console.log(`[API] Duplicate detected by ID: ${message.id}`);
+      return true;
+    }
+  }
+
+  // Phase 2: Content-based check (fallback for messages without IDs)
+  const messagesOfSameRole = existingMessages.filter(
+    (existing) => existing.role === message.role
+  );
+
+  if (messagesOfSameRole.length === 0) {
+    return false;
+  }
+
+  const messageContent = message.parts || [];
+  const messageParts = Array.isArray(messageContent) ? messageContent : [];
+
+  // Check against ALL messages of the same role, not just the most recent
+  for (const existing of messagesOfSameRole) {
+    const existingContent = existing.content;
+    const existingParts = Array.isArray(existingContent) ? existingContent : [];
+
+    // Normalize text content for better matching
+    // Extract and normalize text from text parts (trim, lowercase for comparison)
+    const normalizeTextParts = (parts: unknown[]): string[] => {
+      return parts
+        .filter((part) => {
+          if (typeof part === "object" && part !== null) {
+            const typedPart = part as { type?: string; text?: string };
+            return (
+              typedPart.type === "text" && typeof typedPart.text === "string"
+            );
+          }
+          return false;
+        })
+        .map((part) => {
+          const typedPart = part as { text: string };
+          return typedPart.text.trim().toLowerCase();
+        })
+        .filter((text) => text.length > 0)
+        .sort();
+    };
+
+    const incomingTexts = normalizeTextParts(messageParts);
+    const existingTexts = normalizeTextParts(existingParts);
+
+    // If both have text parts, compare normalized text content
+    if (incomingTexts.length > 0 && existingTexts.length > 0) {
+      if (
+        incomingTexts.length === existingTexts.length &&
+        incomingTexts.every((text, i) => text === existingTexts[i])
+      ) {
+        console.log(
+          `[API] Duplicate detected by normalized text content for role: ${message.role}`
+        );
+        return true;
+      }
+    }
+
+    // Fallback: Normalize parts for comparison (handle property ordering differences)
+    // Sort by type to ensure consistent comparison regardless of part order
+    const normalizedIncoming = JSON.stringify(
+      messageParts.sort((a, b) => {
+        const aType = (a as { type?: string })?.type || "";
+        const bType = (b as { type?: string })?.type || "";
+        return aType.localeCompare(bType);
+      })
+    );
+    const normalizedExisting = JSON.stringify(
+      existingParts.sort((a, b) => {
+        const aType = (a as { type?: string })?.type || "";
+        const bType = (b as { type?: string })?.type || "";
+        return aType.localeCompare(bType);
+      })
+    );
+
+    if (normalizedIncoming === normalizedExisting) {
+      console.log(
+        `[API] Duplicate detected by content structure for role: ${message.role}`
+      );
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Persist a message to the database
+ * For user messages: uses application-level deduplication (already checked before calling)
+ * For assistant messages: always inserts (they're always new messages from the AI)
+ * Returns true if inserted, false if skipped (shouldn't happen in normal flow)
+ */
+async function persistMessage(
+  runId: string,
+  message: UIMessage
+): Promise<boolean> {
+  try {
+    await db.insert(messages).values({
+      runId,
+      role: message.role,
+      content: message.parts || [],
+    });
+    return true;
+  } catch (error) {
+    console.error("[API] Error persisting message:", error);
+    throw error;
+  }
+}
+
+/**
+ * Merge tool results from incomingMessages into storedMessages in-memory
+ * This ensures the agent sees tool results when generating the response
+ * Returns updated storedMessages array with tool results merged
+ */
+function mergeToolResultsIntoMessages(
+  storedMessages: UIMessage[],
+  incomingMessages: UIMessage[]
+): UIMessage[] {
+  // Create a copy to avoid mutating the original
+  const mergedMessages = [...storedMessages];
+
+  // Scan all incomingMessages for assistant messages with tool-result parts
+  for (const incomingMessage of incomingMessages) {
+    if (
+      incomingMessage.role !== "assistant" ||
+      !incomingMessage.parts ||
+      !Array.isArray(incomingMessage.parts)
+    ) {
       continue;
     }
 
-    // Check if this message has tool parts with output-available state
-    const hasToolOutput = msg.parts.some((part) => {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        !Array.isArray(part) &&
-        "type" in part &&
-        "toolCallId" in part
-      ) {
-        const typedPart = part as {
-          type?: string;
-          state?: string;
-          output?: unknown;
-          toolCallId?: string;
-        };
-
-        // Check for tool parts with output (HITL tool results)
-        return (
-          (typedPart.state === "output-available" ||
-            typedPart.state === "result") &&
-          typedPart.output !== undefined &&
-          typeof typedPart.toolCallId === "string"
-        );
+    // Find tool parts with output-available state
+    const toolPartsWithOutput = incomingMessage.parts.filter((part) => {
+      if (!isToolUIPart(part)) {
+        return false;
       }
-      return false;
+
+      const toolPart = part as {
+        toolCallId?: string;
+        state?: string;
+        output?: unknown;
+        result?: unknown;
+      };
+
+      // Check for output-available state with valid output and toolCallId
+      const hasOutput =
+        toolPart.output !== undefined || toolPart.result !== undefined;
+      const hasValidState =
+        toolPart.state === "output-available" || toolPart.state === "result";
+      const hasToolCallId =
+        typeof toolPart.toolCallId === "string" &&
+        toolPart.toolCallId.length > 0;
+
+      return hasOutput && hasValidState && hasToolCallId;
     });
 
-    if (hasToolOutput) {
-      try {
-        // Insert as new message (immutable pattern - don't update existing)
-        await persistMessage(runId, msg);
-      } catch (error) {
-        console.error(
-          "[API] Error persisting assistant message with tool output:",
-          error
+    if (toolPartsWithOutput.length === 0) {
+      continue;
+    }
+
+    // Process each tool part with output
+    for (const toolPart of toolPartsWithOutput) {
+      const typedToolPart = toolPart as {
+        toolCallId: string;
+        state: string;
+        output?: unknown;
+        result?: unknown;
+        type?: string;
+      };
+
+      const toolCallId = typedToolPart.toolCallId;
+
+      // Find existing message in storedMessages with matching toolCallId
+      const existingMessageIndex = mergedMessages.findIndex((msg) => {
+        if (
+          msg.role !== "assistant" ||
+          !msg.parts ||
+          !Array.isArray(msg.parts)
+        ) {
+          return false;
+        }
+
+        return msg.parts.some((part) => {
+          if (!isToolUIPart(part)) {
+            return false;
+          }
+          const typedPart = part as { toolCallId?: string };
+          return typedPart.toolCallId === toolCallId;
+        });
+      });
+
+      if (existingMessageIndex !== -1) {
+        // Merge tool result into existing message
+        const existingMessage = mergedMessages[existingMessageIndex];
+        const existingParts = existingMessage.parts || [];
+
+        // Check if tool-result part already exists for this toolCallId
+        const hasExistingResult = existingParts.some((part) => {
+          if (isToolUIPart(part)) {
+            const typedPart = part as {
+              toolCallId?: string;
+              type?: string;
+              state?: string;
+            };
+            return (
+              typedPart.toolCallId === toolCallId &&
+              (typedPart.type === "tool-result" ||
+                typedPart.state === "output-available")
+            );
+          }
+          return false;
+        });
+
+        let updatedParts: UIMessagePart[];
+
+        if (hasExistingResult) {
+          // Update existing tool-result part
+          updatedParts = existingParts.map((part) => {
+            if (isToolUIPart(part)) {
+              const typedPart = part as {
+                toolCallId?: string;
+                type?: string;
+                state?: string;
+              };
+              if (
+                typedPart.toolCallId === toolCallId &&
+                (typedPart.type === "tool-result" ||
+                  typedPart.state === "output-available")
+              ) {
+                // Update existing tool-result part
+                return {
+                  ...part,
+                  state: "output-available",
+                  output: typedToolPart.output ?? typedToolPart.result,
+                } as UIMessagePart;
+              }
+            }
+            return part;
+          }) as UIMessagePart[];
+        } else {
+          // Add new tool-result part to existing parts
+          updatedParts = [
+            ...existingParts,
+            toolPart as UIMessagePart,
+          ] as UIMessagePart[];
+        }
+
+        // Update the message in the merged array
+        mergedMessages[existingMessageIndex] = {
+          ...existingMessage,
+          parts: updatedParts,
+        };
+
+        console.log(
+          `[API] Merged tool-result for toolCallId ${toolCallId} into message in-memory`
         );
-        // Continue even if saving fails - don't block the stream
+      }
+    }
+  }
+
+  return mergedMessages;
+}
+
+/**
+ * Process incomingMessages for tool-result parts from addToolOutput
+ * When addToolOutput is called, the tool-result is added to the client's message history
+ * and appears in incomingMessages. We need to merge these into existing messages in the database.
+ * This function persists the merged results to the database.
+ */
+async function processIncomingMessagesForToolResults(
+  runId: string,
+  incomingMessages: UIMessage[]
+): Promise<void> {
+  console.log(
+    `[API] Processing incomingMessages for tool-result parts (${incomingMessages.length} messages)`
+  );
+
+  // Scan all incomingMessages for assistant messages with tool-result parts
+  for (const message of incomingMessages) {
+    if (
+      message.role !== "assistant" ||
+      !message.parts ||
+      !Array.isArray(message.parts)
+    ) {
+      continue;
+    }
+
+    // Find tool parts with output-available state
+    const toolPartsWithOutput = message.parts.filter((part) => {
+      if (!isToolUIPart(part)) {
+        return false;
+      }
+
+      const toolPart = part as {
+        toolCallId?: string;
+        state?: string;
+        output?: unknown;
+        result?: unknown;
+      };
+
+      // Check for output-available state with valid output and toolCallId
+      const hasOutput =
+        toolPart.output !== undefined || toolPart.result !== undefined;
+      const hasValidState =
+        toolPart.state === "output-available" || toolPart.state === "result";
+      const hasToolCallId =
+        typeof toolPart.toolCallId === "string" &&
+        toolPart.toolCallId.length > 0;
+
+      return hasOutput && hasValidState && hasToolCallId;
+    });
+
+    if (toolPartsWithOutput.length === 0) {
+      continue;
+    }
+
+    console.log(
+      `[API] Found ${toolPartsWithOutput.length} tool-result parts in incomingMessages`
+    );
+
+    // Process each tool part with output
+    for (const toolPart of toolPartsWithOutput) {
+      const typedToolPart = toolPart as {
+        toolCallId: string;
+        state: string;
+        output?: unknown;
+        result?: unknown;
+        type?: string;
+      };
+
+      const toolCallId = typedToolPart.toolCallId;
+
+      // Find existing message with matching toolCallId using parameterized query
+      // Use proper parameterization to avoid SQL injection
+      // Note: Drizzle's sql template parameterizes ${toolCallId}, but for JSONB text comparison
+      // we need to ensure it's treated as a string literal
+      const existingMessage = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.runId, runId),
+            eq(messages.role, "assistant"),
+            sql`EXISTS (
+              SELECT 1 
+              FROM jsonb_array_elements(${messages.content}) AS part
+              WHERE part->>'toolCallId' = ${sql.raw(
+                `'${toolCallId.replace(/'/g, "''")}'`
+              )}
+            )`
+          )
+        )
+        .limit(1)
+        .then((results) => results[0] || null);
+
+      if (existingMessage) {
+        console.log(
+          `[API] Found existing message ${existingMessage.id} with toolCallId ${toolCallId} from incomingMessages, merging tool-result part`
+        );
+
+        // Get existing parts
+        const existingParts = existingMessage.content as UIMessagePart[];
+
+        // Check if tool-result part already exists for this toolCallId
+        const hasExistingResult = existingParts.some((part) => {
+          if (isToolUIPart(part)) {
+            const typedPart = part as { toolCallId?: string; type?: string };
+            return (
+              typedPart.toolCallId === toolCallId &&
+              (typedPart.type === "tool-result" ||
+                (part as { state?: string }).state === "output-available")
+            );
+          }
+          return false;
+        });
+
+        let updatedParts: UIMessagePart[];
+
+        if (hasExistingResult) {
+          // Update existing tool-result part
+          updatedParts = existingParts.map((part) => {
+            if (isToolUIPart(part)) {
+              const typedPart = part as {
+                toolCallId?: string;
+                type?: string;
+                state?: string;
+              };
+              if (
+                typedPart.toolCallId === toolCallId &&
+                (typedPart.type === "tool-result" ||
+                  typedPart.state === "output-available")
+              ) {
+                // Update existing tool-result part
+                return {
+                  ...part,
+                  state: "output-available",
+                  output: typedToolPart.output ?? typedToolPart.result,
+                } as UIMessagePart;
+              }
+            }
+            return part;
+          }) as UIMessagePart[];
+        } else {
+          // Add new tool-result part to existing parts
+          updatedParts = [
+            ...existingParts,
+            toolPart as UIMessagePart,
+          ] as UIMessagePart[];
+        }
+
+        await db
+          .update(messages)
+          .set({ content: updatedParts })
+          .where(eq(messages.id, existingMessage.id));
+
+        console.log(
+          `[API] Successfully updated message ${existingMessage.id} with tool-result for toolCallId ${toolCallId} from incomingMessages`
+        );
+      } else {
+        console.log(
+          `[API] No existing message found for toolCallId ${toolCallId} from incomingMessages - tool result will be handled by persistAssistantMessage`
+        );
       }
     }
   }
 }
 
 /**
- * Persist assistant message with tool calls and results
+ * Persist assistant message from AI SDK v6 responseMessage
+ * This follows AI SDK v6 best practices: only persist the NEW message from result.responseMessage
+ * Implements update-by-toolCallId pattern for HITL tool outputs to merge results into existing messages
  */
 async function persistAssistantMessage(
   runId: string,
-  result: { messages?: UIMessage[] }
+  responseMessage: UIMessage
 ): Promise<void> {
-  if (!result.messages || result.messages.length === 0) return;
+  if (!responseMessage || responseMessage.role !== "assistant") {
+    return;
+  }
 
-  // The result should contain the final assistant message with all parts
-  const assistantMessage = result.messages[result.messages.length - 1];
-  if (assistantMessage?.role === "assistant") {
-    await persistMessage(runId, assistantMessage);
+  // Check if message has tool parts with output-available state
+  if (!responseMessage.parts || !Array.isArray(responseMessage.parts)) {
+    // No parts or invalid structure - insert normally
+    await persistMessage(runId, responseMessage);
+    return;
+  }
+
+  // Find tool parts with output-available state
+  const toolPartsWithOutput = responseMessage.parts.filter((part) => {
+    if (!isToolUIPart(part)) {
+      return false;
+    }
+
+    const toolPart = part as {
+      toolCallId?: string;
+      state?: string;
+      output?: unknown;
+      result?: unknown;
+    };
+
+    // Check for output-available state with valid output and toolCallId
+    const hasOutput =
+      toolPart.output !== undefined || toolPart.result !== undefined;
+    const hasValidState =
+      toolPart.state === "output-available" || toolPart.state === "result";
+    const hasToolCallId =
+      typeof toolPart.toolCallId === "string" && toolPart.toolCallId.length > 0;
+
+    return hasOutput && hasValidState && hasToolCallId;
+  });
+
+  // If no tool parts with output found, insert message normally
+  if (toolPartsWithOutput.length === 0) {
+    await persistMessage(runId, responseMessage);
+    return;
+  }
+
+  // Process each tool part with output separately
+  // Track which toolCallIds were successfully updated
+  const updatedToolCallIds = new Set<string>();
+  const toolCallIdsToProcess = new Set<string>();
+
+  for (const toolPart of toolPartsWithOutput) {
+    const typedToolPart = toolPart as {
+      toolCallId: string;
+      state: string;
+      output?: unknown;
+      result?: unknown;
+      type?: string;
+    };
+
+    const toolCallId = typedToolPart.toolCallId;
+    toolCallIdsToProcess.add(toolCallId);
+
+    // Find existing message with matching toolCallId in ANY tool part
+    // Use JSONB path query to search for toolCallId in any element of the parts array
+    // Use proper parameterization with SQL escaping to avoid SQL injection
+    // Note: We escape single quotes in toolCallId to prevent SQL injection
+    const existingMessage = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.runId, runId),
+          eq(messages.role, "assistant"),
+          sql`EXISTS (
+            SELECT 1 
+            FROM jsonb_array_elements(${messages.content}) AS part
+            WHERE part->>'toolCallId' = ${sql.raw(
+              `'${toolCallId.replace(/'/g, "''")}'`
+            )}
+          )`
+        )
+      )
+      .limit(1)
+      .then((results) => results[0] || null);
+
+    if (existingMessage) {
+      console.log(
+        `[API] Found existing message ${existingMessage.id} with toolCallId ${toolCallId} in responseMessage, merging tool-result part`
+      );
+
+      // Get existing parts
+      const existingParts = existingMessage.content as UIMessagePart[];
+
+      // Check if tool-result part already exists for this toolCallId
+      const hasExistingResult = existingParts.some((part) => {
+        if (isToolUIPart(part)) {
+          const typedPart = part as { toolCallId?: string; type?: string };
+          return (
+            typedPart.toolCallId === toolCallId &&
+            (typedPart.type === "tool-result" ||
+              (part as { state?: string }).state === "output-available")
+          );
+        }
+        return false;
+      });
+
+      let updatedParts: UIMessagePart[];
+
+      if (hasExistingResult) {
+        // Update existing tool-result part
+        updatedParts = existingParts.map((part) => {
+          if (isToolUIPart(part)) {
+            const typedPart = part as {
+              toolCallId?: string;
+              type?: string;
+              state?: string;
+            };
+            if (
+              typedPart.toolCallId === toolCallId &&
+              (typedPart.type === "tool-result" ||
+                typedPart.state === "output-available")
+            ) {
+              // Update existing tool-result part
+              return {
+                ...part,
+                state: "output-available",
+                output: typedToolPart.output ?? typedToolPart.result,
+              } as UIMessagePart;
+            }
+          }
+          return part;
+        }) as UIMessagePart[];
+      } else {
+        // Add new tool-result part to existing parts
+        // Preserve all existing parts and add the tool-result part from responseMessage
+        // Use the tool part directly from responseMessage since it's already properly typed
+        updatedParts = [
+          ...existingParts,
+          toolPart as UIMessagePart,
+        ] as UIMessagePart[];
+      }
+
+      await db
+        .update(messages)
+        .set({ content: updatedParts })
+        .where(eq(messages.id, existingMessage.id));
+
+      console.log(
+        `[API] Successfully updated message ${existingMessage.id} with tool-result for toolCallId ${toolCallId} in responseMessage`
+      );
+
+      updatedToolCallIds.add(toolCallId);
+    } else {
+      console.log(
+        `[API] No existing message found for toolCallId ${toolCallId} in responseMessage, will insert new message`
+      );
+    }
+  }
+
+  // If any tool part with output didn't find a match, insert the message once
+  if (updatedToolCallIds.size < toolCallIdsToProcess.size) {
+    console.log(
+      `[API] Inserting new assistant message with ${
+        toolCallIdsToProcess.size - updatedToolCallIds.size
+      } unmatched tool results`
+    );
+    await persistMessage(runId, responseMessage);
+  } else {
+    console.log(
+      `[API] Successfully updated all ${updatedToolCallIds.size} tool results, skipping insert`
+    );
   }
 }
 

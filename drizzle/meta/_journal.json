@@ -64,6 +64,20 @@
       "when": 1765780773259,
       "tag": "0008_parallel_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1766044899049,
+      "tag": "0009_clumsy_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1766045592434,
+      "tag": "0010_low_genesis",
+      "breakpoints": true
     }
   ]
 }
