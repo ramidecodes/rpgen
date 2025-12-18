@@ -249,7 +249,7 @@ For HITL tools like `requestSkillCheck`, tool parts follow this lifecycle:
 
 **Messages**:
 
-- User messages: Persist the last meaningful user message (skip empty/whitespace-only)
+- User messages: Persist the last meaningful user message **before** streaming (skip empty/whitespace-only). This prevents race conditions where concurrent requests both see the message as "new".
 - Assistant messages: Persist after `onFinish` with full `parts` array (text + tool-call + tool-result)
 - HITL tool outputs: **Update-by-toolCallId** (find existing message with matching `toolCallId`, update its `parts` to include `output`)
 
@@ -286,6 +286,16 @@ const gma = createGameMasterAgent({
   /* ... */
 });
 
+// Persist user message BEFORE streaming (AI SDK v6 best practice)
+// This prevents race conditions where concurrent requests both see the message as "new"
+const lastUserMessage = findLastMeaningfulUserMessage(deduplicatedIncoming);
+if (lastUserMessage && !isWhitespaceOnlyMessage(lastUserMessage)) {
+  const isDuplicate = isMessageInHistory(lastUserMessage, storedMessages);
+  if (!isDuplicate) {
+    await persistMessage(runId, lastUserMessage);
+  }
+}
+
 const response = createAgentUIStreamResponse({
   agent: gma.getAgent() as unknown as Agent<
     never,
@@ -294,10 +304,7 @@ const response = createAgentUIStreamResponse({
   >,
   uiMessages: processedMessages,
   onFinish: async (result) => {
-    // Persist user message
-    await persistMessage(runId, lastUserMessage);
-
-    // Persist assistant message
+    // User message already persisted above, only persist assistant message here
     await persistAssistantMessage(runId, result);
 
     // Trigger background agents (fire-and-forget)
