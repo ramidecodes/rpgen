@@ -1,5 +1,7 @@
 # Agents Architecture
 
+> **Note**: This document provides implementation-oriented details about the current agent architecture. For canonical patterns, data contracts, and best practices, see **[docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md)**.
+
 This document explains how the current AI agent architecture coordinates narration, state reconciliation, and scene generation across the system. It references the following implementation anchors:
 
 - Game Master Agent: `src/agents/game-master.ts`
@@ -17,7 +19,7 @@ The architecture cleanly separates user-facing narration (Game Master Agent) fro
 ### System Topology
 
 ```mermaid
-graph TD
+flowchart TB
     Player["Player UI (GamePlayClient + useGameChat)"] -->|UIMessage via /api/chat| ChatAPI["/api/chat route"]
     ChatAPI -->|ToolLoopAgent stream| GMA["Game Master Agent (narration + HITL skill checks)"]
     GMA -->|assistant messages + tool calls| Stream["createAgentUIStreamResponse"]
@@ -75,12 +77,12 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    participant UI as "GamePlayClient / useGameChat"
-    participant API as "/api/chat (route)"
-    participant GMA as "Game Master Agent"
-    participant CMA as "Campaign Manager Agent"
-    participant VEA as "Visual Engine Agent"
-    participant DB as "Drizzle (runs/messages/quests/scenes)"
+    participant UI as GamePlayClient/useGameChat
+    participant API as /api/chat route
+    participant GMA as Game Master Agent
+    participant CMA as Campaign Manager Agent
+    participant VEA as Visual Engine Agent
+    participant DB as Drizzle runs/messages/quests/scenes
 
     UI->>API: POST /api/chat { runId, messages }
     API->>DB: Load run, quests, last 50 messages
@@ -113,7 +115,13 @@ sequenceDiagram
 
 1. GMA emits `requestSkillCheck` tool part with `state: "input-available"`.
 2. Client renders the skill check UI (dice) and, on completion, calls `addToolOutput` with `output` + `toolCallId`.
-3. The next `/api/chat` call contains the assistant message with `state: "output-available"`; the server persists it so results survive reloads.
+3. The next `/api/chat` call contains the assistant message with `state: "output-available"`; the server persists it using **update-by-toolCallId** pattern:
+   - Find existing assistant message containing the matching `toolCallId` in stored `parts`
+   - Update that message's `content` (JSONB) with the full `parts` array including `output`
+   - Insert only if no matching message exists
+   - This ensures skill check results persist correctly after page reload
+
+**See [docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md) for the canonical HITL persistence pattern and migration details.**
 
 ## Operational Notes
 

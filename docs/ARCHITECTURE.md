@@ -13,52 +13,44 @@ This project is a Next.js-based web app that runs a procedurally generated, AI-d
 
 ```mermaid
 flowchart TB
-    %% User
-    Player["Player<br/>(Browser)"]
-
-    %% Web Application Boundary
+    Player["Player (Browser)"]
+    
     subgraph WebApp["Web Application (Vercel)"]
         direction TB
-        UI["Web UI<br/>React/Next.js<br/><i>Renders game interface,<br/>chat panel, visual scenes.<br/>Displays streaming LLM responses</i>"]
-        API["API Layer<br/>Next.js Server Actions/API Routes<br/><i>Game logic, state management,<br/>AI orchestration with streaming</i>"]
+        UI["Web UI - React/Next.js - Renders game interface, chat panel, visual scenes, displays streaming LLM responses"]
+        API["API Layer - Next.js Server Actions/API Routes - Game logic, state management, AI orchestration with streaming"]
         UI --> API
     end
-
-    %% Authentication Boundary
+    
     subgraph AuthService["Authentication Service"]
-        Clerk["Clerk Auth<br/>SaaS<br/><i>User identity, sessions, OAuth</i>"]
+        Clerk["Clerk Auth SaaS - User identity, sessions, OAuth"]
     end
-
-    %% Data Layer Boundary
+    
     subgraph DataLayer["Data Layer"]
         direction LR
-        DB["Postgres Database<br/>Neon Postgres<br/><i>Campaign state, characters,<br/>world data, event logs</i>"]
-        Storage["Object Storage<br/>Cloudflare R2<br/><i>Scene images, portraits,<br/>generated assets</i>"]
+        DB["Postgres Database - Neon Postgres - Campaign state, characters, world data, event logs"]
+        Storage["Object Storage - Cloudflare R2 - Scene images, portraits, generated assets"]
     end
-
-    %% Community Layer
+    
     subgraph CommunityLayer["Community Layer"]
         SharedUniverses["Shared Universes"]
         PublicCampaigns["Public Campaigns"]
         Ratings["Community Ratings"]
     end
-
-    %% AI Services Boundary
+    
     subgraph AIServices["AI Services"]
         direction TB
-        AISDK["AI SDK (v6)<br/>Vercel AI SDK<br/><i>Orchestrates LLM inference<br/>with ToolLoopAgent loops<br/>and structured tool outputs</i>"]
-        LLM["LLM Provider<br/>OpenRouter<br/><i>Game Master Agent,<br/>Campaign Crafter, Scribe</i>"]
-        ImageGen["Image Generation<br/>Replicate<br/><i>Visual scene rendering</i>"]
+        AISDK["AI SDK v6 - Vercel AI SDK - Orchestrates LLM inference with ToolLoopAgent loops and structured tool outputs"]
+        LLM["LLM Provider - OpenRouter - Game Master Agent, Campaign Manager Agent, Visual Engine Agent"]
+        ImageGen["Image Generation - Replicate - Visual scene rendering"]
         AISDK --> LLM
         AISDK --> ImageGen
     end
-
-    %% Background Jobs Boundary
+    
     subgraph BackgroundJobs["Background Processing (Future)"]
-        Workers["Cloudflare Workers<br/><i>Narrative sync, campaign crafting,<br/>background agents</i>"]
+        Workers["Cloudflare Workers - Narrative sync, campaign crafting, background agents"]
     end
-
-    %% Relationships
+    
     Player -->|Uses| UI
     UI -->|Authenticates via| Clerk
     API -->|Validates sessions| Clerk
@@ -69,21 +61,6 @@ flowchart TB
     API -.->|Triggers jobs| Workers
     Workers -.->|Reads/Writes| DB
     Workers -.->|Manages| Storage
-
-    %% Styling
-    classDef userClass fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    classDef webAppClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef authClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef dataClass fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef aiClass fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    classDef bgClass fill:#f1f8e9,stroke:#33691e,stroke-width:2px
-
-    class Player userClass
-    class UI,API webAppClass
-    class Clerk authClass
-    class DB,Storage dataClass
-    class AISDK,LLM,ImageGen aiClass
-    class Workers bgClass
 ```
 
 ## 3. Technology Stack
@@ -129,11 +106,13 @@ flowchart TB
 
 - AI SDK v6 — orchestration of inference flows with **streaming responses** to immediately display LLM output to players as tokens are generated, plus ToolLoopAgent for iterative tool calls.
 - OpenRouter — LLM provider routing for:
-  - Game Master Agent (interactive, HITL skill checks)
-  - Campaign Manager Agent (background state reconciliation)
+  - Game Master Agent (interactive, HITL skill checks, narration only)
+  - Campaign Manager Agent (background state reconciliation, sole state writer)
   - Visual Engine Agent (background scene generation decisions)
   - Campaign Crafter Agent (future)
   - Scribe Agent (future)
+
+**See [docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md) for detailed agent responsibilities and execution patterns.**
 - Replicate — image/multimedia models for visual rendering:
   - Flux Schnell model for fast scene generation
   - Handles async responses with proper URL extraction from response objects
@@ -147,18 +126,29 @@ flowchart TB
 
 1. Player reads the current story segment.
 2. Player submits an action via chat.
-3. Next.js API hands off the command to:
-   - Game Master Agent (LLM) using OpenRouter
-   - Dice roll resolver inside API layer
-4. GMA transforms action → events → world changes via `ToolLoopAgent`; may hand off state reconciliation to a background Campaign State Agent post-turn.
+3. Next.js API (`/api/chat`) receives the request and:
+   - Validates authentication and run ownership
+   - Loads last 50 messages and active quests for context
+   - Instantiates Game Master Agent (GMA) for interactive narration
+4. **Game Master Agent (GMA)** streams narration via `createAgentUIStreamResponse`:
+   - Generates immersive, descriptive storytelling
+   - Issues HITL skill checks (`requestSkillCheck` tool) when player actions require dice rolls
+   - **GMA does NOT modify campaign state** (read-only access to quests and state for narrative context)
    - **LLM responses are streamed** (via AI SDK) to the UI, allowing players to see the story appear in real-time as tokens are generated.
-5. Next.js stores new campaign state in Neon.
-6. **Visual Engine Agent (VEA)** automatically triggers in the background (non-blocking) after each assistant message:
-   - Analyzes narrative changes to determine if scene regeneration is needed
-   - Generates scene images via Replicate API when significant location/environment changes occur
-   - Stores images in R2 with key format: `gen-dnd/{userId}/runs/{runId}/scenes/{sceneId}.webp`
-   - Updates run's `currentSceneId` reference
-7. Next.js renders updated UI with current scene image (converted from R2 key to public/signed URL).
+5. On GMA completion (`onFinish` callback):
+   - Persist user and assistant messages to database
+   - **Campaign Manager Agent (CMA)** runs in background (fire-and-forget):
+     - Analyzes recent transcript for state changes
+     - Updates quests, fronts, narrative vectors, and relationships deterministically
+     - Persists state changes only if `hasStateChanged()` returns true
+   - **Visual Engine Agent (VEA)** runs in background (fire-and-forget):
+     - Analyzes narrative changes to determine if scene regeneration is needed
+     - Generates scene images via Replicate API when significant location/environment changes occur
+     - Stores images in R2 with key format: `{userId}/runs/{runId}/scenes/{sceneId}.webp`
+     - Updates run's `currentSceneId` reference
+6. Next.js renders updated UI with current scene image (converted from R2 key to public/signed URL).
+
+**See [docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md) for detailed agent patterns and execution models.**
 
 ### 4.2 World & Campaign Generation
 

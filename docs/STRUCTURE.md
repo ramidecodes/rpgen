@@ -128,9 +128,15 @@ This document provides an overview of the project's directory structure and guid
 
 - Place agent implementations here
 - Each agent should be in its own file or directory
-- **Game Master Agent** (`game-master.ts`): Uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks; handles interactive narration and world state updates
-- **Campaign Manager Agent** (`campaign-manager.ts`): Background agent for state reconciliation without user-facing narration
+- **Game Master Agent** (`game-master.ts`): Uses AI SDK v6 `ToolLoopAgent` (models from `src/lib/ai/provider.ts`) with HITL-only skill checks; handles interactive narration only (NO state mutations - read-only access to campaign state and quests)
+- **Campaign Manager Agent** (`campaign-manager.ts`): Background agent for state reconciliation without user-facing narration; sole writer to campaign state (quests, fronts, narrative vectors, relationships)
 - **Visual Engine Agent** (`visual-engine.ts`): Background agent for automatic scene image generation; monitors narrative changes and triggers scene generation when needed
+
+**Agent Design Principles**:
+- Background agents (CMA/VEA) are side-effecting and must be bounded/idempotent
+- Use `stopWhen: stepCountIs(N)` to prevent infinite loops
+- Background agents run fire-and-forget (non-blocking) to avoid affecting chat latency
+- See [docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md) for detailed agent patterns and best practices
 
 ### `/src/hooks`
 

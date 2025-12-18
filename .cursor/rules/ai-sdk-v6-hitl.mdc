@@ -24,12 +24,13 @@ Do **not** apply this rule for completely unrelated features (e.g., layout, hero
 ## Core Concepts & Types
 
 - **Use AI SDK v6 UI types**:
-  - Prefer `UIMessage` / `UIMessagePart` and `createUIMessageStream` for UI-centric flows.
+  - Prefer `UIMessage` / `UIMessagePart` and `createAgentUIStreamResponse` for interactive agent streaming.
   - Treat `UIMessage` as the source of truth for what the client renders.
 - **Agents**:
 
   - Prefer `ToolLoopAgent` (AI SDK v6) for the Game Master; use `stopWhen`/`prepareStep` to limit tool spam and phase tools.
-  - Consider a background Campaign State Agent for reconciliation-only runs (no HITL, no narration) if splitting responsibilities.
+  - **Canonical server pattern**: Use `createAgentUIStreamResponse` with `ToolLoopAgent` for interactive chat streaming (see `src/app/api/chat/route.ts`).
+  - Background agents (Campaign Manager Agent, Visual Engine Agent) use `agent.generate()` without streaming for non-blocking execution.
 
 - **HITL tool pattern** (e.g. `requestSkillCheck`):
 
@@ -169,13 +170,13 @@ typedMessages.push({
     - `currentContext` is a string or `undefined`.
 - When non‑HITL tools run (world mutation tools), persist the updated state to `runs.state`.
 
-### 4. Tool Configuration with streamText
+### 4. Agent Configuration with createAgentUIStreamResponse
 
-- Use `streamText` with:
-  - `model: openrouter.chat(MODEL_NAME)`
-  - `messages: [{ role: "system", content: systemPrompt }, ...modelMessages]`
-  - `tools: createGameMasterTools(validatedState)`
-  - Avoid deprecated/unsupported options (e.g. top‑level `maxSteps`) unless confirmed by AI SDK v6 docs.
+- **Canonical pattern**: Use `createAgentUIStreamResponse` with `ToolLoopAgent` for interactive streaming:
+  - Create Game Master Agent using `createGameMasterAgent()` (returns `ToolLoopAgent` instance)
+  - Use `createAgentUIStreamResponse({ agent, uiMessages, onFinish })` to stream UI responses
+  - Agent configuration (model, tools, `stopWhen`) is handled in agent factory function
+  - See `src/app/api/chat/route.ts` for the canonical implementation
 
 ### 5. Persisting Messages
 
@@ -201,27 +202,31 @@ await db.insert(messages).values({
 });
 ```
 
-- **Assistant messages with HITL tool output**:
-  - When a subsequent request comes in (after `addToolOutput`), scan `typedMessages` for assistant messages whose parts contain:
+- **Assistant messages with HITL tool output** (Update-by-toolCallId pattern):
+  - **Canonical behavior**: When a subsequent request comes in (after `addToolOutput`), scan incoming messages for assistant messages whose parts contain:
     - `state === "output-available"` (or `"result"`) **and**
     - Non‑undefined `output` **and**
     - A `toolCallId`.
-  - Match these parts to existing persisted messages by `toolCallId` inside stored `parts`:
-    - If a message with a matching toolCallId exists:
-      - Update its `content` JSON with the full `parts` (including `output`).
-    - If no message exists:
-      - Insert a new assistant message with the full `parts`.
-  - This ensures:
-    - Initial HITL prompt and the final result share the same run history.
-    - Skill check results render correctly after page reload.
+  - **Update existing message** (preferred):
+    - Query database for existing assistant message containing the matching `toolCallId` in stored `parts` (JSONB query)
+    - If found: Update that message's `content` (JSONB) with the full `parts` array including `output`
+    - This ensures the initial HITL prompt and final result live in the same message
+  - **Insert new message** (fallback):
+    - If no matching message exists, insert a new assistant message with the full `parts`
+  - **Legacy behavior** (append-only): The current implementation may still append new messages; migration to update-by-toolCallId is planned (see `docs/AGENTIC-ARCHITECTURE.md` Migration section)
+  - This ensures skill check results render correctly after page reload.
 
 ### 6. Do NOT
 
 - Do **not**:
+  - Use `streamText` directly for interactive chat streaming; use `createAgentUIStreamResponse` with `ToolLoopAgent` instead.
   - Invent your own tool part shapes; always rely on AI SDK v6 conventions (`state`, `input`, `output`, `toolCallId`).
   - Strip `output` from tool result parts when persisting.
   - Rely solely on `content` for HITL results; canonical data is in `output`.
   - Modify Drizzle **schema** or migrations just to adapt to message shapes; use flexible JSONB.
+  - Append duplicate messages for HITL tool outputs; use update-by-toolCallId pattern instead.
+
+**See [docs/AGENTIC-ARCHITECTURE.md](docs/AGENTIC-ARCHITECTURE.md) for canonical patterns and migration guidance.**
 
 ---
 
