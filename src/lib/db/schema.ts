@@ -241,6 +241,25 @@ export const messages = pgTable(
   ]
 );
 
+export const sseEvents = pgTable(
+  "sse_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(), // Serves as both DB primary key and SSE event ID
+    runId: uuid("run_id")
+      .references(() => runs.id, { onDelete: "cascade" })
+      .notNull(),
+    eventType: varchar("event_type", { length: 50 }).notNull(), // Used as SSE "event:" field
+    eventData: jsonb("event_data").notNull(), // The actual payload (not wrapped in {type, data})
+    createdAt: timestamp("created_at").defaultNow().notNull(), // For ordering and cleanup
+  },
+  (table) => [
+    // Composite index for efficient catch-up queries by runId and time
+    index("sse_events_run_id_created_at_idx").on(table.runId, table.createdAt),
+    // Index for cleanup queries (delete old events)
+    index("sse_events_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // Type exports for Drizzle schema
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
@@ -268,3 +287,6 @@ export type NewScene = typeof scenes.$inferInsert;
 
 export type Quest = typeof quests.$inferSelect;
 export type NewQuest = typeof quests.$inferInsert;
+
+export type SSEEvent = typeof sseEvents.$inferSelect;
+export type NewSSEEvent = typeof sseEvents.$inferInsert;

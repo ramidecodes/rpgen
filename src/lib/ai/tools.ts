@@ -1145,7 +1145,7 @@ export function createGenerateSceneImageTool(runId: string) {
           const { sseConnectionManager } = await import(
             "@/lib/sse/connection-manager"
           );
-          sseConnectionManager.broadcast(runId, {
+          await sseConnectionManager.broadcast(runId, {
             type: "scene-generation-started",
             data: {
               runId,
@@ -1187,7 +1187,7 @@ export function createGenerateSceneImageTool(runId: string) {
           const { sseConnectionManager } = await import(
             "@/lib/sse/connection-manager"
           );
-          sseConnectionManager.broadcast(runId, {
+          await sseConnectionManager.broadcast(runId, {
             type: "scene-generation-started",
             data: {
               runId,

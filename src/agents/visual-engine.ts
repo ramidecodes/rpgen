@@ -86,7 +86,7 @@ export function createVisualEngineAgent(
       const { sseConnectionManager } = await import(
         "@/lib/sse/connection-manager"
       );
-      sseConnectionManager.broadcast(options.runId, {
+      await sseConnectionManager.broadcast(options.runId, {
         type: "scene-generation-started",
         data: {
           runId: options.runId,

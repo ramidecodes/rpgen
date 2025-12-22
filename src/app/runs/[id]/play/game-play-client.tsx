@@ -64,6 +64,7 @@ export function GamePlayClient({
   const [currentSceneState, setCurrentSceneState] = useState<Scene | null>(
     currentScene || null
   );
+  const currentSceneStateRef = useRef<Scene | null>(currentScene || null);
   const pendingStartRef = useRef<number | null>(null);
   const pendingClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Build CampaignState from separate columns for state change detection
@@ -92,65 +93,63 @@ export function GamePlayClient({
   }, [run, character, setCurrentRun, setCurrentCharacter]);
 
   // Subscribe to SSE for real-time scene updates
+  // Only recreate connection when run.id changes
   useEffect(() => {
-    // Only subscribe when game is active (not loading)
-    if (gameChat.isLoading) {
-      return;
-    }
+    // Get last event ID from localStorage for catch-up
+    const lastEventIdKey = `sse-last-event-id-${run.id}`;
+    const lastEventId = localStorage.getItem(lastEventIdKey);
+    const eventSourceUrl = lastEventId
+      ? `/api/runs/${run.id}/scene-events?lastEventId=${lastEventId}`
+      : `/api/runs/${run.id}/scene-events`;
+    const eventSource = new EventSource(eventSourceUrl);
 
-    const eventSource = new EventSource(`/api/runs/${run.id}/scene-events`);
+    // Track processed event IDs to prevent duplicates
+    const processedEventIds = new Set<string>();
 
-    eventSource.onmessage = (event) => {
+    // Handle typed events using addEventListener (cleaner than onmessage)
+    eventSource.addEventListener("scene-updated", (event) => {
       try {
+        // EventSource automatically sets event.lastEventId from the id: field
+        const eventId = event.lastEventId || (event as { id?: string }).id;
+        if (eventId && processedEventIds.has(eventId)) {
+          // Skip duplicate event
+          return;
+        }
+        if (eventId) {
+          processedEventIds.add(eventId);
+          localStorage.setItem(lastEventIdKey, eventId);
+        }
+
         const data = JSON.parse(event.data);
-        if (data.type === "scene-updated") {
-          const { sceneId, imageUrl } = data.data;
+        const { sceneId, imageUrl } = data;
 
-          // Clear pending after a minimal delay to ensure the UI renders the pulse
-          const clearPending = () => setPendingSceneId(null);
-          if (pendingClearTimeoutRef.current) {
-            clearTimeout(pendingClearTimeoutRef.current);
-          }
-          const startedAt = pendingStartRef.current;
-          if (startedAt) {
-            const elapsed = Date.now() - startedAt;
-            const remaining = Math.max(300 - elapsed, 0);
-            pendingClearTimeoutRef.current = setTimeout(
-              clearPending,
-              remaining
-            );
-          } else {
-            clearPending();
-          }
+        // Clear pending after a minimal delay to ensure the UI renders the pulse
+        const clearPending = () => setPendingSceneId(null);
+        if (pendingClearTimeoutRef.current) {
+          clearTimeout(pendingClearTimeoutRef.current);
+        }
+        const startedAt = pendingStartRef.current;
+        if (startedAt) {
+          const elapsed = Date.now() - startedAt;
+          const remaining = Math.max(300 - elapsed, 0);
+          pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
+        } else {
+          clearPending();
+        }
 
-          // Fetch the full scene data to ensure we have the latest state
-          getCurrentSceneAction(run.id)
-            .then(({ scene }) => {
-              if (scene) {
-                setCurrentSceneState(scene);
-                // Ensure pending state is cleared
-                if (scene.imageUrl) {
-                  setPendingSceneId(null);
-                }
-              } else if (imageUrl) {
-                // If scene fetch fails but we have imageUrl, update current scene
-                setCurrentSceneState((prevScene) => {
-                  if (prevScene && prevScene.id === sceneId) {
-                    return {
-                      ...prevScene,
-                      imageUrl,
-                    } as Scene;
-                  }
-                  return prevScene;
-                });
+        // Fetch the full scene data to ensure we have the latest state
+        getCurrentSceneAction(run.id)
+          .then(({ scene }) => {
+            if (scene) {
+              setCurrentSceneState(scene);
+              // Ensure pending state is cleared
+              if (scene.imageUrl) {
                 setPendingSceneId(null);
               }
-            })
-            .catch((error) => {
-              console.error("Error fetching scene after SSE update:", error);
-              // Fallback: update imageUrl if we have it and it matches current scene
+            } else if (imageUrl) {
+              // If scene fetch fails but we have imageUrl, update current scene
               setCurrentSceneState((prevScene) => {
-                if (prevScene && prevScene.id === sceneId && imageUrl) {
+                if (prevScene && prevScene.id === sceneId) {
                   return {
                     ...prevScene,
                     imageUrl,
@@ -159,50 +158,66 @@ export function GamePlayClient({
                 return prevScene;
               });
               setPendingSceneId(null);
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching scene after SSE update:", error);
+            // Fallback: update imageUrl if we have it and it matches current scene
+            setCurrentSceneState((prevScene) => {
+              if (prevScene && prevScene.id === sceneId && imageUrl) {
+                return {
+                  ...prevScene,
+                  imageUrl,
+                } as Scene;
+              }
+              return prevScene;
             });
+            setPendingSceneId(null);
+          });
+      } catch (error) {
+        console.error("Error parsing scene-updated event:", error);
+      }
+    });
+
+    eventSource.addEventListener("scene-generation-started", (event) => {
+      try {
+        const eventId = event.lastEventId || (event as { id?: string }).id;
+        if (eventId && processedEventIds.has(eventId)) {
+          return;
+        }
+        if (eventId) {
+          processedEventIds.add(eventId);
+          localStorage.setItem(lastEventIdKey, eventId);
         }
 
-        if (data.type === "scene-generation-started") {
-          const { sceneId } = data.data || {};
-          if (typeof sceneId === "string") {
-            pendingStartRef.current = Date.now();
-            if (pendingClearTimeoutRef.current) {
-              clearTimeout(pendingClearTimeoutRef.current);
-            }
-            // Always set to ensure the pulse triggers even for repeated ids
-            setPendingSceneId(sceneId);
-            // Only fetch if we don't have a scene yet; otherwise keep the current image visible
-            if (!currentSceneState) {
-              getCurrentSceneAction(run.id)
-                .then(({ scene }) => {
-                  if (scene) {
-                    setCurrentSceneState(scene);
-                  }
-                })
-                .catch((error) => {
-                  console.error(
-                    "Error fetching scene after pending event:",
-                    error
-                  );
-                });
-            }
+        const data = JSON.parse(event.data);
+        const { sceneId } = data || {};
+        if (typeof sceneId === "string") {
+          pendingStartRef.current = Date.now();
+          if (pendingClearTimeoutRef.current) {
+            clearTimeout(pendingClearTimeoutRef.current);
           }
-        }
-
-        if (data.type === "scene-generation-cancelled") {
-          const { placeholderId } = data.data || {};
-          if (placeholderId) {
-            const currentPending = useGameStore.getState().pendingSceneId;
-            if (currentPending === placeholderId) {
-              setPendingSceneId(null);
-            }
+          // Always set to ensure the pulse triggers even for repeated ids
+          setPendingSceneId(sceneId);
+          // Only fetch if we don't have a scene yet; otherwise keep the current image visible
+          if (!currentSceneStateRef.current) {
+            getCurrentSceneAction(run.id)
+              .then(({ scene }) => {
+                if (scene) {
+                  setCurrentSceneState(scene);
+                  currentSceneStateRef.current = scene;
+                }
+              })
+              .catch((error) => {
+                console.error(
+                  "Error fetching scene after pending event:",
+                  error
+                );
+              });
           }
-        }
 
-        // Fallback: clear pending if nothing changes after a timeout for placeholder ids
-        if (data.type === "scene-generation-started") {
-          const { sceneId } = data.data || {};
-          if (typeof sceneId === "string" && sceneId.startsWith("pending-")) {
+          // Fallback: clear pending if nothing changes after a timeout for placeholder ids
+          if (sceneId.startsWith("pending-")) {
             setTimeout(() => {
               const currentPending = useGameStore.getState().pendingSceneId;
               if (currentPending === sceneId) {
@@ -211,9 +226,49 @@ export function GamePlayClient({
             }, 60000);
           }
         }
+      } catch (error) {
+        console.error("Error parsing scene-generation-started event:", error);
+      }
+    });
 
-        if (data.type === "campaign-state-updated" && data.data?.state) {
-          const newState = data.data.state as CampaignState;
+    eventSource.addEventListener("scene-generation-cancelled", (event) => {
+      try {
+        const eventId = event.lastEventId || (event as { id?: string }).id;
+        if (eventId && processedEventIds.has(eventId)) {
+          return;
+        }
+        if (eventId) {
+          processedEventIds.add(eventId);
+          localStorage.setItem(lastEventIdKey, eventId);
+        }
+
+        const data = JSON.parse(event.data);
+        const { placeholderId } = data || {};
+        if (placeholderId) {
+          const currentPending = useGameStore.getState().pendingSceneId;
+          if (currentPending === placeholderId) {
+            setPendingSceneId(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing scene-generation-cancelled event:", error);
+      }
+    });
+
+    eventSource.addEventListener("campaign-state-updated", (event) => {
+      try {
+        const eventId = event.lastEventId || (event as { id?: string }).id;
+        if (eventId && processedEventIds.has(eventId)) {
+          return;
+        }
+        if (eventId) {
+          processedEventIds.add(eventId);
+          localStorage.setItem(lastEventIdKey, eventId);
+        }
+
+        const data = JSON.parse(event.data);
+        if (data?.state) {
+          const newState = data.state as CampaignState;
           const oldState = previousCampaignStateRef.current;
           const changes = detectStateChanges(oldState, newState);
           if (changes.length > 0) {
@@ -222,24 +277,48 @@ export function GamePlayClient({
           }
         }
       } catch (error) {
-        console.error("Error parsing SSE event:", error);
+        console.error("Error parsing campaign-state-updated event:", error);
+      }
+    });
+
+    // Fallback handler for any untyped events (shouldn't happen with proper SSE format)
+    eventSource.onmessage = (event) => {
+      try {
+        const eventId = event.lastEventId || (event as { id?: string }).id;
+        if (eventId && processedEventIds.has(eventId)) {
+          return;
+        }
+        if (eventId) {
+          processedEventIds.add(eventId);
+          localStorage.setItem(lastEventIdKey, eventId);
+        }
+        // Try to parse as JSON and handle based on data structure
+        const data = JSON.parse(event.data);
+        console.warn("[SSE] Received untyped event, using fallback handler", {
+          data,
+          eventId,
+        });
+      } catch (error) {
+        console.error("Error parsing untyped SSE event:", error);
       }
     };
 
     eventSource.onerror = (error) => {
       console.error("SSE connection error:", error);
       // EventSource will automatically reconnect
+      // On reconnect, it will use the lastEventId from localStorage
     };
 
-    // Cleanup on unmount
+    // Cleanup on unmount or when run.id changes
     return () => {
       eventSource.close();
     };
-  }, [run.id, gameChat.isLoading, setPendingSceneId, currentSceneState]);
+  }, [run.id, setPendingSceneId]);
 
   // Update scene state when prop changes (initial load or server-side updates)
   useEffect(() => {
     setCurrentSceneState(currentScene || null);
+    currentSceneStateRef.current = currentScene || null;
     // Track pending state: if scene has no imageUrl, it's pending
     if (currentScene && !currentScene.imageUrl) {
       setPendingSceneId(currentScene.id);

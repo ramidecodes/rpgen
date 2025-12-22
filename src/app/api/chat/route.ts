@@ -1197,7 +1197,7 @@ async function triggerBackgroundStateReconciliation(
 
       // Notify subscribed clients via SSE about the state change
       try {
-        sseConnectionManager.broadcast(run.id, {
+        await sseConnectionManager.broadcast(run.id, {
           type: "campaign-state-updated",
           data: {
             state: updatedState,
@@ -1314,7 +1314,7 @@ async function triggerVisualEngineAgent(
     console.log("[API] Starting Visual Engine Agent for scene generation");
     const placeholderSceneId = `pending-${run.id}-${Date.now()}`;
     try {
-      sseConnectionManager.broadcast(run.id, {
+      await sseConnectionManager.broadcast(run.id, {
         type: "scene-generation-started",
         data: {
           runId: run.id,

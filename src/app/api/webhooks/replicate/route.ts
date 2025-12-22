@@ -445,7 +445,7 @@ export async function POST(req: NextRequest) {
 
     // Notify SSE clients about the scene update
     try {
-      sseConnectionManager.broadcast(runId, {
+      await sseConnectionManager.broadcast(runId, {
         type: "scene-updated",
         data: {
           sceneId,
