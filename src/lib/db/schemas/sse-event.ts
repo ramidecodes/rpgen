@@ -27,7 +27,7 @@ export const sceneGenerationCancelledPayloadSchema = z.object({
 });
 
 export const campaignStateUpdatedPayloadSchema = z.object({
-  state: z.record(z.unknown()), // CampaignState object
+  state: z.record(z.string(), z.unknown()), // CampaignState object
 });
 
 // Union schema for all event payloads
@@ -69,4 +69,3 @@ export type CampaignStateUpdatedPayload = z.infer<
 export type SSEEventPayload = z.infer<typeof sseEventPayloadSchema>;
 export type SSEEvent = z.infer<typeof sseEventSchema>;
 export type CreateSSEEventInput = z.infer<typeof createSSEEventSchema>;
-
