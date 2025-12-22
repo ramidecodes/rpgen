@@ -805,79 +805,116 @@ export const generateImagePromptTool = tool({
     sceneType?: "portrait" | "wide-shot" | "detail-shot";
     compositionGuidance?: string;
   }) => {
-    let prompt = "";
+    // Infer scene type from narrative if not provided (default to wide-shot for variety)
+    let inferredSceneType = sceneType;
+    if (!inferredSceneType) {
+      const narrativeLower = currentNarrative.toLowerCase();
+      // Simple heuristics to infer scene type
+      if (
+        /(examines|touches|picks up|reads|uses|holds|grasps|studies|inspects|opens|closes|presses|turns|lifts|item|object|artifact)/i.test(
+          narrativeLower
+        )
+      ) {
+        inferredSceneType = "detail-shot";
+      } else if (
+        /(says|thinks|feels|reacts|expresses|speaks|whispers|shouts|smiles|frowns|gazes|stares|looks|emotion|dialogue|conversation)/i.test(
+          narrativeLower
+        )
+      ) {
+        inferredSceneType = "portrait";
+      } else {
+        // Default to wide-shot for variety (safer than portrait)
+        inferredSceneType = "wide-shot";
+      }
+      console.warn(
+        `[generateImagePrompt] sceneType not provided, inferred: ${inferredSceneType}`
+      );
+    }
 
-    // Scene type-specific prompt structure
-    if (sceneType === "portrait") {
+    let prompt = "";
+    let negativePrompt = "";
+
+    // Scene type-specific prompt structure with explicit composition rules
+    if (inferredSceneType === "portrait") {
       // Portrait: Character-centered, expressive, close-up framing
+      // Lead with character appearance and expression
       if (characterAppearance) {
         prompt += `${characterAppearance}`;
         if (characterProfession) {
           prompt += `, a ${characterProfession.toLowerCase()}`;
         }
-        prompt += ", expressive face, centered composition, close-up framing";
+        prompt +=
+          ", expressive face, close-up portrait, character-centered composition";
       }
       // Add narrative as background context
       if (currentNarrative) {
-        prompt += `. ${currentNarrative} (environment as background context only). `;
+        prompt += `. ${currentNarrative} (environment as background context only, out of focus). `;
       }
-      // Portrait-specific composition
+      // Portrait-specific composition and camera instructions
       if (compositionGuidance) {
         prompt += `${compositionGuidance}. `;
       } else {
         prompt +=
-          "Character-focused, centered composition, close-up framing, expressive lighting, character portrait. ";
+          "Close-up shot, 85mm lens, shallow depth of field, character fills 70-80% of frame, centered composition, expressive lighting, character portrait. ";
       }
-    } else if (sceneType === "wide-shot") {
+      // No negative prompt needed for portrait (this is the default)
+    } else if (inferredSceneType === "wide-shot") {
       // Wide Shot: Environmental context, establishing view, landscape composition
+      // Lead with location/environment description (NOT character)
       if (locationContext) {
         prompt += `${locationContext}, `;
       }
-      // Character as part of scene, not focus
+      // Narrative with environmental emphasis (lead with environment)
+      prompt += `${currentNarrative}, `;
+      // Character mentioned late as small element
       if (characterAppearance) {
-        prompt += `${characterAppearance} (as part of scene, not focus), `;
+        prompt += `small figure in distance (${characterAppearance}), character visible but NOT the focus, `;
       }
-      // Narrative with environmental emphasis
-      prompt += `${currentNarrative}, establishing shot, wide-angle view, environmental storytelling`;
-      // Wide shot-specific composition
+      // Wide shot-specific composition and camera instructions
+      prompt +=
+        "establishing shot, wide-angle lens (24mm), deep depth of field, landscape composition, environmental storytelling, rule of thirds, atmospheric depth. ";
       if (compositionGuidance) {
-        prompt += `. ${compositionGuidance}. `;
+        prompt += `${compositionGuidance}. `;
       } else {
         prompt +=
-          ", landscape composition, atmospheric depth, environmental focus. ";
+          "Character occupies less than 20% of frame, environment is primary subject, environmental focus. ";
       }
-    } else if (sceneType === "detail-shot") {
+      // Negative prompts to prevent portrait bias
+      negativePrompt =
+        "NOT a character portrait, NOT close-up, NOT character-focused, character is secondary element, avoid character filling frame";
+    } else if (inferredSceneType === "detail-shot") {
       // Detail Shot: Object/action-focused, close-up framing, focused composition
-      // Narrative with detail emphasis
-      prompt += `${currentNarrative}`;
-      // Character hands/partial view if relevant
+      // Lead with object/action description (NOT character)
+      prompt += `${currentNarrative}, `;
+      // Character mentioned only if hands/partial view relevant
       if (characterAppearance) {
-        prompt += `, ${characterAppearance} (hands/partial view if relevant)`;
+        prompt += `${characterAppearance} (hands/partial view only, character face NOT visible), `;
       }
-      // Detail shot-specific composition
+      // Detail shot-specific composition and camera instructions
+      prompt +=
+        "macro photography, extreme close-up, macro lens, shallow depth of field, object/item is primary focus, tight framing on specific element, detail-oriented composition. ";
       if (compositionGuidance) {
-        prompt += `. ${compositionGuidance}. `;
+        prompt += `${compositionGuidance}. `;
       } else {
         prompt +=
-          ", close-up framing, focused composition, detail-oriented, tight framing. ";
+          "Object in sharp focus, character hands/partial view if relevant, character face not visible. ";
       }
+      // Negative prompts to prevent portrait bias
+      negativePrompt =
+        "NOT a character portrait, NOT full body shot, NOT character face visible, NOT character-centered, avoid showing character's full face";
     } else {
-      // Default: Original behavior (character-focused)
-      if (characterAppearance) {
-        prompt += `${characterAppearance}`;
-        if (characterProfession) {
-          prompt += `, a ${characterProfession.toLowerCase()}`;
-        }
-        prompt += ". ";
-      }
-
-      // Add location and environment
+      // Fallback: Default to wide-shot for variety (safer than portrait)
       if (locationContext) {
-        prompt += `${locationContext}. `;
+        prompt += `${locationContext}, `;
       }
-
-      // Add narrative scene description
-      prompt += `${currentNarrative}. `;
+      prompt += `${currentNarrative}, `;
+      if (characterAppearance) {
+        prompt += `small figure (${characterAppearance}), character visible but NOT the focus, `;
+      }
+      prompt +=
+        "establishing shot, wide-angle view, environmental focus, landscape composition. ";
+      negativePrompt =
+        "NOT a character portrait, NOT close-up, character is secondary element";
     }
 
     // Add universe visual style
@@ -895,15 +932,21 @@ export const generateImagePromptTool = tool({
     prompt +=
       "Highly detailed digital art, cinematic lighting, professional illustration, vivid colors, atmospheric depth.";
 
+    // Append negative prompt if present (some models support negative prompts)
+    const finalPrompt = negativePrompt
+      ? `${prompt.trim()} | Negative: ${negativePrompt}`
+      : prompt.trim();
+
     return {
-      prompt: prompt.trim(),
+      prompt: finalPrompt,
       components: {
         character: characterAppearance || "Not specified",
         environment: locationContext || currentNarrative,
         style: universeVisualStyle || "Default fantasy style",
         genres: campaignGenres,
-        sceneType: sceneType || "default",
+        sceneType: inferredSceneType || "default",
         composition: compositionGuidance || "standard",
+        negativePrompt: negativePrompt || "none",
       },
     };
   },

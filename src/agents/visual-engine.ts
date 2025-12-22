@@ -172,18 +172,38 @@ BACKGROUND PROCESSING INSTRUCTIONS:
    - Avoid generating during intermediate states (e.g., when skill check is requested but outcome pending)
    - Prioritize narrative completeness over frequency
 3. Use the shouldGenerateScene tool first to make the decision (this tool will detect intermediate states and defer if needed).
-4. If generation is approved, use determineSceneType tool to select appropriate scene composition:
-   - Portrait: Character-focused moments (dialogue, emotional reactions, character development)
-   - Wide Shot: Location/setting-focused (exploration, travel, environmental storytelling)
-   - Detail Shot: Object/action-focused (interactions, items, specific elements)
-5. Craft a detailed prompt with generateImagePrompt tool, including the scene type and composition guidance.
+4. CRITICAL: If generation is approved, you MUST use determineSceneType tool BEFORE generateImagePrompt.
+   - This step is REQUIRED - do not skip it or guess the scene type
+   - The scene type determines the entire composition and focus of the image
+   - Pass the scene type result to generateImagePrompt tool
+5. Craft a detailed prompt with generateImagePrompt tool, ALWAYS including the scene type from determineSceneType.
 6. Finally, use generateSceneImage tool to create and store the image.
 7. Stop processing after completing the workflow or determining no generation is needed.
 
-SCENE COMPOSITION GUIDELINES:
-- Portrait: Character-centered, expressive, close-up framing, character-focused lighting
-- Wide Shot: Environmental context, establishing view, landscape composition, character as part of scene
-- Detail Shot: Focused framing, specific element prominence, tight composition, detail-oriented
+SCENE COMPOSITION GUIDELINES (STRICT ENFORCEMENT):
+
+PORTRAIT (Character-focused):
+- Use for: Dialogue, emotional reactions, character development, expressions
+- Composition: Character-centered, close-up framing (85mm lens), character fills 70-80% of frame
+- Focus: Character's face and expression are primary subject
+- Environment: Background context only, out of focus
+- Example: "Character's expressive face in close-up, environment blurred in background"
+
+WIDE SHOT (Environment-focused):
+- Use for: Exploration, travel, location changes, environmental storytelling, establishing scenes
+- Composition: Wide-angle view (24mm lens), landscape composition, character occupies LESS than 20% of frame
+- Focus: Environment and location are primary subject, character is secondary element
+- Character: Small figure in distance, visible but NOT the focus
+- Negative: NOT a character portrait, NOT close-up, character is secondary element
+- Example: "Vast landscape with small figure in distance, environment dominates frame"
+
+DETAIL SHOT (Object/action-focused):
+- Use for: Object interactions, items, specific elements, close-up moments
+- Composition: Macro photography, extreme close-up, tight framing on specific element
+- Focus: Object/item is primary focus, character hands/partial view only
+- Character: Character face NOT visible, only hands/partial view if relevant
+- Negative: NOT a character portrait, NOT full body shot, character face not visible
+- Example: "Close-up of object being examined, character's hands visible but face not shown"
 
 COST OPTIMIZATION:
 - Only generate when scenes have dramatically changed
