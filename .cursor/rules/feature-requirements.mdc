@@ -12,12 +12,11 @@ This rule applies when the user requests implementation of a **new feature** or 
 - Requests to implement, add, create, or build new features
 - Requests for new functionality that doesn't exist yet
 - Feature requests that require planning and documentation
-- Request to udpate a document in `docs/features/`
+- Request to update a document in `docs/features/`
 
 **Do NOT apply this rule for:**
 
 - Bug fixes or debugging
-- Refactoring existing code
 - Code reviews or explanations
 - Modifications to existing features (unless explicitly a new feature)
 - Questions or documentation requests
@@ -32,7 +31,7 @@ This rule applies when the user requests implementation of a **new feature** or 
    - Feature Name: Short, descriptive title for the feature.
    - Goal: What problem does this feature solve? Why does it exist?
    - User Story: As a [user type], I want to [goal], so that I can [benefit].
-     -Functional Requirements: List core behaviors the feature must support. Be specific and measurable.
+   - Functional Requirements: List core behaviors the feature must support. Be specific and measurable.
    - Data Requirements (optional): What new tables, fields, or relationships are needed? What existing data do we reuse?
    - User Flow: Step-by-step actions the user performs from start to finish.
    - Acceptance Criteria: Clear conditions defining when this feature is “done”.
@@ -78,7 +77,6 @@ This rule applies when the user requests implementation of a **new feature** or 
 
 - "Fix [bug]"
 - "Debug [issue]"
-- "Refactor [code]"
 - "Update [existing feature]"
 - "Modify [existing code]"
 - "How does [feature] work?"
