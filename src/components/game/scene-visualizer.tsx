@@ -206,7 +206,7 @@ export function SceneVisualizer({
       </Dialog>
 
       {fullBleed ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
           <p className="line-clamp-2">{scene.narrativeContext}</p>
         </div>
       ) : null}
