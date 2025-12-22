@@ -1225,6 +1225,62 @@ async function triggerBackgroundStateReconciliation(
 }
 
 /**
+ * Helper function to detect pending skill checks in messages
+ * Returns true if a skill check is requested but outcome is not yet explained
+ */
+function hasPendingSkillCheck(messages: UIMessage[]): boolean {
+  // Check last 10 messages for skill check patterns
+  const recentMessages = messages.slice(-10);
+
+  for (const message of recentMessages) {
+    if (!Array.isArray(message.parts)) continue;
+
+    for (const part of message.parts) {
+      if (isToolUIPart(part)) {
+        const toolPart = part as {
+          toolName?: string;
+          toolCallId?: string;
+          state?: string;
+        };
+
+        // Check if this is a requestSkillCheck tool call with input-available state
+        if (
+          toolPart.toolName === "requestSkillCheck" &&
+          toolPart.toolCallId &&
+          toolPart.state === "input-available"
+        ) {
+          // Check if corresponding outcome exists in subsequent messages
+          const toolCallId = toolPart.toolCallId;
+          const hasOutcome = recentMessages.some((msg) => {
+            if (!Array.isArray(msg.parts)) return false;
+            return msg.parts.some((p) => {
+              if (isToolUIPart(p)) {
+                const pTool = p as {
+                  toolCallId?: string;
+                  state?: string;
+                };
+                return (
+                  pTool.toolCallId === toolCallId &&
+                  pTool.state === "output-available"
+                );
+              }
+              return false;
+            });
+          });
+
+          // If skill check requested but outcome not found, it's pending
+          if (!hasOutcome) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Trigger Visual Engine Agent for automatic scene generation
  */
 async function triggerVisualEngineAgent(
@@ -1242,6 +1298,15 @@ async function triggerVisualEngineAgent(
     if (!hasNarrativeText(recentMessages)) {
       console.log(
         "[API] Skipping Visual Engine Agent - no narrative text in latest assistant message"
+      );
+      return;
+    }
+
+    // Early exit: Skip VEA if there's a pending skill check
+    // Conservative generation: wait for complete narrative moments
+    if (hasPendingSkillCheck(recentMessages)) {
+      console.log(
+        "[API] Skipping Visual Engine Agent - pending skill check detected (conservative generation)"
       );
       return;
     }

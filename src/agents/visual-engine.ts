@@ -1,6 +1,7 @@
 import { ToolLoopAgent, stepCountIs } from "ai";
 import {
   shouldGenerateSceneTool,
+  determineSceneTypeTool,
   generateImagePromptTool,
   createGenerateSceneImageTool,
 } from "@/lib/ai/tools";
@@ -37,6 +38,7 @@ export type VisualEngineAgent = {
 
 export type VisualEngineTools = {
   shouldGenerateScene: typeof shouldGenerateSceneTool;
+  determineSceneType: typeof determineSceneTypeTool;
   generateImagePrompt: typeof generateImagePromptTool;
   generateSceneImage: ReturnType<typeof createGenerateSceneImageTool>;
 };
@@ -107,14 +109,16 @@ export function createVisualEngineAgent(
     // Only allow scene-related tools
     activeTools: [
       "shouldGenerateScene",
+      "determineSceneType",
       "generateImagePrompt",
       "generateSceneImage",
     ],
 
     // Stop conditions for background processing
     stopWhen: [
-      // Stop after limited tool cycles (3 max for background processing)
-      stepCountIs(3),
+      // Stop after limited tool cycles (4 max for background processing)
+      // Workflow: shouldGenerateScene → determineSceneType → generateImagePrompt → generateSceneImage
+      stepCountIs(4),
     ],
 
     // Emit start when tools sequence begins
@@ -163,17 +167,29 @@ CURRENT STATE:
 
 BACKGROUND PROCESSING INSTRUCTIONS:
 1. You are NOT an interactive agent. Do not produce text responses or chat messages.
-2. Analyze recent narrative changes to determine if scene regeneration is needed.
-3. Only generate scenes when there are significant location or environment changes.
-4. Use the shouldGenerateScene tool first to make the decision.
-5. If generation is needed, craft a detailed prompt with generateImagePrompt tool.
+2. CONSERVATIVE GENERATION: Only generate after COMPLETE narrative moments.
+   - Wait for complete narrative moments before generating (e.g., after skill check outcomes are fully explained with consequences)
+   - Avoid generating during intermediate states (e.g., when skill check is requested but outcome pending)
+   - Prioritize narrative completeness over frequency
+3. Use the shouldGenerateScene tool first to make the decision (this tool will detect intermediate states and defer if needed).
+4. If generation is approved, use determineSceneType tool to select appropriate scene composition:
+   - Portrait: Character-focused moments (dialogue, emotional reactions, character development)
+   - Wide Shot: Location/setting-focused (exploration, travel, environmental storytelling)
+   - Detail Shot: Object/action-focused (interactions, items, specific elements)
+5. Craft a detailed prompt with generateImagePrompt tool, including the scene type and composition guidance.
 6. Finally, use generateSceneImage tool to create and store the image.
 7. Stop processing after completing the workflow or determining no generation is needed.
+
+SCENE COMPOSITION GUIDELINES:
+- Portrait: Character-centered, expressive, close-up framing, character-focused lighting
+- Wide Shot: Environmental context, establishing view, landscape composition, character as part of scene
+- Detail Shot: Focused framing, specific element prominence, tight composition, detail-oriented
 
 COST OPTIMIZATION:
 - Only generate when scenes have dramatically changed
 - Avoid redundant generations of similar scenes
 - Use efficient prompts that capture essential visual elements
+- Conservative generation reduces unnecessary costs by waiting for complete narrative moments
 
 OUTPUT: Use tools only. No text responses.`;
 }
@@ -185,6 +201,7 @@ function createVisualEngineTools(
   // Create tools with runId bound directly at creation time
   return {
     shouldGenerateScene: shouldGenerateSceneTool,
+    determineSceneType: determineSceneTypeTool,
     generateImagePrompt: generateImagePromptTool,
     generateSceneImage: createGenerateSceneImageTool(runId),
   };

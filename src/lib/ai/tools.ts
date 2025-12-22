@@ -363,15 +363,239 @@ Prefer single updateQuest calls that update multiple fields when appropriate.`,
 // ============================================================================
 
 /**
+ * Tool to determine the appropriate scene type based on narrative context
+ */
+export const determineSceneTypeTool = tool({
+  description: `Analyze narrative context and character action to determine the most appropriate scene type for visual generation. Consider:
+- Portrait: Character-focused moments (dialogue, emotional reactions, character development, expressions)
+- Wide Shot: Location/setting-focused (exploration, travel, environmental storytelling, establishing scenes)
+- Detail Shot: Object/action-focused (interactions, items, specific elements, close-up moments)
+Return the recommended scene type with clear reasoning based on the narrative action and context.`,
+  inputSchema: z.object({
+    currentNarrative: z
+      .string()
+      .describe("Current narrative context from recent messages"),
+    characterAction: z
+      .string()
+      .describe("The character's recent action or situation"),
+    locationContext: z
+      .string()
+      .optional()
+      .describe("Current location from campaign state"),
+  }),
+  execute: async ({
+    currentNarrative,
+    characterAction,
+    locationContext,
+  }: {
+    currentNarrative: string;
+    characterAction: string;
+    locationContext?: string;
+  }) => {
+    const narrativeLower = currentNarrative.toLowerCase();
+    const actionLower = characterAction.toLowerCase();
+
+    // Portrait triggers: character-focused moments
+    const portraitKeywords = [
+      "says",
+      "thinks",
+      "feels",
+      "reacts",
+      "expresses",
+      "speaks",
+      "whispers",
+      "shouts",
+      "smiles",
+      "frowns",
+      "gazes",
+      "stares",
+      "looks",
+      "emotion",
+      "dialogue",
+      "conversation",
+    ];
+
+    // Wide shot triggers: location/setting-focused
+    const wideShotKeywords = [
+      "travels",
+      "explores",
+      "enters",
+      "arrives",
+      "views",
+      "approaches",
+      "reaches",
+      "journeys",
+      "wanders",
+      "discovers",
+      "finds themselves",
+      "stands before",
+      "sees",
+      "observes",
+      "landscape",
+      "environment",
+    ];
+
+    // Detail shot triggers: object/action-focused
+    const detailShotKeywords = [
+      "examines",
+      "touches",
+      "picks up",
+      "reads",
+      "uses",
+      "holds",
+      "grasps",
+      "studies",
+      "inspects",
+      "opens",
+      "closes",
+      "presses",
+      "turns",
+      "lifts",
+      "item",
+      "object",
+      "artifact",
+    ];
+
+    let portraitScore = 0;
+    let wideShotScore = 0;
+    let detailShotScore = 0;
+
+    // Score based on keywords
+    for (const keyword of portraitKeywords) {
+      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
+        portraitScore += 1;
+      }
+    }
+
+    for (const keyword of wideShotKeywords) {
+      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
+        wideShotScore += 1;
+      }
+    }
+
+    for (const keyword of detailShotKeywords) {
+      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
+        detailShotScore += 1;
+      }
+    }
+
+    // Location context boosts wide shot
+    if (locationContext && locationContext.trim().length > 0) {
+      wideShotScore += 1;
+    }
+
+    // Determine scene type
+    let sceneType: "portrait" | "wide-shot" | "detail-shot";
+    let reasoning: string;
+
+    if (detailShotScore > portraitScore && detailShotScore > wideShotScore) {
+      sceneType = "detail-shot";
+      reasoning = `Detail shot recommended: Narrative focuses on specific object interactions or close-up elements (score: ${detailShotScore}).`;
+    } else if (
+      portraitScore > wideShotScore &&
+      portraitScore > detailShotScore
+    ) {
+      sceneType = "portrait";
+      reasoning = `Portrait recommended: Narrative emphasizes character moments, emotions, or dialogue (score: ${portraitScore}).`;
+    } else if (wideShotScore > 0 || locationContext) {
+      sceneType = "wide-shot";
+      reasoning = `Wide shot recommended: Narrative emphasizes location, environment, or exploration (score: ${wideShotScore}).`;
+    } else {
+      // Default to wide shot for safety (establishing context)
+      sceneType = "wide-shot";
+      reasoning = `Wide shot recommended: Default choice for establishing context when action type is unclear.`;
+    }
+
+    return {
+      sceneType,
+      reasoning,
+      scores: {
+        portrait: portraitScore,
+        wideShot: wideShotScore,
+        detailShot: detailShotScore,
+      },
+    };
+  },
+});
+
+/**
+ * Helper function to detect intermediate narrative states from narrative text
+ * Checks for patterns that indicate actions are in progress but not yet resolved
+ */
+function detectIntermediateStateFromNarrative(
+  currentNarrative: string,
+  characterAction: string
+): { isIntermediate: boolean; reason?: string } {
+  const narrativeLower = currentNarrative.toLowerCase();
+  const actionLower = characterAction.toLowerCase();
+
+  // Patterns that suggest incomplete actions
+  const incompletePatterns = [
+    /is about to/i,
+    /begins to/i,
+    /starts to/i,
+    /attempts to/i,
+    /tries to/i,
+    /prepares to/i,
+    /readies/i,
+    /skill check/i,
+    /roll.*dice/i,
+    /must roll/i,
+  ];
+
+  // Check for incomplete action patterns
+  for (const pattern of incompletePatterns) {
+    if (pattern.test(narrativeLower) || pattern.test(actionLower)) {
+      // Check if there's a resolution (past tense, completion indicators)
+      const resolutionIndicators = [
+        /succeeded/i,
+        /failed/i,
+        /completed/i,
+        /finished/i,
+        /managed to/i,
+        /was able to/i,
+        /rolled.*and/i,
+      ];
+
+      const hasResolution = resolutionIndicators.some((indicator) =>
+        indicator.test(narrativeLower)
+      );
+
+      if (!hasResolution) {
+        return {
+          isIntermediate: true,
+          reason: `Narrative indicates action in progress (pattern: ${pattern.source}) without clear resolution`,
+        };
+      }
+    }
+  }
+
+  return { isIntermediate: false };
+}
+
+/**
  * Decision tool to determine if a new scene should be generated
+ * CONSERVATIVE GENERATION: Only generates after complete narrative moments.
+ * Defers generation when narrative is in intermediate states (e.g., skill check requested but outcome pending).
  */
 export const shouldGenerateSceneTool = tool({
-  description: `Analyze recent narrative changes to determine if a new scene should be generated. Consider:
+  description: `Analyze recent narrative changes to determine if a new scene should be generated. 
+
+IMPORTANT - CONSERVATIVE GENERATION:
+- Only generate after COMPLETE narrative moments (e.g., after skill check outcomes are fully explained with consequences)
+- DEFER generation when narrative is in intermediate states:
+  * Skill check requested but outcome not yet explained
+  * Actions in progress without resolution (e.g., "begins to", "attempts to", "is about to")
+  * Pending consequences or incomplete actions
+
+Consider for generation:
 - Has the scene location dramatically changed (entering a new area, city, building, etc.)?
 - Has the environment significantly changed (weather, time of day, destruction, etc.)?
 - Has the character moved to a completely different setting?
 - Is the current scene image no longer appropriate for the narrative?
-Return a boolean decision with clear reasoning.`,
+- Is the narrative moment COMPLETE (not in an intermediate state)?
+
+Return a boolean decision with clear reasoning. If narrative is intermediate, return shouldGenerate: false with reasoning about why generation is deferred.`,
   inputSchema: z.object({
     currentNarrative: z
       .string()
@@ -387,21 +611,54 @@ Return a boolean decision with clear reasoning.`,
     characterAction: z
       .string()
       .describe("The character's recent action or situation"),
+    hasPendingSkillCheck: z
+      .boolean()
+      .optional()
+      .describe(
+        "Whether there is a pending skill check (requested but outcome not yet explained)"
+      ),
   }),
   execute: async ({
     currentNarrative,
     previousNarrative,
     currentLocation,
     characterAction,
+    hasPendingSkillCheck,
   }: {
     currentNarrative: string;
     previousNarrative?: string;
     currentLocation?: string;
     characterAction: string;
+    hasPendingSkillCheck?: boolean;
   }) => {
-    // Simple heuristic-based decision making
-    // In a more sophisticated implementation, this could use embeddings or ML
+    // CONSERVATIVE CHECK: Detect intermediate states first
+    const intermediateCheck = detectIntermediateStateFromNarrative(
+      currentNarrative,
+      characterAction
+    );
 
+    // If skill check is pending, defer generation
+    if (hasPendingSkillCheck === true) {
+      return {
+        shouldGenerate: false,
+        reasoning:
+          "Skill check is pending (requested but outcome not yet explained). Deferring generation until narrative moment is complete.",
+        reasons: ["Pending skill check detected"],
+      };
+    }
+
+    // If narrative indicates intermediate state, defer generation
+    if (intermediateCheck.isIntermediate) {
+      return {
+        shouldGenerate: false,
+        reasoning: `Narrative is in an intermediate state: ${intermediateCheck.reason}. Deferring generation until narrative moment is complete.`,
+        reasons: [
+          intermediateCheck.reason || "Intermediate narrative state detected",
+        ],
+      };
+    }
+
+    // Continue with normal generation checks
     const reasons: string[] = [];
 
     // Check for location changes
@@ -484,12 +741,13 @@ Return a boolean decision with clear reasoning.`,
 });
 
 /**
- * Tool to craft detailed image generation prompts
+ * Tool to craft detailed image generation prompts with scene type-specific composition
  */
 export const generateImagePromptTool = tool({
-  description: `Create a detailed, vivid image generation prompt that captures the current scene. Include:
-- Character appearance and pose
-- Environment and setting details
+  description: `Create a detailed, vivid image generation prompt that captures the current scene with scene type-specific composition guidance. Include:
+- Scene type-appropriate composition (portrait: character-centered, wide-shot: environmental, detail-shot: focused)
+- Character appearance and pose (when relevant)
+- Environment and setting details (when relevant)
 - Lighting and atmosphere
 - Art style and composition
 - Universe-specific visual elements
@@ -515,6 +773,18 @@ export const generateImagePromptTool = tool({
       .string()
       .optional()
       .describe("Specific location details"),
+    sceneType: z
+      .enum(["portrait", "wide-shot", "detail-shot"])
+      .optional()
+      .describe(
+        "Scene type determined by determineSceneType tool (portrait, wide-shot, or detail-shot)"
+      ),
+    compositionGuidance: z
+      .string()
+      .optional()
+      .describe(
+        "Specific composition instructions based on scene type (e.g., 'centered composition, close-up framing' for portrait)"
+      ),
   }),
   execute: async ({
     characterAppearance,
@@ -523,6 +793,8 @@ export const generateImagePromptTool = tool({
     universeVisualStyle,
     campaignGenres,
     locationContext,
+    sceneType,
+    compositionGuidance,
   }: {
     characterAppearance?: string;
     characterProfession?: string;
@@ -530,25 +802,83 @@ export const generateImagePromptTool = tool({
     universeVisualStyle?: string;
     campaignGenres: string[];
     locationContext?: string;
+    sceneType?: "portrait" | "wide-shot" | "detail-shot";
+    compositionGuidance?: string;
   }) => {
     let prompt = "";
 
-    // Start with character focus if available
-    if (characterAppearance) {
-      prompt += `${characterAppearance}`;
-      if (characterProfession) {
-        prompt += `, a ${characterProfession.toLowerCase()}`;
+    // Scene type-specific prompt structure
+    if (sceneType === "portrait") {
+      // Portrait: Character-centered, expressive, close-up framing
+      if (characterAppearance) {
+        prompt += `${characterAppearance}`;
+        if (characterProfession) {
+          prompt += `, a ${characterProfession.toLowerCase()}`;
+        }
+        prompt += ", expressive face, centered composition, close-up framing";
       }
-      prompt += ". ";
-    }
+      // Add narrative as background context
+      if (currentNarrative) {
+        prompt += `. ${currentNarrative} (environment as background context only). `;
+      }
+      // Portrait-specific composition
+      if (compositionGuidance) {
+        prompt += `${compositionGuidance}. `;
+      } else {
+        prompt +=
+          "Character-focused, centered composition, close-up framing, expressive lighting, character portrait. ";
+      }
+    } else if (sceneType === "wide-shot") {
+      // Wide Shot: Environmental context, establishing view, landscape composition
+      if (locationContext) {
+        prompt += `${locationContext}, `;
+      }
+      // Character as part of scene, not focus
+      if (characterAppearance) {
+        prompt += `${characterAppearance} (as part of scene, not focus), `;
+      }
+      // Narrative with environmental emphasis
+      prompt += `${currentNarrative}, establishing shot, wide-angle view, environmental storytelling`;
+      // Wide shot-specific composition
+      if (compositionGuidance) {
+        prompt += `. ${compositionGuidance}. `;
+      } else {
+        prompt +=
+          ", landscape composition, atmospheric depth, environmental focus. ";
+      }
+    } else if (sceneType === "detail-shot") {
+      // Detail Shot: Object/action-focused, close-up framing, focused composition
+      // Narrative with detail emphasis
+      prompt += `${currentNarrative}`;
+      // Character hands/partial view if relevant
+      if (characterAppearance) {
+        prompt += `, ${characterAppearance} (hands/partial view if relevant)`;
+      }
+      // Detail shot-specific composition
+      if (compositionGuidance) {
+        prompt += `. ${compositionGuidance}. `;
+      } else {
+        prompt +=
+          ", close-up framing, focused composition, detail-oriented, tight framing. ";
+      }
+    } else {
+      // Default: Original behavior (character-focused)
+      if (characterAppearance) {
+        prompt += `${characterAppearance}`;
+        if (characterProfession) {
+          prompt += `, a ${characterProfession.toLowerCase()}`;
+        }
+        prompt += ". ";
+      }
 
-    // Add location and environment
-    if (locationContext) {
-      prompt += `${locationContext}. `;
-    }
+      // Add location and environment
+      if (locationContext) {
+        prompt += `${locationContext}. `;
+      }
 
-    // Add narrative scene description
-    prompt += `${currentNarrative}. `;
+      // Add narrative scene description
+      prompt += `${currentNarrative}. `;
+    }
 
     // Add universe visual style
     if (universeVisualStyle) {
@@ -572,6 +902,8 @@ export const generateImagePromptTool = tool({
         environment: locationContext || currentNarrative,
         style: universeVisualStyle || "Default fantasy style",
         genres: campaignGenres,
+        sceneType: sceneType || "default",
+        composition: compositionGuidance || "standard",
       },
     };
   },

@@ -61,7 +61,7 @@ export function validateScenePrompt(prompt: string): ValidationResult {
 
 /**
  * Generate a standardized scene prompt with safety checks
- * @param basePrompt - The raw prompt from the agent
+ * @param basePrompt - The raw prompt from the agent (already includes scene type-specific composition)
  * @param characterAppearance - Optional character appearance description
  * @param universeStyle - Optional universe visual style
  * @returns string - A validated and enhanced prompt
