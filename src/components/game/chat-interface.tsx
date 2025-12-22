@@ -114,9 +114,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                  typeof (error as { message?: unknown }).message === "string"
-                ? ((error as { message?: string }).message ?? "")
-                : "The Game Master ran into an error. Please try again."}
+                typeof (error as { message?: unknown }).message === "string"
+              ? (error as { message?: string }).message ?? ""
+              : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -160,8 +160,7 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                   }
                   // Show if it has a result/output
                   if (
-                    (skillCheckPart.state === "result" ||
-                      skillCheckPart.state === "output-available") &&
+                    skillCheckPart.state === "output-available" &&
                     ("output" in skillCheckPart || "result" in skillCheckPart)
                   ) {
                     return true;
@@ -188,11 +187,8 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
 
                 // CRITICAL: Check for output-available FIRST
                 // Only show interactive component if NO output exists for this toolCallId
-                // Result state: render a compact summary of the roll.
-                if (
-                  skillCheckPart.state === "result" ||
-                  skillCheckPart.state === "output-available"
-                ) {
+                // Output-available state: render a compact summary of the roll.
+                if (skillCheckPart.state === "output-available") {
                   // Canonical v6: HITL payload is on `output`.
                   // `result` is an optional fallback for any older data.
                   const rawResult =
@@ -203,12 +199,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                        ? (
-                            skillCheckPart as {
-                              result?: unknown;
-                            }
-                          ).result
-                        : undefined;
+                      ? (
+                          skillCheckPart as {
+                            result?: unknown;
+                          }
+                        ).result
+                      : undefined;
 
                   let detailMeta: {
                     rollValue?: number;
@@ -269,18 +265,21 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
 
                 // Input-available state: show interactive dice UI ONLY if no output exists
                 // Check if there's another part with output for this toolCallId
-                const hasOutputForThisToolCallId = message.parts?.some((otherPart) => {
-                  if (isSkillCheckPart(otherPart)) {
-                    const otherSkillCheck = otherPart as SkillCheckToolPart;
-                    return (
-                      otherSkillCheck.toolCallId === skillCheckPart.toolCallId &&
-                      (otherSkillCheck.state === "result" ||
-                        otherSkillCheck.state === "output-available") &&
-                      ("output" in otherSkillCheck || "result" in otherSkillCheck)
-                    );
+                const hasOutputForThisToolCallId = message.parts?.some(
+                  (otherPart) => {
+                    if (isSkillCheckPart(otherPart)) {
+                      const otherSkillCheck = otherPart as SkillCheckToolPart;
+                      return (
+                        otherSkillCheck.toolCallId ===
+                          skillCheckPart.toolCallId &&
+                        otherSkillCheck.state === "output-available" &&
+                        ("output" in otherSkillCheck ||
+                          "result" in otherSkillCheck)
+                      );
+                    }
+                    return false;
                   }
-                  return false;
-                });
+                );
 
                 // Only show interactive if no output exists for this toolCallId
                 if (
