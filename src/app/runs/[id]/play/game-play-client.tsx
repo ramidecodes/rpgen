@@ -142,36 +142,59 @@ export function GamePlayClient({
           .then(({ scene }) => {
             if (scene) {
               setCurrentSceneState(scene);
+              currentSceneStateRef.current = scene;
               // Ensure pending state is cleared
               if (scene.imageUrl) {
                 setPendingSceneId(null);
               }
-            } else if (imageUrl) {
-              // If scene fetch fails but we have imageUrl, update current scene
-              setCurrentSceneState((prevScene) => {
-                if (prevScene && prevScene.id === sceneId) {
-                  return {
-                    ...prevScene,
-                    imageUrl,
-                  } as Scene;
-                }
-                return prevScene;
-              });
+            } else if (imageUrl && sceneId) {
+              // If scene fetch fails but we have imageUrl and sceneId, create scene object
+              // This handles the case where scene was just created and fetch hasn't caught up
+              const fallbackScene: Scene = {
+                id: sceneId,
+                runId: run.id,
+                sceneType: "environment",
+                imageUrl,
+                generationPrompt: "",
+                narrativeContext: "",
+                previousSceneId: null,
+                createdAt: new Date(),
+              };
+              setCurrentSceneState(fallbackScene);
+              currentSceneStateRef.current = fallbackScene;
               setPendingSceneId(null);
             }
           })
           .catch((error) => {
             console.error("Error fetching scene after SSE update:", error);
-            // Fallback: update imageUrl if we have it and it matches current scene
-            setCurrentSceneState((prevScene) => {
-              if (prevScene && prevScene.id === sceneId && imageUrl) {
-                return {
-                  ...prevScene,
-                  imageUrl,
-                } as Scene;
-              }
-              return prevScene;
-            });
+            // Fallback: if we have imageUrl and sceneId, create scene object
+            if (imageUrl && sceneId) {
+              const fallbackScene: Scene = {
+                id: sceneId,
+                runId: run.id,
+                sceneType: "environment",
+                imageUrl,
+                generationPrompt: "",
+                narrativeContext: "",
+                previousSceneId: null,
+                createdAt: new Date(),
+              };
+              setCurrentSceneState(fallbackScene);
+              currentSceneStateRef.current = fallbackScene;
+            } else {
+              // Update existing scene if it matches
+              setCurrentSceneState((prevScene) => {
+                if (prevScene && prevScene.id === sceneId && imageUrl) {
+                  const updated = {
+                    ...prevScene,
+                    imageUrl,
+                  } as Scene;
+                  currentSceneStateRef.current = updated;
+                  return updated;
+                }
+                return prevScene;
+              });
+            }
             setPendingSceneId(null);
           });
       } catch (error) {
@@ -293,11 +316,7 @@ export function GamePlayClient({
           localStorage.setItem(lastEventIdKey, eventId);
         }
         // Try to parse as JSON and handle based on data structure
-        const data = JSON.parse(event.data);
-        console.warn("[SSE] Received untyped event, using fallback handler", {
-          data,
-          eventId,
-        });
+        JSON.parse(event.data);
       } catch (error) {
         console.error("Error parsing untyped SSE event:", error);
       }
@@ -390,6 +409,7 @@ export function GamePlayClient({
                 <InputArea
                   onSendMessage={handleSendMessage}
                   isLoading={gameChat.isLoading}
+                  messages={gameChat.messages}
                 />
               </div>
             </div>

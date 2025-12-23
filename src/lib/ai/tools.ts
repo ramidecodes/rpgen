@@ -29,6 +29,69 @@ export const requestSkillCheckTool = tool({
   // No execute function - this is a HITL tool that requires client-side handling
 } as const);
 
+export const suggestActionsTool = tool({
+  description:
+    "Provide 2-3 contextually relevant action suggestions for the player. MANDATORY: Always call this tool immediately after formatNarrativeTool. Suggestions should be concise, actionable phrases that make narrative sense given the current situation. Required even after skill check results.",
+  inputSchema: z.object({
+    suggestions: z
+      .array(z.string())
+      .min(2)
+      .max(3)
+      .describe(
+        "Array of 2-3 suggested actions for the player. Each suggestion should be a concise, actionable phrase (e.g., 'Search the room for clues', 'Ask the merchant about the artifact', 'Attempt to pick the lock'). Suggestions should be contextually relevant to the current narrative moment."
+      ),
+  }),
+  execute: async ({ suggestions }: { suggestions: string[] }) => {
+    // Tool executes immediately and returns suggestions
+    // These will be included in the assistant message parts for client-side rendering
+    return {
+      success: true,
+      suggestions,
+      message: `Generated ${suggestions.length} action suggestions`,
+    };
+  },
+} as const);
+
+export const formatNarrativeTool = tool({
+  description:
+    "Format narrative content with clear separation between GM narration and character dialogs. Use this to structure your response for optimal readability. ALWAYS use this tool to format your narrative responses - do NOT output plain text narration.",
+  inputSchema: z.object({
+    narration: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        "Array of narration segments (GM descriptions, scene setting, action descriptions, etc.). Break narration into logical segments for better readability."
+      ),
+    dialogs: z
+      .array(
+        z.object({
+          character: z.string().describe("Character name speaking"),
+          dialogue: z.string().describe("What the character says"),
+        })
+      )
+      .optional()
+      .describe(
+        "Array of character dialogs, if any characters speak in this response"
+      ),
+  }),
+  execute: async ({
+    narration,
+    dialogs,
+  }: {
+    narration: string[];
+    dialogs?: Array<{ character: string; dialogue: string }>;
+  }) => {
+    // Tool executes immediately and returns structured data
+    // This will be included in the assistant message parts for client-side rendering
+    return {
+      success: true,
+      narration,
+      dialogs: dialogs || [],
+      message: "Narrative formatted successfully",
+    };
+  },
+} as const);
+
 // Factory function to create tools with state context and runId
 // runId is required for quest tools that need database access
 export function createGameMasterTools(state: CampaignState, runId: string) {
@@ -355,6 +418,7 @@ Prefer single updateQuest calls that update multiple fields when appropriate.`,
       },
     }),
     requestSkillCheck: requestSkillCheckTool, // HITL tool - no execute
+    suggestActions: suggestActionsTool, // Non-HITL tool - executes immediately
   };
 }
 
@@ -1183,7 +1247,8 @@ export function createGenerateSceneImageTool(runId: string) {
         }
 
         // Trigger non-blocking image generation with webhook
-        // Notify UI immediately that generation has started (before prediction call)
+        // Emit scene-generation-started with actual scene ID
+        // VEA's prepareStep should have already emitted a placeholder, but this confirms with real ID
         try {
           const { sseConnectionManager } = await import(
             "@/lib/sse/connection-manager"
@@ -1192,22 +1257,20 @@ export function createGenerateSceneImageTool(runId: string) {
             type: "scene-generation-started",
             data: {
               runId,
-              sceneId,
+              sceneId: newScene.id,
               narrativeContext,
+              placeholder: false,
             },
           });
         } catch (broadcastError) {
-          console.error(
-            "[Scene Generation] Failed to broadcast pending scene (tool)",
-            {
-              runId,
-              sceneId,
-              error:
-                broadcastError instanceof Error
-                  ? broadcastError.message
-                  : String(broadcastError),
-            }
-          );
+          console.error("[Scene Generation] Failed to broadcast scene start", {
+            runId,
+            sceneId,
+            error:
+              broadcastError instanceof Error
+                ? broadcastError.message
+                : String(broadcastError),
+          });
         }
 
         const predictionId = await createImagePrediction(
@@ -1224,33 +1287,6 @@ export function createGenerateSceneImageTool(runId: string) {
           .update(runs)
           .set({ currentSceneId: newScene.id })
           .where(eq(runs.id, runId));
-
-        // Notify subscribed clients that a new scene generation has started
-        try {
-          const { sseConnectionManager } = await import(
-            "@/lib/sse/connection-manager"
-          );
-          await sseConnectionManager.broadcast(runId, {
-            type: "scene-generation-started",
-            data: {
-              runId,
-              sceneId: newScene.id,
-              narrativeContext,
-            },
-          });
-        } catch (broadcastError) {
-          console.error(
-            "[Scene Generation] Failed to broadcast pending scene",
-            {
-              runId,
-              sceneId,
-              error:
-                broadcastError instanceof Error
-                  ? broadcastError.message
-                  : String(broadcastError),
-            }
-          );
-        }
 
         // Revalidate the play page to show the new scene (pending state)
         revalidatePath(`/runs/${runId}/play`);

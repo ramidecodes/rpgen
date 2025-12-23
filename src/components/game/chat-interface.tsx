@@ -13,14 +13,42 @@ import { useGameStore } from "@/lib/store/game-store";
 import { isSkillCheckPart, type SkillCheckToolPart } from "@/types/skill-check";
 import type { UIMessage } from "@/types/ui-message";
 import { D20Anime } from "@/components/hero/d20-anime";
+import {
+  isNarrativeToolPart,
+  extractNarrativeData,
+  type NarrativeToolPart,
+} from "@/types/narrative";
+import { NarrativeContent } from "@/components/game/narrative-content";
 
 type ChatInterfaceProps = {
   gameChat: ReturnType<typeof useGameChat>;
 };
 
 /**
+ * Check if text appears to be internal reasoning/thinking that should be filtered out
+ */
+function isReasoningText(text: string): boolean {
+  const reasoningPatterns = [
+    /^looking at/i,
+    /^i think/i,
+    /^to be safe/i,
+    /^since the/i,
+    /^assume/i,
+    /^for this thinking/i,
+    /^now, for this/i,
+    /^the system handles/i,
+    /^the instruction is/i,
+    /^no, the/i,
+    /^but after/i,
+  ];
+  return reasoningPatterns.some((pattern) => pattern.test(text.trim()));
+}
+
+/**
  * Extract visible narration from a UIMessage following AI SDK v6 patterns.
  * AI SDK v6 uses parts array exclusively - extract text parts only.
+ * Also checks for structured narrative data from formatNarrativeTool.
+ * Combines ALL narrative tool calls and text parts in the message.
  * Returns both the narration string (or null) and a boolean indicating
  * whether the message has any visible content.
  */
@@ -28,7 +56,22 @@ function extractNarration(message: UIMessage): {
   narration: string | null;
   hasVisibleContent: boolean;
 } {
-  // Collect all non-empty text parts from message.parts (AI SDK v6 format)
+  // Collect ALL narrative tool parts and combine them
+  const allNarration: string[] = [];
+  if (message.parts && Array.isArray(message.parts)) {
+    for (const part of message.parts) {
+      if (isNarrativeToolPart(part)) {
+        const extracted = extractNarrativeData(part as NarrativeToolPart);
+        if (extracted && extracted.narration.length > 0) {
+          // Combine narration arrays from all tool calls
+          allNarration.push(...extracted.narration);
+        }
+      }
+    }
+  }
+
+  // Also collect text parts (they may come after tool calls)
+  // Filter out reasoning text that shouldn't be displayed
   const textParts: string[] = [];
   if (message.parts && Array.isArray(message.parts)) {
     for (const part of message.parts) {
@@ -38,15 +81,34 @@ function extractNarration(message: UIMessage): {
         typeof part.text === "string" &&
         part.text.trim().length > 0
       ) {
-        textParts.push(part.text);
+        // Filter out reasoning text
+        if (!isReasoningText(part.text)) {
+          textParts.push(part.text.trim());
+        }
       }
     }
   }
 
-  // Return narration from text parts
-  if (textParts.length > 0) {
+  // Combine: narrative from tools + text parts
+  // Deduplicate narration segments (normalize and compare)
+  const combinedNarration = [...allNarration, ...textParts];
+  const normalizedNarration = combinedNarration.map((text) =>
+    text.trim().toLowerCase().replace(/\s+/g, " ")
+  );
+  const uniqueNarration: string[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < combinedNarration.length; i++) {
+    const normalized = normalizedNarration[i];
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      uniqueNarration.push(combinedNarration[i]);
+    }
+  }
+
+  if (uniqueNarration.length > 0) {
     return {
-      narration: textParts.join("\n\n"),
+      narration: uniqueNarration.join("\n\n"),
       hasVisibleContent: true,
     };
   }
@@ -147,8 +209,18 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             // This prevents showing an empty card while the loader is displayed
             if (message.role === "assistant" && isLoading) {
               const { hasVisibleContent } = extractNarration(message);
-              // Check if message has any visible tool parts (like skill checks)
+              // Check if message has any visible tool parts (like skill checks, narrative tools)
               const hasVisibleToolParts = message.parts?.some((part) => {
+                // Check for narrative tool parts
+                if (isNarrativeToolPart(part)) {
+                  const extracted = extractNarrativeData(
+                    part as NarrativeToolPart
+                  );
+                  if (extracted && extracted.narration.length > 0) {
+                    return true;
+                  }
+                }
+                // Check for skill check parts
                 if (isSkillCheckPart(part)) {
                   const skillCheckPart = part as SkillCheckToolPart;
                   // Show if it's in input-available state (needs user interaction)
@@ -176,11 +248,94 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
           .map((message) => {
             const isUser = message.role === "user";
 
-            // Extract narration using the shared helper
+            // Check for structured narrative data from formatNarrativeTool
+            // Collect ALL narrative tool parts and combine them
+            const allNarration: string[] = [];
+            const allDialogs: Array<{ character: string; dialogue: string }> =
+              [];
+
+            if (message.parts && Array.isArray(message.parts)) {
+              // First pass: collect narrative data from formatNarrativeTool parts
+              for (const part of message.parts) {
+                // Skip internal metadata parts (step-start, reasoning, etc.)
+                if (
+                  part.type === "step-start" ||
+                  part.type === "reasoning" ||
+                  (typeof part.type === "string" && part.type.startsWith("step-"))
+                ) {
+                  continue;
+                }
+
+                if (isNarrativeToolPart(part)) {
+                  const extracted = extractNarrativeData(
+                    part as NarrativeToolPart
+                  );
+                  if (extracted) {
+                    // Combine narration arrays from all tool calls
+                    if (extracted.narration && extracted.narration.length > 0) {
+                      allNarration.push(...extracted.narration);
+                    }
+                    // Combine dialog arrays from all tool calls
+                    if (extracted.dialogs && extracted.dialogs.length > 0) {
+                      allDialogs.push(...extracted.dialogs);
+                    }
+                  }
+                }
+              }
+
+              // Also collect text parts (they may come after tool calls)
+              // Filter out reasoning text that shouldn't be displayed
+              for (const part of message.parts) {
+                if (
+                  part.type === "text" &&
+                  "text" in part &&
+                  typeof part.text === "string" &&
+                  part.text.trim().length > 0
+                ) {
+                  // Filter out reasoning text
+                  if (!isReasoningText(part.text)) {
+                    allNarration.push(part.text.trim());
+                  }
+                }
+              }
+            }
+
+            // Deduplicate narration segments (normalize and compare)
+            const normalizedNarration = allNarration.map((text) =>
+              text.trim().toLowerCase().replace(/\s+/g, " ")
+            );
+            const uniqueNarration: string[] = [];
+            const seen = new Set<string>();
+
+            for (let i = 0; i < allNarration.length; i++) {
+              const normalized = normalizedNarration[i];
+              if (!seen.has(normalized)) {
+                seen.add(normalized);
+                uniqueNarration.push(allNarration[i]);
+              }
+            }
+
+            // Create narrative data if we have any content
+            const narrativeData: {
+              narration: string[];
+              dialogs?: Array<{ character: string; dialogue: string }>;
+            } | null =
+              uniqueNarration.length > 0
+                ? {
+                    narration: uniqueNarration,
+                    dialogs: allDialogs.length > 0 ? allDialogs : undefined,
+                  }
+                : null;
+
+            // Extract narration using the shared helper (fallback for old messages)
             const { narration } = extractNarration(message);
 
             // Render tool UI parts (skill checks, etc.) separately from narration
             const renderedToolParts = message.parts?.map((part, _i) => {
+              // Skip narrative tool parts - they're rendered separately
+              if (isNarrativeToolPart(part)) {
+                return null;
+              }
               // Render skill check as a custom typed part
               if (isSkillCheckPart(part)) {
                 const skillCheckPart = part as SkillCheckToolPart;
@@ -349,12 +504,18 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                   )}
                 >
                   <CardContent className="p-4">
-                    {narration && (
-                      <div className="prose prose-sm dark:prose-invert max-w-none wrap-break-words prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-strong:font-semibold prose-em:italic prose-code:text-xs prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-li:leading-relaxed prose-a:text-primary prose-a:underline hover:prose-a:text-primary/80 text-sm">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {narration}
-                        </ReactMarkdown>
-                      </div>
+                    {/* Render structured narrative if available */}
+                    {narrativeData ? (
+                      <NarrativeContent data={narrativeData} />
+                    ) : (
+                      /* Fallback to plain text narration for old messages */
+                      narration && (
+                        <div className="prose prose-base dark:prose-invert max-w-none wrap-break-words prose-p:my-4 prose-p:leading-relaxed prose-headings:my-4 prose-headings:font-semibold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-strong:font-semibold prose-em:italic prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-ul:my-3 prose-ol:my-3 prose-li:my-2 prose-li:leading-relaxed prose-a:text-primary prose-a:underline hover:prose-a:text-primary/80 text-base leading-relaxed">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {narration}
+                          </ReactMarkdown>
+                        </div>
+                      )
                     )}
 
                     {renderedToolParts}

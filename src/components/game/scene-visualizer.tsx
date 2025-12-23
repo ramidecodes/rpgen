@@ -40,6 +40,8 @@ export function SceneVisualizer({
 
   // Check if this scene is pending generation
   const isPending = Boolean(pendingSceneId);
+  // const isPending = true;
+
   const pendingCardClass = cn(className, isPending && "relative");
 
   const renderWrapper = (
@@ -51,15 +53,16 @@ export function SceneVisualizer({
       return (
         <div
           className={cn(
-            "relative h-full w-full overflow-hidden rounded-xl bg-muted",
+            "relative h-full w-full rounded-xl bg-muted",
+            isPending ? "overflow-visible" : "overflow-hidden",
             className,
             containerClassName
           )}
         >
           {isPending && (
-            <div className="pointer-events-none absolute inset-0 rounded-xl border-2 border-primary/50 animate-pulse" />
+            <div className="pointer-events-none absolute inset-2 rounded-xl glow-pulse-inset z-10" />
           )}
-          <div className="flex h-full flex-col gap-2">
+          <div className="flex h-full flex-col gap-2 overflow-hidden rounded-xl">
             <div className="relative flex-1">{body}</div>
             {metadata}
           </div>
@@ -68,9 +71,9 @@ export function SceneVisualizer({
     }
 
     return (
-      <Card className={pendingCardClass}>
+      <Card className={cn(pendingCardClass, isPending && "overflow-visible")}>
         {isPending && (
-          <div className="pointer-events-none absolute inset-0 rounded-lg border-2 border-primary/50 animate-pulse" />
+          <div className="pointer-events-none absolute inset-2 rounded-lg glow-pulse-inset z-10" />
         )}
         <CardContent className="space-y-3 pt-6">
           {body}
@@ -161,55 +164,67 @@ export function SceneVisualizer({
   }
 
   return renderWrapper(
-    <div className="relative h-full min-h-[260px] w-full overflow-hidden rounded-xl bg-muted">
-      {!imageLoaded && (
-        <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
+    <div
+      className={cn(
+        "relative h-full min-h-[260px] w-full rounded-xl bg-muted",
+        isPending ? "overflow-visible" : "overflow-hidden"
       )}
-      <Image
-        src={scene.imageUrl}
-        alt="Current scene"
-        fill
-        className={cn(
-          "object-cover transition-opacity duration-300",
-          imageLoaded ? "opacity-100" : "opacity-0"
+    >
+      {isPending && (
+        <div className="pointer-events-none absolute rounded-xl glow-pulse-inset z-20" />
+      )}
+      <div className="relative h-full min-h-[260px] w-full overflow-hidden rounded-xl">
+        {!imageLoaded && (
+          <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
         )}
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-      />
+        <Image
+          src={scene.imageUrl}
+          alt="Current scene"
+          fill
+          className={cn(
+            "object-cover transition-opacity duration-300",
+            imageLoaded ? "opacity-100" : "opacity-0"
+          )}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
 
-      {/* Zoom Button */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="absolute right-2 top-2 opacity-75 hover:opacity-100"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="max-w-4xl">
-          <DialogTitle className="sr-only">Scene Image - Full Size</DialogTitle>
-          <div className="relative aspect-video">
-            <Image
-              src={scene.imageUrl}
-              alt="Current scene - full size"
-              fill
-              className="object-contain"
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              sizes="100vw"
-            />
+        {/* Zoom Button */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute right-2 top-2 opacity-75 hover:opacity-100"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl">
+            <DialogTitle className="sr-only">
+              Scene Image - Full Size
+            </DialogTitle>
+            <div className="relative aspect-video">
+              <Image
+                src={scene.imageUrl}
+                alt="Current scene - full size"
+                fill
+                className="object-contain"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                sizes="100vw"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {fullBleed ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
+            <p className="line-clamp-2">{scene.narrativeContext}</p>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {fullBleed ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent p-4 text-xs text-white">
-          <p className="line-clamp-2">{scene.narrativeContext}</p>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>,
     !fullBleed ? (
       <div className="space-y-1 text-xs text-muted-foreground">

@@ -48,6 +48,7 @@
   --animate-particle-glow: particle-glow 3s ease-in-out infinite;
   --animate-circuit-pulse: circuit-pulse 2s ease-in-out infinite;
   --animate-floating-rune: floating-rune 10s ease-in-out infinite;
+  --animate-border-glow-pulse: border-glow-pulse 2s ease-in-out infinite;
 
   @keyframes accordion-down {
     from {
@@ -191,6 +192,42 @@
     75% {
       transform: translateY(-15px) translateX(-10px) rotate(-5deg);
       opacity: 0.7;
+    }
+  }
+
+  /* Border glow pulse animation */
+  @keyframes border-glow-pulse {
+    0%,
+    100% {
+      border-color: hsl(var(--glow) / 0.6);
+      box-shadow:
+        0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
+        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3)),
+        0 0 24px hsl(var(--glow) / calc(var(--glow-opacity) * 0.2));
+    }
+    50% {
+      border-color: hsl(var(--glow) / 1);
+      box-shadow:
+        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
+        0 0 32px hsl(var(--glow) / calc(var(--glow-opacity) * 0.6)),
+        0 0 48px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4));
+    }
+  }
+
+  /* Glow pulse inset animation (box-shadow only, no border) */
+  @keyframes glow-pulse-inset {
+    0%,
+    100% {
+      box-shadow:
+        0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
+        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3)),
+        0 0 24px hsl(var(--glow) / calc(var(--glow-opacity) * 0.2));
+    }
+    50% {
+      box-shadow:
+        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
+        0 0 32px hsl(var(--glow) / calc(var(--glow-opacity) * 0.6)),
+        0 0 48px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4));
     }
   }
 }
@@ -363,6 +400,23 @@
   box-shadow:
     0 0 10px hsl(var(--glow) / var(--glow-opacity)),
     0 0 20px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3));
+}
+
+@utility animate-border-glow-pulse {
+  border: 2px solid hsl(var(--glow) / 0.6);
+  animation: border-glow-pulse 2s ease-in-out infinite;
+}
+
+/* Border glow pulse class for scene visualizer */
+@layer utilities {
+  .border-glow-pulse {
+    border: 1px solid hsl(var(--glow) / 0.6);
+    animation: border-glow-pulse 2s ease-in-out infinite;
+  }
+
+  .glow-pulse-inset {
+    animation: glow-pulse-inset 2s ease-in-out infinite;
+  }
 }
 
 @utility arcane-glow {

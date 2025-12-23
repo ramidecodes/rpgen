@@ -24,6 +24,11 @@ import {
 } from "@/agents/visual-engine";
 import type { UIMessage, UIMessagePart } from "@/types/ui-message";
 import { isTextUIPart, isToolUIPart } from "@/types/ui-message";
+import {
+  isNarrativeToolPart,
+  extractNarrativeData,
+  type NarrativeToolPart,
+} from "@/types/narrative";
 import type { CampaignState, KnowledgeGraph } from "@/lib/db/schemas/campaign";
 import type { Run, Character, Campaign, Universe } from "@/lib/db/schema";
 import { sseConnectionManager } from "@/lib/sse/connection-manager";
@@ -56,6 +61,12 @@ export async function POST(req: Request) {
     }
 
     const { messages: incomingMessages, runId } = requestBody;
+
+    console.log("[API] Received request:", {
+      runId,
+      incomingMessagesCount: incomingMessages?.length || 0,
+      lastMessage: incomingMessages?.[incomingMessages.length - 1],
+    });
 
     // Validate runId
     if (!runId || typeof runId !== "string") {
@@ -173,8 +184,21 @@ export async function POST(req: Request) {
     // Deduplication already filtered out duplicates, so we can persist directly
     const lastUserMessage = findLastMeaningfulUserMessage(deduplicatedIncoming);
 
+    console.log("[API] Message processing:", {
+      deduplicatedIncomingCount: deduplicatedIncoming.length,
+      lastUserMessage: lastUserMessage
+        ? {
+            role: lastUserMessage.role,
+            hasParts: !!lastUserMessage.parts,
+            partsCount: lastUserMessage.parts?.length || 0,
+            isWhitespaceOnly: isWhitespaceOnlyMessage(lastUserMessage),
+          }
+        : null,
+    });
+
     if (lastUserMessage && !isWhitespaceOnlyMessage(lastUserMessage)) {
       await persistMessage(run.id, lastUserMessage);
+      console.log("[API] Persisted user message:", lastUserMessage.id || "new");
     }
 
     // CRITICAL: Merge tool results from incomingMessages into storedMessages in-memory
@@ -185,11 +209,88 @@ export async function POST(req: Request) {
       deduplicatedIncoming
     );
 
-    // Now combine - no duplicates possible, tool results already merged
+    // CRITICAL: Only include NEW incoming messages (user messages and tool results)
+    // Filter out any incoming messages that are already in messagesWithToolResults
+    // This prevents duplicate assistant messages from being sent to the agent
+    const newIncomingMessages = deduplicatedIncoming.filter((incoming) => {
+      // Always include user messages (they're new actions)
+      if (incoming.role === "user") {
+        return true;
+      }
+
+      // For assistant messages, only include if they contain tool results that aren't already merged
+      if (incoming.role === "assistant" && Array.isArray(incoming.parts)) {
+        // Check if this message has tool results that aren't in messagesWithToolResults
+        const hasNewToolResults = incoming.parts.some((part) => {
+          if (!isToolUIPart(part)) {
+            return false;
+          }
+          const toolPart = part as {
+            toolCallId?: string;
+            state?: string;
+            output?: unknown;
+            result?: unknown;
+          };
+          // Only include if it has output and isn't already in messagesWithToolResults
+          const hasOutput =
+            toolPart.output !== undefined || toolPart.result !== undefined;
+          const hasValidState =
+            toolPart.state === "output-available" ||
+            toolPart.state === "result";
+          if (hasOutput && hasValidState && toolPart.toolCallId) {
+            // Check if this toolCallId is already in messagesWithToolResults
+            const alreadyMerged = messagesWithToolResults.some((msg) => {
+              if (
+                msg.role !== "assistant" ||
+                !msg.parts ||
+                !Array.isArray(msg.parts)
+              ) {
+                return false;
+              }
+              return msg.parts.some((p) => {
+                if (!isToolUIPart(p)) {
+                  return false;
+                }
+                const pTyped = p as { toolCallId?: string };
+                return pTyped.toolCallId === toolPart.toolCallId;
+              });
+            });
+            return !alreadyMerged;
+          }
+          return false;
+        });
+        return hasNewToolResults;
+      }
+
+      // Exclude other assistant messages (they're already in messagesWithToolResults)
+      return false;
+    });
+
+    // Combine messages: stored messages with merged tool results + only new incoming messages
     let processedMessages = prepareMessagesForModel([
       ...messagesWithToolResults,
-      ...deduplicatedIncoming,
+      ...newIncomingMessages,
     ]);
+
+    // CRITICAL: Deduplicate assistant messages to prevent repetitive responses
+    // Keep only the most recent assistant message for each unique content
+    processedMessages = deduplicateAssistantMessages(processedMessages);
+
+    console.log("[API] Prepared messages:", {
+      storedMessagesCount: storedMessages.length,
+      messagesWithToolResultsCount: messagesWithToolResults.length,
+      deduplicatedIncomingCount: deduplicatedIncoming.length,
+      processedMessagesCount: processedMessages.length,
+      lastProcessedMessage: processedMessages[processedMessages.length - 1]
+        ? {
+            role: processedMessages[processedMessages.length - 1].role,
+            hasParts: !!processedMessages[processedMessages.length - 1].parts,
+            partsCount:
+              processedMessages[processedMessages.length - 1].parts?.length ||
+              0,
+          }
+        : null,
+    });
 
     // CRITICAL: Ensure processedMessages is never empty
     // createAgentUIStreamResponse requires at least one message
@@ -242,6 +343,36 @@ export async function POST(req: Request) {
       activeQuests, // Read-only quest context for narrative awareness
     });
 
+    // Log message details for debugging
+    const lastMessage = processedMessages[processedMessages.length - 1];
+    const lastUserMessageIndex = processedMessages
+      .map((m, i) => (m.role === "user" ? i : -1))
+      .filter((i) => i !== -1)
+      .pop();
+    const lastUserMessageInProcessed =
+      lastUserMessageIndex !== undefined
+        ? processedMessages[lastUserMessageIndex]
+        : null;
+
+    console.log("[API] Creating agent response:", {
+      processedMessagesCount: processedMessages.length,
+      agentType: "ToolLoopAgent",
+      lastMessageRole: lastMessage?.role,
+      lastMessageHasParts: !!lastMessage?.parts,
+      lastMessagePartsCount: lastMessage?.parts?.length || 0,
+      lastMessageParts: lastMessage?.parts?.map((p) => ({
+        type: p.type,
+        hasText: "text" in p,
+        textPreview:
+          "text" in p ? (p.text as string).substring(0, 50) : undefined,
+      })),
+      lastUserMessageIndex,
+      lastUserMessageRole: lastUserMessageInProcessed?.role,
+      lastUserMessageText: lastUserMessageInProcessed?.parts
+        ?.filter((p) => p.type === "text" && "text" in p)
+        .map((p) => (p as { text: string }).text.substring(0, 100)),
+    });
+
     // Create the streaming response
     const response = createAgentUIStreamResponse({
       agent: gma.getAgent() as unknown as Agent<
@@ -251,6 +382,10 @@ export async function POST(req: Request) {
       >,
       uiMessages: processedMessages,
       onFinish: async (result) => {
+        console.log("[API] Agent finished:", {
+          hasResponseMessage: !!result.responseMessage,
+          responseMessageParts: result.responseMessage?.parts?.length || 0,
+        });
         // Process incomingMessages for tool-result parts for DB persistence
         // Note: Tool results were already merged in-memory before agent execution
         // (see mergeToolResultsIntoMessages call above) so the agent could see them.
@@ -332,6 +467,84 @@ function prepareMessagesForModel(messages: UIMessage[]): UIMessage[] {
 }
 
 /**
+ * Deduplicate assistant messages to prevent repetitive responses
+ * Keeps only the most recent assistant message when multiple have similar content
+ * This prevents the agent from seeing duplicate assistant messages and repeating itself
+ */
+function deduplicateAssistantMessages(messages: UIMessage[]): UIMessage[] {
+  const deduplicated: UIMessage[] = [];
+  const seenAssistantContent = new Set<string>();
+
+  // Process messages in reverse order (most recent first) to keep latest versions
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+
+    if (msg.role !== "assistant") {
+      // Always keep non-assistant messages
+      deduplicated.unshift(msg);
+      continue;
+    }
+
+    // For assistant messages, create a content signature
+    const contentSignature = createMessageContentSignature(msg);
+    if (!seenAssistantContent.has(contentSignature)) {
+      seenAssistantContent.add(contentSignature);
+      deduplicated.unshift(msg);
+    } else {
+      console.log(
+        `[API] Filtered duplicate assistant message with signature: ${contentSignature.substring(
+          0,
+          50
+        )}...`
+      );
+    }
+  }
+
+  return deduplicated;
+}
+
+/**
+ * Create a content signature for a message to detect duplicates
+ * Normalizes the message content for comparison
+ */
+function createMessageContentSignature(message: UIMessage): string {
+  if (!Array.isArray(message.parts)) {
+    return `empty-${message.id || "no-id"}`;
+  }
+
+  // Extract and normalize text from narrative tool parts
+  const narrativeTexts: string[] = [];
+  const dialogTexts: string[] = [];
+
+  for (const part of message.parts) {
+    if (isNarrativeToolPart(part)) {
+      const extracted = extractNarrativeData(part as NarrativeToolPart);
+      if (extracted) {
+        narrativeTexts.push(
+          ...extracted.narration.map((n) => n.trim().toLowerCase())
+        );
+        if (extracted.dialogs) {
+          dialogTexts.push(
+            ...extracted.dialogs.map((d) =>
+              `${d.character}:${d.dialogue}`.trim().toLowerCase()
+            )
+          );
+        }
+      }
+    } else if (isTextUIPart(part)) {
+      const text = part.text.trim().toLowerCase();
+      if (text.length > 0) {
+        narrativeTexts.push(text);
+      }
+    }
+  }
+
+  // Create signature from normalized content
+  const allTexts = [...narrativeTexts, ...dialogTexts].sort().join("|");
+  return `${message.role}-${allTexts.length > 0 ? allTexts : "empty"}`;
+}
+
+/**
  * Convert UIMessage[] to CoreMessage[] format for model input
  * Extracts text from text parts and filters non-standard parts
  * This is needed when passing messages to ToolLoopAgent.generate() which expects CoreMessage[] with content field
@@ -360,9 +573,27 @@ function convertUIMessagesToCoreMessages(
         }
       }
 
+      // Also extract text from formatNarrativeTool parts
+      // This handles the new structured narrative format
+      const narrativeTextParts: string[] = [];
+      if (Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (isNarrativeToolPart(part)) {
+            const extracted = extractNarrativeData(part as NarrativeToolPart);
+            if (extracted && extracted.narration.length > 0) {
+              // Join all narration segments with spaces
+              narrativeTextParts.push(...extracted.narration);
+            }
+          }
+        }
+      }
+
+      // Combine text parts and narrative text parts
+      const allTextParts = [...textParts, ...narrativeTextParts];
+
       return {
         role: msg.role as "system" | "user" | "assistant",
-        content: textParts.join(" ").trim() || "", // Join text parts, fallback to empty string
+        content: allTextParts.join(" ").trim() || "", // Join all parts, fallback to empty string
       };
     })
     .filter((msg) => msg.content.length > 0); // Remove empty messages
