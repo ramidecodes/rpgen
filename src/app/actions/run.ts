@@ -118,7 +118,7 @@ export async function createRun(data: CreateRunInput) {
     );
   }
 
-  redirect(`/runs/${newRun.id}`);
+  redirect(`/runs/${newRun.id}/play`);
 }
 
 export async function deleteRun(runId: string) {
