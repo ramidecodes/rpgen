@@ -2,7 +2,7 @@
 
 ## 1) Context & Goal
 
-- AI SDK v6 beta with OpenAI via OpenRouter occasionally returns 400 “Duplicate item found … toolCallId”.
+- AI SDK v6 with OpenAI via OpenRouter occasionally returns 400 "Duplicate item found … toolCallId".
 - Root cause: multiple occurrences of the same `toolCallId` across the request payload (not just within a single message), often from re-sending historical tool-call parts alongside newer tool results.
 - Goal: guarantee a provider-safe payload where each `toolCallId` appears at most once as a tool-call and once as a tool-result, while preserving HITL flows.
 

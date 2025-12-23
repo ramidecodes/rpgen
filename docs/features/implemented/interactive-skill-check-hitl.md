@@ -241,7 +241,7 @@
 
 - **Dependencies**:
 
-  - AI SDK v6 (`ai` package, beta version)
+  - AI SDK v6 (`ai` package, stable version)
   - `@ai-sdk/react` for `useChat` hook
   - Existing `SkillCheckInteractive` component
   - Existing `D20Anime` component

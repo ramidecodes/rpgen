@@ -1,9 +1,9 @@
 ---
-description: Canonical AI SDK v6 (beta) usage and HITL tooling patterns for this project
+description: Canonical AI SDK v6 usage and HITL tooling patterns for this project
 alwaysApply: false
 ---
 
-# AI SDK v6 (Beta) & HITL Usage Rule
+# AI SDK v6 & HITL Usage Rule
 
 ## When to Apply This Rule
 
