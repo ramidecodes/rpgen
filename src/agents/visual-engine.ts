@@ -10,6 +10,11 @@ import type { CampaignState } from "@/lib/db/schemas/campaign";
 import type { Character, Universe, Campaign, Scene } from "@/lib/db/schema";
 import type { UIMessage } from "@/types/ui-message";
 import { isTextUIPart } from "@/types/ui-message";
+import {
+  isNarrativeToolPart,
+  extractNarrativeData,
+  type NarrativeToolPart,
+} from "@/types/narrative";
 
 // ============================================================================
 // Types
@@ -266,6 +271,17 @@ export function hasNarrativeText(messages: UIMessage[]): boolean {
       const text = part.text.trim();
       // If we find at least one non-empty text part, there's narrative text
       if (text.length > 0) {
+        return true;
+      }
+    }
+  }
+
+  // Also check for formatNarrativeTool parts
+  // This handles the new structured narrative format
+  for (const part of lastAssistantMessage.parts) {
+    if (isNarrativeToolPart(part)) {
+      const extracted = extractNarrativeData(part as NarrativeToolPart);
+      if (extracted && extracted.narration.length > 0) {
         return true;
       }
     }

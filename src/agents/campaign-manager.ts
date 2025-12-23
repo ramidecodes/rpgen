@@ -12,8 +12,11 @@ import { isTextUIPart } from "@/types/ui-message";
 
 export type GameMasterTools = ReturnType<typeof createGameMasterTools>;
 
-// CMA has all state-mutating tools (no HITL tools)
-export type CampaignManagerTools = Omit<GameMasterTools, "requestSkillCheck">;
+// CMA has all state-mutating tools (no HITL tools, no UI-facing tools)
+export type CampaignManagerTools = Omit<
+  GameMasterTools,
+  "requestSkillCheck" | "suggestActions" | "formatNarrative"
+>;
 
 // ============================================================================
 // Types
