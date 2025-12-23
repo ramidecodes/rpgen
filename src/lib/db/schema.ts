@@ -11,6 +11,7 @@ import {
   integer,
   foreignKey,
 } from "drizzle-orm/pg-core";
+
 export const userProfiles = pgTable(
   "user_profiles",
   {

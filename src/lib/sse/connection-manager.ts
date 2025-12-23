@@ -45,12 +45,6 @@ class SSEConnectionManager {
       runConnections.push(connection);
     }
 
-    console.log("[SSE] Connection added", {
-      connectionId,
-      runId,
-      totalConnections: runConnections?.length || 0,
-    });
-
     return connectionId;
   }
 
@@ -63,11 +57,6 @@ class SSEConnectionManager {
       const index = connections.findIndex((c) => c.id === connectionId);
       if (index >= 0) {
         connections.splice(index, 1);
-        console.log("[SSE] Connection removed", {
-          connectionId,
-          runId,
-          remainingConnections: connections.length,
-        });
 
         // Clean up empty run entries
         if (connections.length === 0) {
@@ -136,14 +125,15 @@ class SSEConnectionManager {
     });
 
     // Use stored event ID, or fallback to timestamp-based ID if storage failed
-    const eventId = storedEvent?.id || `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const eventId =
+      storedEvent?.id ||
+      `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
     // Format event in proper SSE format
     const sseFormattedEvent = `id: ${eventId}\nevent: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`;
 
     const connections = this.connections.get(runId);
     if (!connections || connections.length === 0) {
-      console.log("[SSE] No connections to broadcast to", { runId });
       return;
     }
 
@@ -169,15 +159,6 @@ class SSEConnectionManager {
     for (const connectionId of deadConnections) {
       this.removeConnection(connectionId);
     }
-
-    console.log("[SSE] Event broadcasted", {
-      runId,
-      eventType: event.type,
-      eventId,
-      sentTo: connections.length - deadConnections.length,
-      failed: deadConnections.length,
-      stored: storedEvent !== null,
-    });
   }
 
   /**

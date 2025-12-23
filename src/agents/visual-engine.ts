@@ -76,7 +76,7 @@ export function createVisualEngineAgent(
   // Create tools with runId bound directly at creation time
   const tools = createVisualEngineTools(options.runId, options);
 
-  // Track whether a start signal has been emitted this cycle
+  // Track whether a start signal has been emitted this execution
   let hasEmittedStart = false;
   const emitStart = async (sceneId?: string) => {
     if (hasEmittedStart) return;
@@ -121,13 +121,18 @@ export function createVisualEngineAgent(
       stepCountIs(4),
     ],
 
-    // Emit start when tools sequence begins
+    // Emit start when generateSceneImage is called (definitive signal that generation is happening)
+    // prepareStep is called before tool execution, so we can't check tool results here
+    // We emit when generateSceneImage is called, which is the reliable trigger
     prepareStep: async (context) => {
       const lastStep = context.steps[context.steps.length - 1];
       const toolName = lastStep?.toolCalls?.[0]?.toolName;
-      if (!hasEmittedStart && toolName) {
+
+      // Emit when generateSceneImage is called - this is the definitive signal
+      if (!hasEmittedStart && toolName === "generateSceneImage") {
         await emitStart();
       }
+
       return {};
     },
   });

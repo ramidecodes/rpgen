@@ -24,7 +24,7 @@ export function useGameChat({ runId, messages = [] }: UseGameChatOptions) {
       },
     }) as never,
     messages: messages as never, // AI SDK v6 uses 'messages' instead of 'initialMessages'
-    // Type assertions needed due to version mismatch between AI SDK v6 beta and @ai-sdk/react v2
+    // Type assertions needed for UIMessage compatibility
   });
 
   const { addToolOutput, sendMessage } = chat;

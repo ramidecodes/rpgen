@@ -95,10 +95,6 @@ export async function GET(
               .limit(100); // Prevent sending too many events on reconnect
           } else {
             // Invalid lastEventId - send recent events as fallback
-            console.log("[SSE] Invalid lastEventId, sending recent events", {
-              runId,
-              lastEventId: lastEventIdParam,
-            });
             missedEvents = await db
               .select({
                 id: sseEvents.id,
@@ -113,10 +109,6 @@ export async function GET(
           }
         } else {
           // Invalid UUID format - send recent events as fallback
-          console.log("[SSE] Invalid UUID format for lastEventId", {
-            runId,
-            lastEventId: lastEventIdParam,
-          });
           missedEvents = await db
             .select({
               id: sseEvents.id,
