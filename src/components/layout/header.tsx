@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 
 const navItems = [
-  { href: "/", label: "Home" },
   { href: "/universes", label: "Universes" },
   { href: "/characters", label: "Characters" },
   { href: "/campaigns", label: "Campaigns" },
@@ -59,7 +58,12 @@ export function Header() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <SignedOut>
-            <Button asChild variant="ghost" size="default" className="font-semibold">
+            <Button
+              asChild
+              variant="ghost"
+              size="default"
+              className="font-semibold"
+            >
               <Link href="/sign-in">Sign In</Link>
             </Button>
             <Button asChild size="default" className="font-semibold">
