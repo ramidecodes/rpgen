@@ -44,10 +44,7 @@ export async function POST(req: Request) {
 
     const userProfile = await getUserProfileByClerkId(clerkUserId);
     if (!userProfile) {
-      console.error(
-        "[API] User profile not found for clerkUserId:",
-        clerkUserId
-      );
+      console.error("[API] User profile not found");
       return new Response("User profile not found", { status: 404 });
     }
 
@@ -62,15 +59,9 @@ export async function POST(req: Request) {
 
     const { messages: incomingMessages, runId } = requestBody;
 
-    console.log("[API] Received request:", {
-      runId,
-      incomingMessagesCount: incomingMessages?.length || 0,
-      lastMessage: incomingMessages?.[incomingMessages.length - 1],
-    });
-
     // Validate runId
     if (!runId || typeof runId !== "string") {
-      console.error("[API] Invalid runId:", runId);
+      console.error("[API] Invalid runId");
       return new Response("runId is required and must be a string", {
         status: 400,
       });
@@ -78,7 +69,7 @@ export async function POST(req: Request) {
 
     // Validate messages
     if (!incomingMessages || !Array.isArray(incomingMessages)) {
-      console.error("[API] Invalid messages:", incomingMessages);
+      console.error("[API] Invalid messages");
       return new Response("messages is required and must be an array", {
         status: 400,
       });
@@ -88,13 +79,13 @@ export async function POST(req: Request) {
     for (let i = 0; i < incomingMessages.length; i++) {
       const msg = incomingMessages[i];
       if (!msg || typeof msg !== "object") {
-        console.error(`[API] Invalid message at index ${i}:`, msg);
+        console.error(`[API] Invalid message at index ${i}`);
         return new Response(`Invalid message structure at index ${i}`, {
           status: 400,
         });
       }
       if (!("role" in msg) || typeof msg.role !== "string") {
-        console.error(`[API] Message at index ${i} missing role:`, msg);
+        console.error(`[API] Message at index ${i} missing role`);
         return new Response(
           `Message at index ${i} missing required 'role' field`,
           { status: 400 }
@@ -118,7 +109,7 @@ export async function POST(req: Request) {
       .limit(1);
 
     if (!runData) {
-      console.error("[API] Run not found:", runId);
+      console.error("[API] Run not found");
       return new Response("Run not found", { status: 404 });
     }
 
@@ -126,12 +117,7 @@ export async function POST(req: Request) {
 
     // Verify ownership
     if (run.userId !== userProfile.id) {
-      console.error(
-        "[API] Unauthorized: Run userId",
-        run.userId,
-        "does not match userProfile.id",
-        userProfile.id
-      );
+      console.error("[API] Unauthorized: Run ownership mismatch");
       return new Response("Unauthorized", { status: 403 });
     }
 
@@ -184,21 +170,8 @@ export async function POST(req: Request) {
     // Deduplication already filtered out duplicates, so we can persist directly
     const lastUserMessage = findLastMeaningfulUserMessage(deduplicatedIncoming);
 
-    console.log("[API] Message processing:", {
-      deduplicatedIncomingCount: deduplicatedIncoming.length,
-      lastUserMessage: lastUserMessage
-        ? {
-            role: lastUserMessage.role,
-            hasParts: !!lastUserMessage.parts,
-            partsCount: lastUserMessage.parts?.length || 0,
-            isWhitespaceOnly: isWhitespaceOnlyMessage(lastUserMessage),
-          }
-        : null,
-    });
-
     if (lastUserMessage && !isWhitespaceOnlyMessage(lastUserMessage)) {
       await persistMessage(run.id, lastUserMessage);
-      console.log("[API] Persisted user message:", lastUserMessage.id || "new");
     }
 
     // CRITICAL: Merge tool results from incomingMessages into storedMessages in-memory
@@ -298,27 +271,9 @@ export async function POST(req: Request) {
         }
       );
       if (hasSkillCheckInLastMessage) {
-        console.log(
-          "[API] Last assistant message contains a skill check - system prompt should prevent duplicate"
-        );
+        // System prompt should prevent duplicate skill checks
       }
     }
-
-    console.log("[API] Prepared messages:", {
-      storedMessagesCount: storedMessages.length,
-      messagesWithToolResultsCount: messagesWithToolResults.length,
-      deduplicatedIncomingCount: deduplicatedIncoming.length,
-      processedMessagesCount: processedMessages.length,
-      lastProcessedMessage: processedMessages[processedMessages.length - 1]
-        ? {
-            role: processedMessages[processedMessages.length - 1].role,
-            hasParts: !!processedMessages[processedMessages.length - 1].parts,
-            partsCount:
-              processedMessages[processedMessages.length - 1].parts?.length ||
-              0,
-          }
-        : null,
-    });
 
     // CRITICAL: Ensure processedMessages is never empty
     // createAgentUIStreamResponse requires at least one message
@@ -371,36 +326,6 @@ export async function POST(req: Request) {
       activeQuests, // Read-only quest context for narrative awareness
     });
 
-    // Log message details for debugging
-    const lastMessage = processedMessages[processedMessages.length - 1];
-    const lastUserMessageIndex = processedMessages
-      .map((m, i) => (m.role === "user" ? i : -1))
-      .filter((i) => i !== -1)
-      .pop();
-    const lastUserMessageInProcessed =
-      lastUserMessageIndex !== undefined
-        ? processedMessages[lastUserMessageIndex]
-        : null;
-
-    console.log("[API] Creating agent response:", {
-      processedMessagesCount: processedMessages.length,
-      agentType: "ToolLoopAgent",
-      lastMessageRole: lastMessage?.role,
-      lastMessageHasParts: !!lastMessage?.parts,
-      lastMessagePartsCount: lastMessage?.parts?.length || 0,
-      lastMessageParts: lastMessage?.parts?.map((p) => ({
-        type: p.type,
-        hasText: "text" in p,
-        textPreview:
-          "text" in p ? (p.text as string).substring(0, 50) : undefined,
-      })),
-      lastUserMessageIndex,
-      lastUserMessageRole: lastUserMessageInProcessed?.role,
-      lastUserMessageText: lastUserMessageInProcessed?.parts
-        ?.filter((p) => p.type === "text" && "text" in p)
-        .map((p) => (p as { text: string }).text.substring(0, 100)),
-    });
-
     // Create the streaming response
     const response = createAgentUIStreamResponse({
       agent: gma.getAgent() as unknown as Agent<
@@ -410,10 +335,6 @@ export async function POST(req: Request) {
       >,
       uiMessages: processedMessages,
       onFinish: async (result) => {
-        console.log("[API] Agent finished:", {
-          hasResponseMessage: !!result.responseMessage,
-          responseMessageParts: result.responseMessage?.parts?.length || 0,
-        });
         // Process incomingMessages for tool-result parts for DB persistence
         // Note: Tool results were already merged in-memory before agent execution
         // (see mergeToolResultsIntoMessages call above) so the agent could see them.
@@ -518,13 +439,6 @@ function deduplicateAssistantMessages(messages: UIMessage[]): UIMessage[] {
     if (!seenAssistantContent.has(contentSignature)) {
       seenAssistantContent.add(contentSignature);
       deduplicated.unshift(msg);
-    } else {
-      console.log(
-        `[API] Filtered duplicate assistant message with signature: ${contentSignature.substring(
-          0,
-          50
-        )}...`
-      );
     }
   }
 
@@ -713,9 +627,6 @@ function deduplicateIncomingMessages(
     // Filter out whitespace-only messages (trigger messages from skill check submission)
     // These should never be persisted or processed
     if (incoming.role === "user" && isWhitespaceOnlyMessage(incoming)) {
-      console.log(
-        `[API] Filtered whitespace-only trigger message (role: ${incoming.role})`
-      );
       return false;
     }
 
@@ -725,9 +636,6 @@ function deduplicateIncomingMessages(
         (stored) => stored.id === incoming.id
       );
       if (existsById) {
-        console.log(
-          `[API] Filtered duplicate incoming message by ID: ${incoming.id}`
-        );
         return false;
       }
     }
@@ -738,9 +646,6 @@ function deduplicateIncomingMessages(
       storedMessagesForComparison
     );
     if (isDuplicate) {
-      console.log(
-        `[API] Filtered duplicate incoming message by content (role: ${incoming.role})`
-      );
       return false;
     }
 
@@ -764,7 +669,6 @@ function isMessageInHistory(
       (existing) => existing.id === message.id
     );
     if (existsById) {
-      console.log(`[API] Duplicate detected by ID: ${message.id}`);
       return true;
     }
   }
@@ -812,15 +716,12 @@ function isMessageInHistory(
 
     // If both have text parts, compare normalized text content
     if (incomingTexts.length > 0 && existingTexts.length > 0) {
-      if (
-        incomingTexts.length === existingTexts.length &&
-        incomingTexts.every((text, i) => text === existingTexts[i])
-      ) {
-        console.log(
-          `[API] Duplicate detected by normalized text content for role: ${message.role}`
-        );
-        return true;
-      }
+    if (
+      incomingTexts.length === existingTexts.length &&
+      incomingTexts.every((text, i) => text === existingTexts[i])
+    ) {
+      return true;
+    }
     }
 
     // Fallback: Normalize parts for comparison (handle property ordering differences)
@@ -841,9 +742,6 @@ function isMessageInHistory(
     );
 
     if (normalizedIncoming === normalizedExisting) {
-      console.log(
-        `[API] Duplicate detected by content structure for role: ${message.role}`
-      );
       return true;
     }
   }
@@ -1017,10 +915,6 @@ function mergeToolResultsIntoMessages(
           ...existingMessage,
           parts: updatedParts,
         };
-
-        console.log(
-          `[API] Merged tool-result for toolCallId ${toolCallId} into message in-memory`
-        );
       }
     }
   }
@@ -1113,10 +1007,6 @@ async function processIncomingMessagesForToolResults(
         .then((results) => results[0] || null);
 
       if (existingMessage) {
-        console.log(
-          `[API] Found existing message ${existingMessage.id} with toolCallId ${toolCallId} from incomingMessages, merging tool-result part`
-        );
-
         // Get existing parts
         const existingParts = existingMessage.content as UIMessagePart[];
 
@@ -1171,14 +1061,6 @@ async function processIncomingMessagesForToolResults(
           .update(messages)
           .set({ content: updatedParts })
           .where(eq(messages.id, existingMessage.id));
-
-        console.log(
-          `[API] Successfully updated message ${existingMessage.id} with tool-result for toolCallId ${toolCallId} from incomingMessages`
-        );
-      } else {
-        console.log(
-          `[API] No existing message found for toolCallId ${toolCallId} from incomingMessages - tool result will be handled by persistAssistantMessage`
-        );
       }
     }
   }
@@ -1393,7 +1275,6 @@ async function triggerBackgroundStateReconciliation(
     // Compare against the original state copy
     // Note: Quest changes are persisted directly by quest tools, so we only persist JSONB columns
     if (cma.hasStateChanged(originalState)) {
-      console.log("[API] Background agent modified state, persisting changes");
       const updatedState = cma.getCampaignState();
 
       // Persist to separate columns (not state JSONB)
@@ -1419,10 +1300,6 @@ async function triggerBackgroundStateReconciliation(
       } catch (broadcastError) {
         console.error("[API] Failed to broadcast campaign state SSE event", {
           runId: run.id,
-          error:
-            broadcastError instanceof Error
-              ? broadcastError.message
-              : String(broadcastError),
         });
       }
     }
@@ -1563,3 +1440,4 @@ async function triggerVisualEngineAgent(
     // Don't fail the main request if visual processing fails
   }
 }
+

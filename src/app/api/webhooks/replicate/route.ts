@@ -134,12 +134,7 @@ export async function POST(req: NextRequest) {
       const secretB64 = await getReplicateSigningKeyBase64();
 
       if (!validateReplicateWebhook(rawBody, id, ts, sig, secretB64)) {
-        console.error("[Webhook] Invalid signature or stale timestamp", {
-          webhookId: id,
-          hasTimestamp: !!ts,
-          hasSignature: !!sig,
-          timestampAge: Math.abs(Date.now() / 1000 - Number(ts)),
-        });
+        console.error("[Webhook] Invalid signature or stale timestamp");
         return NextResponse.json(
           { error: "Invalid signature or stale timestamp" },
           { status: 400 }
@@ -148,12 +143,9 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       // In development, allow without validation if secret not configured
       if (process.env.NODE_ENV === "development") {
-        console.warn(
-          "[Webhook] Signature validation skipped (development mode)",
-          error
-        );
+        // Skip validation in development
       } else {
-        console.error("[Webhook] Signature validation error", error);
+        console.error("[Webhook] Signature validation error");
         return NextResponse.json(
           { error: "Cannot verify webhook" },
           { status: 400 }

@@ -890,9 +890,6 @@ export const generateImagePromptTool = tool({
         // Default to wide-shot for variety (safer than portrait)
         inferredSceneType = "wide-shot";
       }
-      console.warn(
-        `[generateImagePrompt] sceneType not provided, inferred: ${inferredSceneType}`
-      );
     }
 
     let prompt = "";
@@ -1119,12 +1116,7 @@ export function createGenerateSceneImageTool(runId: string) {
         try {
           enhancedPrompt = createScenePrompt(prompt);
         } catch (error) {
-          console.error(
-            "Scene generation failed - prompt validation error:",
-            error
-          );
-          console.error("Original prompt length:", prompt.length);
-          console.error("Original prompt preview:", prompt.substring(0, 200));
+          console.error("Scene generation failed - prompt validation error:", error);
           throw error;
         }
 
@@ -1266,10 +1258,6 @@ export function createGenerateSceneImageTool(runId: string) {
           console.error("[Scene Generation] Failed to broadcast scene start", {
             runId,
             sceneId,
-            error:
-              broadcastError instanceof Error
-                ? broadcastError.message
-                : String(broadcastError),
           });
         }
 
@@ -1300,8 +1288,6 @@ export function createGenerateSceneImageTool(runId: string) {
         };
       } catch (error) {
         console.error("Scene generation failed:", error);
-        console.error("Prompt that failed:", prompt.substring(0, 300));
-        console.error("Prompt length:", prompt.length);
         return {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",

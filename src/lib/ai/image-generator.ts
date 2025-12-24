@@ -73,9 +73,6 @@ function extractImageUrl(output: unknown): string {
 
       // If String() conversion or valueOf() gives us a URL, use it
       if (typeof stringValue === "string" && stringValue.startsWith("http")) {
-        console.log("[Replicate] Extracted URL from object valueOf", {
-          url: stringValue,
-        });
         return stringValue;
       }
 
@@ -83,21 +80,11 @@ function extractImageUrl(output: unknown): string {
         typeof valueOfResult === "string" &&
         valueOfResult.startsWith("http")
       ) {
-        console.log("[Replicate] Extracted URL from valueOf()", {
-          url: valueOfResult,
-        });
         return valueOfResult;
       }
 
-      // Log full output structure for debugging
-      console.error("[Replicate] Empty object in array - full output:", {
-        fullOutput: JSON.stringify(output),
-        firstOutputType: typeof firstOutput,
-        firstOutputKeys: Object.keys(firstOutput),
-        firstOutputStringified: JSON.stringify(firstOutput),
-        firstOutputValueOf: String(firstOutput),
-        valueOfResult: valueOfResult,
-      });
+      // Log error for empty object case
+      console.error("[Replicate] Empty object in array - unexpected output format");
 
       // Check if output is null/undefined (might be a placeholder)
       if (firstOutput === null || firstOutput === undefined) {
@@ -168,17 +155,15 @@ function extractImageUrl(output: unknown): string {
     );
   }
 
-  // Log the actual output for debugging
-  console.error("Unexpected Replicate output format:", {
+  console.error("Unexpected Replicate output format", {
     type: typeof output,
     isArray: Array.isArray(output),
-    output: JSON.stringify(output).substring(0, 500),
   });
 
   throw new Error(
     `Unexpected output format from Replicate API: ${typeof output}${
       Array.isArray(output) ? " (array)" : ""
-    }. Full output logged above.`
+    }`
   );
 }
 
@@ -326,14 +311,6 @@ export async function generateImageUrl(
   };
 
   try {
-    // Log input for debugging (truncate prompt for readability)
-    console.log("[Replicate] Starting image generation", {
-      model,
-      promptLength: prompt.length,
-      promptPreview: `${prompt.substring(0, 100)}...`,
-      input: { ...input, prompt: `[${prompt.length} chars]` },
-    });
-
     // Ensure prompt is not too long (Replicate may have limits)
     const maxPromptLength = 2000; // Conservative limit
     const truncatedPrompt =
@@ -358,27 +335,9 @@ export async function generateImageUrl(
       // and return the output directly, but we'll handle both cases
       output = await replicate.run(model, { input: inputWithTruncatedPrompt });
     } catch (runError) {
-      // If the run fails, log and rethrow with context
-      console.error("[Replicate] replicate.run() threw error", {
-        error: runError,
-        model,
-        inputKeys: Object.keys(inputWithTruncatedPrompt),
-      });
+      console.error("[Replicate] replicate.run() failed");
       throw runError;
     }
-
-    // Log raw output for debugging - log full structure
-    const outputString = JSON.stringify(output);
-    console.log("[Replicate] Raw output received", {
-      type: typeof output,
-      isArray: Array.isArray(output),
-      outputPreview: outputString.substring(0, 1000),
-      fullOutputType: output?.constructor?.name,
-      outputKeys:
-        typeof output === "object" && output !== null
-          ? Object.keys(output)
-          : "N/A",
-    });
 
     // Check if output is a prediction object (shouldn't happen with replicate.run() but handle it)
     if (
@@ -392,10 +351,6 @@ export async function generateImageUrl(
         output: unknown;
         id?: string;
       };
-      console.log("[Replicate] Received prediction object", {
-        status: prediction.status,
-        id: prediction.id,
-      });
 
       if (prediction.status === "succeeded") {
         return extractImageUrl(prediction.output);
@@ -446,10 +401,7 @@ export async function generateImageUrl(
       "error" in output[0]
     ) {
       const errorObj = output[0] as { error?: unknown };
-      console.error("[Replicate] Output contains error field", {
-        error: errorObj.error,
-        fullOutput: JSON.stringify(output),
-      });
+      console.error("[Replicate] Output contains error field");
       throw new Error(
         `Replicate API returned error: ${JSON.stringify(errorObj.error)}`
       );
@@ -457,13 +409,7 @@ export async function generateImageUrl(
 
     return extractImageUrl(output);
   } catch (error) {
-    console.error("[Replicate] Image generation failed", {
-      error,
-      model,
-      promptLength: prompt.length,
-      promptPreview: prompt.substring(0, 200),
-      input: { ...input, prompt: `[${prompt.length} chars]` },
-    });
+    console.error("[Replicate] Image generation failed");
 
     // Check if error has additional details from Replicate
     if (
@@ -534,13 +480,6 @@ export async function createImagePrediction(
       prompt: truncatedPrompt,
     };
 
-    console.log("[Replicate] Creating prediction with webhook", {
-      model,
-      webhookUrl,
-      promptLength: truncatedPrompt.length,
-      metadata,
-    });
-
     // Use predictions.create() for webhook support
     const prediction = await replicate.predictions.create({
       version: model.includes(":") ? model.split(":")[1] : undefined,
@@ -556,18 +495,9 @@ export async function createImagePrediction(
       );
     }
 
-    console.log("[Replicate] Prediction created", {
-      predictionId: prediction.id,
-      status: prediction.status,
-    });
-
     return prediction.id;
   } catch (error) {
-    console.error("[Replicate] Prediction creation failed", {
-      error,
-      model,
-      promptLength: prompt.length,
-    });
+    console.error("[Replicate] Prediction creation failed");
     throw new Error(
       `Failed to create prediction: ${
         error instanceof Error ? error.message : "Unknown error"

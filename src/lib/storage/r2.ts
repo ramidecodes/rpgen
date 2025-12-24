@@ -91,12 +91,6 @@ export async function getPublicUrl(key: string): Promise<string> {
     return `${baseUrl}/${cleanKey}`;
   }
 
-  // if (isR2Endpoint) {
-  //   console.warn(
-  //     "R2_PUBLIC_URL is set to the R2 endpoint. This is incorrect for public access. Falling back to signed URLs."
-  //   );
-  // }
-
   // Fallback to signed URL if no public domain configured
   return await getSignedUrl(
     S3,

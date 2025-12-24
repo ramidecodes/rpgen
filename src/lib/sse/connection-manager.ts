@@ -149,7 +149,6 @@ class SSEConnectionManager {
         console.error("[SSE] Failed to send event to connection", {
           connectionId: connection.id,
           runId,
-          error,
         });
         deadConnections.push(connection.id);
       }

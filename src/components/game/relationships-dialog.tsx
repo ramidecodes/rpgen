@@ -216,11 +216,6 @@ export function RelationshipsDialog({
 
     cyRef.current = cy;
 
-    console.log("Cytoscape initialized:", {
-      nodes: cy.nodes().length,
-      edges: cy.edges().length,
-    });
-
     // Handle node selection
     cy.on("tap", "node", (evt: EventObject) => {
       const node = evt.target as NodeSingular;
