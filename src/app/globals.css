@@ -352,6 +352,13 @@
   h6 {
     font-family: var(--font-cinzel-decorative);
   }
+
+  button:hover,
+  button[type="button"]:hover,
+  button[type="submit"]:hover,
+  [role="button"]:hover {
+    cursor: pointer;
+  }
 }
 
 /* ===== Custom Utilities ===== */
