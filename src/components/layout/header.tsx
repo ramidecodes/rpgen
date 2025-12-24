@@ -43,10 +43,10 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "text-sm transition-colors",
+                    "text-base font-semibold transition-colors",
                     isActive
                       ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-foreground/70 hover:text-foreground"
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -59,10 +59,10 @@ export function Header() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <SignedOut>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="default" className="font-semibold">
               <Link href="/sign-in">Sign In</Link>
             </Button>
-            <Button asChild size="sm">
+            <Button asChild size="default" className="font-semibold">
               <Link href="/sign-up">Sign Up</Link>
             </Button>
           </SignedOut>
