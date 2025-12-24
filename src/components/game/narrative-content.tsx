@@ -41,11 +41,8 @@ function DialogBlock({ dialog, className }: DialogBlockProps) {
         className
       )}
     >
-      <div className="font-semibold text-primary/90 text-base mb-1">
-        {dialog.character}
-      </div>
       <div className="text-foreground text-base leading-relaxed">
-        "{dialog.dialogue}"
+        <span className="text-primary">{dialog.character}</span>: "{dialog.dialogue}"
       </div>
     </div>
   );
