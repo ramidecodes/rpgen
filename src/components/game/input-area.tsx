@@ -84,36 +84,36 @@ export function InputArea({
       // Check all parts for suggestActions tool results
       // Following AI SDK v6 best practices: use isToolUIPart and getToolName utilities
       for (const part of assistantMessage.parts) {
-      // Use AI SDK utility to check if this is a tool part
-      if (!isToolUIPart(part)) {
-        continue;
-      }
+        // Use AI SDK utility to check if this is a tool part
+        if (!isToolUIPart(part)) {
+          continue;
+        }
 
-      // Use AI SDK utility to get tool name (works for both tool-call and tool-result)
-      const toolName = getToolName(part);
-      const isSuggestActions = toolName === "suggestActions";
+        // Use AI SDK utility to get tool name (works for both tool-call and tool-result)
+        const toolName = getToolName(part);
+        const isSuggestActions = toolName === "suggestActions";
 
-      // Get tool result - prioritize output (canonical) over result (legacy)
-      const toolPart = part as {
-        toolCallId?: string;
-        result?: unknown;
-        output?: unknown;
-        [key: string]: unknown;
-      };
+        // Get tool result - prioritize output (canonical) over result (legacy)
+        const toolPart = part as {
+          toolCallId?: string;
+          result?: unknown;
+          output?: unknown;
+          [key: string]: unknown;
+        };
 
-      const toolResult = toolPart.output ?? toolPart.result;
+        const toolResult = toolPart.output ?? toolPart.result;
 
-      // Check if result contains suggestions array
-      const hasSuggestionsInResult =
-        toolResult &&
-        typeof toolResult === "object" &&
-        "suggestions" in toolResult &&
-        Array.isArray((toolResult as { suggestions?: unknown }).suggestions);
+        // Check if result contains suggestions array
+        const hasSuggestionsInResult =
+          toolResult &&
+          typeof toolResult === "object" &&
+          "suggestions" in toolResult &&
+          Array.isArray((toolResult as { suggestions?: unknown }).suggestions);
 
-      // Only process if this is a suggestActions tool or has suggestions in result
-      if (!isSuggestActions && !hasSuggestionsInResult) {
-        continue;
-      }
+        // Only process if this is a suggestActions tool or has suggestions in result
+        if (!isSuggestActions && !hasSuggestionsInResult) {
+          continue;
+        }
 
         // Extract suggestions from output (canonical) or result (legacy fallback)
         const suggestions = extractSuggestionsFromResult(toolResult);
@@ -169,7 +169,7 @@ export function InputArea({
   return (
     <div className="border-t bg-background p-4">
       {/* Suggested Actions */}
-      {suggestedActions.length >= 2 && !isLoading && (
+      {suggestedActions.length >= 2 && !isLoading && !pendingSkillCheck && (
         <div className="mb-3 space-y-2">
           <div className="text-xs text-muted-foreground font-medium">
             💡 Suggested actions:

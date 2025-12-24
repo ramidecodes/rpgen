@@ -276,6 +276,34 @@ export async function POST(req: Request) {
     // Keep only the most recent assistant message for each unique content
     processedMessages = deduplicateAssistantMessages(processedMessages);
 
+    // CRITICAL: Check for consecutive skill checks and add context to prevent duplicates
+    // If the last assistant message contains a skill check, the system prompt will handle it
+    // This check ensures we're aware of the situation for logging/debugging
+    const lastAssistantMessage = processedMessages
+      .filter((msg) => msg.role === "assistant")
+      .pop();
+    if (lastAssistantMessage && Array.isArray(lastAssistantMessage.parts)) {
+      const hasSkillCheckInLastMessage = lastAssistantMessage.parts.some(
+        (part) => {
+          if (!isToolUIPart(part)) return false;
+          const toolPart = part as {
+            toolName?: string;
+            state?: string;
+          };
+          return (
+            toolPart.toolName === "requestSkillCheck" &&
+            (toolPart.state === "input-available" ||
+              toolPart.state === "output-available")
+          );
+        }
+      );
+      if (hasSkillCheckInLastMessage) {
+        console.log(
+          "[API] Last assistant message contains a skill check - system prompt should prevent duplicate"
+        );
+      }
+    }
+
     console.log("[API] Prepared messages:", {
       storedMessagesCount: storedMessages.length,
       messagesWithToolResultsCount: messagesWithToolResults.length,
