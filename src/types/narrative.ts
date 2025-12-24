@@ -25,6 +25,38 @@ export type NarrativeToolPart = ToolUIPart & {
 };
 
 /**
+ * Type guard to validate that an object matches the NarrativeDialog structure
+ * Ensures character and dialogue are non-empty strings
+ */
+function isValidNarrativeDialog(value: unknown): value is NarrativeDialog {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const dialog = value as Record<string, unknown>;
+
+  // Check that character exists and is a non-empty string
+  if (
+    !("character" in dialog) ||
+    typeof dialog.character !== "string" ||
+    dialog.character.trim().length === 0
+  ) {
+    return false;
+  }
+
+  // Check that dialogue exists and is a non-empty string
+  if (
+    !("dialogue" in dialog) ||
+    typeof dialog.dialogue !== "string" ||
+    dialog.dialogue.trim().length === 0
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Type guard to check if a part is a narrative tool part
  * Handles both tool-call and tool-result parts
  * AI SDK v6 can use different type formats: "tool-formatNarrative" or "tool-result" with toolName
@@ -105,7 +137,7 @@ export function extractNarrativeData(
       return {
         narration: typedPart.narration as string[],
         dialogs: Array.isArray(typedPart.dialogs)
-          ? (typedPart.dialogs as NarrativeDialog[])
+          ? typedPart.dialogs.filter(isValidNarrativeDialog)
           : undefined,
       };
     }
@@ -128,7 +160,7 @@ export function extractNarrativeData(
       return {
         narration: result.narration as string[],
         dialogs: Array.isArray(result.dialogs)
-          ? (result.dialogs as NarrativeDialog[])
+          ? result.dialogs.filter(isValidNarrativeDialog)
           : undefined,
       };
     }
@@ -143,7 +175,7 @@ export function extractNarrativeData(
       return {
         narration: result.narration as string[],
         dialogs: Array.isArray(result.dialogs)
-          ? (result.dialogs as NarrativeDialog[])
+          ? result.dialogs.filter(isValidNarrativeDialog)
           : undefined,
       };
     }
@@ -156,7 +188,7 @@ export function extractNarrativeData(
     const outputData = typedPart.output;
     if (outputData && typeof outputData === "object") {
       const output = outputData as Record<string, unknown>;
-      
+
       // Check if it has the expected structure directly
       if (
         Array.isArray(output.narration) &&
@@ -165,11 +197,11 @@ export function extractNarrativeData(
         return {
           narration: output.narration as string[],
           dialogs: Array.isArray(output.dialogs)
-            ? (output.dialogs as NarrativeDialog[])
+            ? output.dialogs.filter(isValidNarrativeDialog)
             : undefined,
         };
       }
-      
+
       // Check if wrapped in success structure
       if (
         "success" in output &&
@@ -179,7 +211,7 @@ export function extractNarrativeData(
         return {
           narration: output.narration as string[],
           dialogs: Array.isArray(output.dialogs)
-            ? (output.dialogs as NarrativeDialog[])
+            ? output.dialogs.filter(isValidNarrativeDialog)
             : undefined,
         };
       }
