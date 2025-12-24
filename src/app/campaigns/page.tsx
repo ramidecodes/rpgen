@@ -237,7 +237,7 @@ function CampaignCard({
         className="flex flex-col flex-1 p-4 pt-5 cursor-pointer"
         onClick={handleCardClick}
       >
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
+        <p className="text-sm text-foreground/75 line-clamp-2 mb-4 flex-1">
           {campaign.description}
         </p>
 

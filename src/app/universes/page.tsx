@@ -222,7 +222,7 @@ function UniverseCard({
           </div>
         </CardHeader>
         <CardContent className="grow pb-4">
-          <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
+          <p className="text-sm text-foreground/75 line-clamp-3 mb-3">
             {universe.description}
           </p>
           <div className="flex flex-wrap gap-2">

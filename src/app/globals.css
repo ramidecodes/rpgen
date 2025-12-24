@@ -200,15 +200,13 @@
     0%,
     100% {
       border-color: hsl(var(--glow) / 0.6);
-      box-shadow:
-        0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
+      box-shadow: 0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
         0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3)),
         0 0 24px hsl(var(--glow) / calc(var(--glow-opacity) * 0.2));
     }
     50% {
       border-color: hsl(var(--glow) / 1);
-      box-shadow:
-        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
+      box-shadow: 0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
         0 0 32px hsl(var(--glow) / calc(var(--glow-opacity) * 0.6)),
         0 0 48px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4));
     }
@@ -218,14 +216,12 @@
   @keyframes glow-pulse-inset {
     0%,
     100% {
-      box-shadow:
-        0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
+      box-shadow: 0 0 8px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4)),
         0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3)),
         0 0 24px hsl(var(--glow) / calc(var(--glow-opacity) * 0.2));
     }
     50% {
-      box-shadow:
-        0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
+      box-shadow: 0 0 16px hsl(var(--glow) / calc(var(--glow-opacity) * 0.8)),
         0 0 32px hsl(var(--glow) / calc(var(--glow-opacity) * 0.6)),
         0 0 48px hsl(var(--glow) / calc(var(--glow-opacity) * 0.4));
     }
@@ -339,7 +335,7 @@
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
-    font-family: var(--font-special-elite);
+    font-family: var(--font-nanum-myeongjo);
     font-size: 1.5rem;
     line-height: 1.4;
   }
@@ -354,7 +350,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-jersey-25);
+    font-family: var(--font-cinzel-decorative);
   }
 }
 
@@ -382,23 +378,20 @@
 
 /* Technomancy glow utilities */
 @utility glow-text {
-  text-shadow:
-    0 0 10px hsl(var(--glow) / var(--glow-opacity)),
+  text-shadow: 0 0 10px hsl(var(--glow) / var(--glow-opacity)),
     0 0 20px hsl(var(--glow) / calc(var(--glow-opacity) * 0.5)),
     0 0 40px hsl(var(--glow) / calc(var(--glow-opacity) * 0.25));
 }
 
 @utility glow-box {
-  box-shadow:
-    0 0 15px hsl(var(--glow) / var(--glow-opacity)),
+  box-shadow: 0 0 15px hsl(var(--glow) / var(--glow-opacity)),
     0 0 30px hsl(var(--glow) / calc(var(--glow-opacity) * 0.5)),
     inset 0 0 15px hsl(var(--glow) / calc(var(--glow-opacity) * 0.25));
 }
 
 @utility glow-border {
   border-color: hsl(var(--glow));
-  box-shadow:
-    0 0 10px hsl(var(--glow) / var(--glow-opacity)),
+  box-shadow: 0 0 10px hsl(var(--glow) / var(--glow-opacity)),
     0 0 20px hsl(var(--glow) / calc(var(--glow-opacity) * 0.3));
 }
 
@@ -420,8 +413,7 @@
 }
 
 @utility arcane-glow {
-  box-shadow:
-    0 0 15px hsl(var(--arcane) / var(--glow-opacity)),
+  box-shadow: 0 0 15px hsl(var(--arcane) / var(--glow-opacity)),
     0 0 30px hsl(var(--arcane) / calc(var(--glow-opacity) * 0.5));
 }
 
@@ -485,8 +477,10 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    background-image:
-      linear-gradient(hsl(var(--glow) / 0.05) 1px, transparent 1px),
+    background-image: linear-gradient(
+        hsl(var(--glow) / 0.05) 1px,
+        transparent 1px
+      ),
       linear-gradient(90deg, hsl(var(--glow) / 0.05) 1px, transparent 1px);
     background-size: 50px 50px;
     mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
@@ -517,8 +511,10 @@
 }
 
 .dark .hero-grid-bg::before {
-  background-image:
-    linear-gradient(hsl(var(--glow) / 0.08) 1px, transparent 1px),
+  background-image: linear-gradient(
+      hsl(var(--glow) / 0.08) 1px,
+      transparent 1px
+    ),
     linear-gradient(90deg, hsl(var(--glow) / 0.08) 1px, transparent 1px);
 }
 

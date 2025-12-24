@@ -1,15 +1,17 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { characters, universes } from "@/lib/db/schema";
+import { characters, universes, runs } from "@/lib/db/schema";
 import { createCharacterSchema } from "@/lib/db/schemas/character";
 import { generateCharacterBackstory } from "@/lib/ai/character-generator";
 import { ensureUserProfile } from "@/lib/db/utils/user-profile";
+import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { revalidatePath } from "next/cache";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { getPublicUrl, uploadImage } from "@/lib/storage/r2";
+import { getPublicUrl, uploadImage, deleteFolder } from "@/lib/storage/r2";
 import { generateCharacterPortrait } from "@/lib/ai/image-generator";
 
 export async function createCharacterAction(
@@ -349,4 +351,53 @@ export async function getCharacterAction(id: string) {
     console.error("Failed to fetch character:", error);
     return { success: false, error: "Failed to load character" };
   }
+}
+
+export async function deleteCharacter(characterId: string) {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Get internal user profile
+  const userProfile = await getUserProfileByClerkId(clerkUserId);
+  if (!userProfile) {
+    return { success: false, error: "User profile not found" };
+  }
+
+  // Verify character exists and user owns it
+  const [character] = await db
+    .select()
+    .from(characters)
+    .where(eq(characters.id, characterId))
+    .limit(1);
+
+  if (!character) {
+    return { success: false, error: "Character not found" };
+  }
+
+  if (character.userId !== userProfile.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Cascade delete all associated runs first (runs will cascade delete messages, scenes, quests, etc.)
+  await db.delete(runs).where(eq(runs.characterId, characterId));
+
+  // Delete entire character folder from R2 if it exists
+  const characterFolderPrefix = `${userProfile.id}/characters/${characterId}/`;
+  try {
+    await deleteFolder(characterFolderPrefix);
+  } catch (error) {
+    // Log error but don't fail deletion
+    console.error("Error deleting character folder from R2:", error);
+  }
+
+  // Delete character from database
+  await db.delete(characters).where(eq(characters.id, characterId));
+
+  revalidatePath("/characters");
+  revalidatePath("/profile");
+
+  return { success: true };
 }

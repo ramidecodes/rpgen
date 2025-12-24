@@ -67,7 +67,7 @@ export function UniverseTabs({
             <CardTitle>History & Origins</CardTitle>
           </CardHeader>
           <CardContent className="prose dark:prose-invert max-w-none">
-            <div className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
+            <div className="whitespace-pre-wrap text-foreground/75 leading-relaxed">
               {universe.history}
             </div>
           </CardContent>
@@ -89,7 +89,9 @@ export function UniverseTabs({
                   <CardTitle className="text-xl">{faction.name}</CardTitle>
                   <Badge variant="outline">{faction.ideology}</Badge>
                 </div>
-                <CardDescription>{faction.description}</CardDescription>
+                <CardDescription className="text-foreground/75">
+                  {faction.description}
+                </CardDescription>
               </CardHeader>
               <CardContent className="pt-4 space-y-3 text-sm">
                 <div>
@@ -131,7 +133,7 @@ export function UniverseTabs({
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
+              <CardContent className="text-sm text-foreground/75">
                 <p className="mb-3">{location.description}</p>
                 {location.key_npcs && location.key_npcs.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
@@ -187,7 +189,7 @@ export function UniverseTabs({
                       <h4 className="font-semibold truncate group-hover:text-primary transition-colors">
                         {char.name}
                       </h4>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-xs text-foreground/75 truncate">
                         {char.profession}
                       </p>
                     </div>

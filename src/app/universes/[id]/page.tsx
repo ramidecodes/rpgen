@@ -99,7 +99,7 @@ export default async function UniversePage({
                   <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground drop-shadow-lg">
                     {universe.name}
                   </h1>
-                  <p className="text-base md:text-lg text-muted-foreground drop-shadow-md w-full leading-relaxed">
+                  <p className="text-base md:text-lg text-foreground/75 drop-shadow-md w-full leading-relaxed">
                     {universe.description}
                   </p>
                 </div>

@@ -290,7 +290,7 @@ function RunCard({
           </Badge>
         </div>
 
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
+        <p className="text-sm text-foreground/75 line-clamp-2 mb-4 flex-1">
           {run.campaignDescription}
         </p>
 

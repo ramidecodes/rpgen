@@ -1,22 +1,22 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
-import { Special_Elite, Jersey_25 } from "next/font/google";
+import { Nanum_Myeongjo, Cinzel_Decorative } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
-const specialElite = Special_Elite({
+const nanumMyeongjo = Nanum_Myeongjo({
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-special-elite",
+  weight: "700",
+  variable: "--font-nanum-myeongjo",
   display: "swap",
 });
 
-const jersey25 = Jersey_25({
+const cinzelDecorative = Cinzel_Decorative({
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-jersey-25",
+  weight: "700",
+  variable: "--font-cinzel-decorative",
   display: "swap",
 });
 
@@ -49,7 +49,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={cn(specialElite.variable, jersey25.variable)}>
+        <body className={cn(nanumMyeongjo.variable, cinzelDecorative.variable)}>
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
