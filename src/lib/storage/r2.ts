@@ -13,6 +13,10 @@ const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+// R2_JURISDICTION: Optional jurisdiction for the bucket (e.g., "eu" for European Union)
+// If set, the endpoint will be: https://<ACCOUNT_ID>.<JURISDICTION>.r2.cloudflarestorage.com
+// If not set, uses default: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+const R2_JURISDICTION = process.env.R2_JURISDICTION?.toLowerCase().trim() || "";
 
 if (
   !R2_ACCOUNT_ID ||
@@ -25,9 +29,16 @@ if (
   );
 }
 
+// Construct endpoint with jurisdiction if specified
+// EU buckets: https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com
+// Default: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+const endpoint = R2_JURISDICTION
+  ? `https://${R2_ACCOUNT_ID}.${R2_JURISDICTION}.r2.cloudflarestorage.com`
+  : `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
 const S3 = new S3Client({
   region: "auto",
-  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint,
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID || "",
     secretAccessKey: R2_SECRET_ACCESS_KEY || "",
