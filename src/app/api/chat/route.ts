@@ -716,12 +716,12 @@ function isMessageInHistory(
 
     // If both have text parts, compare normalized text content
     if (incomingTexts.length > 0 && existingTexts.length > 0) {
-    if (
-      incomingTexts.length === existingTexts.length &&
-      incomingTexts.every((text, i) => text === existingTexts[i])
-    ) {
-      return true;
-    }
+      if (
+        incomingTexts.length === existingTexts.length &&
+        incomingTexts.every((text, i) => text === existingTexts[i])
+      ) {
+        return true;
+      }
     }
 
     // Fallback: Normalize parts for comparison (handle property ordering differences)
@@ -1297,7 +1297,7 @@ async function triggerBackgroundStateReconciliation(
             state: updatedState,
           },
         });
-      } catch (broadcastError) {
+      } catch (_broadcastError) {
         console.error("[API] Failed to broadcast campaign state SSE event", {
           runId: run.id,
         });
@@ -1440,4 +1440,3 @@ async function triggerVisualEngineAgent(
     // Don't fail the main request if visual processing fails
   }
 }
-
