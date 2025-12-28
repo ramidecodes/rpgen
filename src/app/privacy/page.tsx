@@ -19,7 +19,8 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="mb-8 text-muted-foreground">
-              Last updated: {new Date().toLocaleDateString("en-US", {
+              Last updated:{" "}
+              {new Date().toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
@@ -145,9 +146,14 @@ export default function PrivacyPage() {
                     <li>To provide, maintain, and improve our service</li>
                     <li>To process transactions and manage your account</li>
                     <li>To personalize your experience and deliver content</li>
-                    <li>To communicate with you about your account and service updates</li>
+                    <li>
+                      To communicate with you about your account and service
+                      updates
+                    </li>
                     <li>To detect, prevent, and address technical issues</li>
-                    <li>To comply with legal obligations and enforce our terms</li>
+                    <li>
+                      To comply with legal obligations and enforce our terms
+                    </li>
                     <li>To analyze usage patterns and improve our platform</li>
                   </ul>
                 </CardContent>
@@ -173,8 +179,11 @@ export default function PrivacyPage() {
                         Authentication:
                       </strong>{" "}
                       Clerk provides user authentication and account management
-                      services. Their privacy policy applies to authentication
-                      data.
+                      services, including support for Google OAuth sign-in.
+                      Their privacy policy applies to authentication data. For
+                      detailed information about how we access and use Google
+                      user data, please see the "Google OAuth Data" section
+                      below.
                     </li>
                     <li>
                       <strong className="font-title text-foreground">
@@ -217,6 +226,185 @@ export default function PrivacyPage() {
               </Card>
             </section>
 
+            {/* Google OAuth Data */}
+            <section className="mb-16">
+              <h2 className="mb-6 font-semibold text-3xl">Google OAuth Data</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Google User Data Access and Usage</CardTitle>
+                  <CardDescription>
+                    When you sign in with Google, we access and use specific
+                    Google user data as described below
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="mb-3 font-semibold text-xl">
+                        Data Accessed
+                      </h3>
+                      <p className="mb-2 text-muted-foreground">
+                        When you choose to sign in with Google, our application
+                        accesses the following types of Google user data:
+                      </p>
+                      <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+                        <li>
+                          <strong className="font-title text-foreground">
+                            Email Address:
+                          </strong>{" "}
+                          Your Google account email address for account creation
+                          and identification
+                        </li>
+                        <li>
+                          <strong className="font-title text-foreground">
+                            Basic Profile Information:
+                          </strong>{" "}
+                          Your name and profile picture URL from your Google
+                          account
+                        </li>
+                        <li>
+                          <strong className="font-title text-foreground">
+                            Google User ID:
+                          </strong>{" "}
+                          A unique identifier from Google for account linking
+                          and authentication
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="mb-3 font-semibold text-xl">Data Usage</h3>
+                      <p className="mb-2 text-muted-foreground">
+                        We use the Google user data we access for the following
+                        purposes:
+                      </p>
+                      <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+                        <li>
+                          Account creation and authentication when you sign in
+                          with Google
+                        </li>
+                        <li>
+                          User identification and profile setup within RPGen
+                        </li>
+                        <li>
+                          Linking your Google account to your RPGen user account
+                        </li>
+                        <li>
+                          Storing minimal profile data (email address and
+                          username derived from your Google profile) in our
+                          database through our authentication provider, Clerk
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="mb-3 font-semibold text-xl">
+                        Data Storage
+                      </h3>
+                      <p className="mb-2 text-muted-foreground">
+                        Google authentication data is processed and stored as
+                        follows:
+                      </p>
+                      <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+                        <li>
+                          Google authentication data is processed and stored by
+                          Clerk, our authentication service provider
+                        </li>
+                        <li>
+                          We store only the Clerk user ID and derived profile
+                          information (username, email address) in our Supabase
+                          database
+                        </li>
+                        <li>
+                          We do not store Google passwords or Google access
+                          tokens directly
+                        </li>
+                        <li>
+                          All authentication tokens and sensitive credentials
+                          are managed securely by Clerk
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="mb-3 font-semibold text-xl">
+                        Data Sharing
+                      </h3>
+                      <p className="mb-2 text-muted-foreground">
+                        Google user data sharing practices:
+                      </p>
+                      <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+                        <li>
+                          Google user data is shared with Clerk for
+                          authentication purposes only
+                        </li>
+                        <li>
+                          We do not share Google user data with other third
+                          parties except as necessary for service operation
+                          (e.g., database hosting through Supabase)
+                        </li>
+                        <li>
+                          We do not sell, rent, or trade Google user data to any
+                          third parties
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="mb-3 font-semibold text-xl">
+                        Data Revocation and Management
+                      </h3>
+                      <p className="mb-2 text-muted-foreground">
+                        You have control over your Google OAuth access and can
+                        revoke it at any time:
+                      </p>
+                      <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+                        <li>
+                          <strong className="font-title text-foreground">
+                            How to Revoke Access:
+                          </strong>{" "}
+                          You can revoke Google OAuth access through your Google
+                          Account settings at{" "}
+                          <a
+                            href="https://myaccount.google.com/permissions"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80"
+                          >
+                            myaccount.google.com/permissions
+                          </a>
+                          , through your RPGen account settings, or by
+                          contacting us using the information in the Contact
+                          section below
+                        </li>
+                        <li>
+                          <strong className="font-title text-foreground">
+                            What Happens When Access is Revoked:
+                          </strong>{" "}
+                          Revoking Google OAuth access will prevent future
+                          sign-ins using Google. Your existing account data will
+                          remain unless you delete your account. You may need to
+                          set up alternative authentication methods (such as
+                          email/password) to continue accessing your account
+                        </li>
+                        <li>
+                          <strong className="font-title text-foreground">
+                            Data Retention After Revocation:
+                          </strong>{" "}
+                          Google OAuth tokens are immediately invalidated when
+                          you revoke access. Profile data derived from Google
+                          (email address, username) may remain in our database
+                          until you request account deletion. You can request
+                          full account deletion and data removal through the
+                          "Your Rights" section below
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
             {/* Data Storage and Security */}
             <section className="mb-16">
               <h2 className="mb-6 font-semibold text-3xl">
@@ -234,8 +422,8 @@ export default function PrivacyPage() {
                   </p>
                   <p className="text-muted-foreground">
                     Your data is stored on secure servers provided by our
-                    third-party service providers, who maintain industry-standard
-                    security practices.
+                    third-party service providers, who maintain
+                    industry-standard security practices.
                   </p>
                 </CardContent>
               </Card>
@@ -396,4 +584,3 @@ export default function PrivacyPage() {
     </div>
   );
 }
-
