@@ -110,7 +110,7 @@ export function SkillCheckInteractive({
         ref={glowRef}
         className="pointer-events-none absolute inset-0 rounded-lg bg-primary/10 blur-2xl"
       />
-      <div className="relative overflow-hidden rounded-lg bg-card p-6 shadow-[0_0_25px_rgba(0,255,200,0.12)]">
+      <div className="relative overflow-hidden rounded-lg bg-card p-3 shadow-[0_0_25px_rgba(0,255,200,0.12)]">
         {/* Glowing border effect */}
         <div
           className="pointer-events-none absolute inset-0 rounded-lg border-2 border-primary/80 shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
@@ -120,41 +120,38 @@ export function SkillCheckInteractive({
           }}
         />
 
-        <div className="relative z-10">
-          {/* Top Badges */}
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+        <div className="relative z-10 space-y-3">
+          {/* Header: Attribute Badge and DC */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
               <span>{attribute.toUpperCase()}</span>
               {characterStat !== undefined && (
-                <span className="rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
                   {characterStat}
                 </span>
               )}
             </div>
-          </div>
-
-          {/* Info Section */}
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">DC:</span>
-                <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted shadow-inner">
-                  <span className="text-lg font-bold text-foreground">
-                    {difficulty}
-                  </span>
-                </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                DC:
+              </span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted shadow-inner">
+                <span className="text-sm font-bold text-foreground">
+                  {difficulty}
+                </span>
               </div>
             </div>
-
-            {reason && (
-              <div className="border-l-2 border-primary/50 pl-4 text-sm italic text-muted-foreground">
-                {reason}
-              </div>
-            )}
           </div>
 
-          {/* Interactive Die */}
-          <div className="flex flex-col items-center gap-4">
+          {/* Description - Elevated Visual Hierarchy */}
+          {reason && (
+            <div className="border-l-2 border-primary/30 pl-2.5 text-sm leading-snug text-foreground">
+              {reason}
+            </div>
+          )}
+
+          {/* Interactive Die and Button */}
+          <div className="flex items-center gap-3">
             <button
               ref={diceContainerRef}
               onClick={handleRollDice}
@@ -167,16 +164,16 @@ export function SkillCheckInteractive({
                 }
               }}
               className={cn(
-                "flex items-center justify-center transition-transform cursor-pointer hover:scale-105 active:scale-95",
+                "flex items-center justify-center transition-transform cursor-pointer font-header hover:scale-105 active:scale-95 shrink-0",
                 isRolling && "pointer-events-none cursor-not-allowed"
               )}
             >
-              <D20Anime className="h-20 w-20" />
+              <D20Anime className="h-12 w-12" />
             </button>
             <Button
               onClick={handleRollDice}
               disabled={isRolling}
-              className="w-full cursor-pointer bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
+              className="flex-1 cursor-pointer bg-primary text-primary-foreground font-semibold hover:bg-primary/90 h-10 text-sm"
             >
               {isRolling ? "Rolling..." : "Roll d20"}
             </Button>
