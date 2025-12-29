@@ -209,7 +209,7 @@ function RunCard({
     <Card className="group overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 flex flex-col h-full relative">
       <button
         type="button"
-        className="relative aspect-video w-full bg-muted overflow-hidden cursor-pointer"
+        className="relative aspect-video w-full bg-muted overflow-hidden cursor-pointer font-header"
         onClick={handleCardClick}
       >
         {run.campaignCoverImage ? (

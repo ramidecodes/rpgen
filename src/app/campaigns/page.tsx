@@ -165,7 +165,7 @@ function CampaignCard({
       <div className="relative aspect-video w-full bg-muted overflow-hidden">
         <button
           type="button"
-          className="h-full w-full cursor-pointer text-left"
+          className="h-full w-full cursor-pointer font-header text-left"
           onClick={handleCardClick}
         >
           {campaign.coverImage ? (

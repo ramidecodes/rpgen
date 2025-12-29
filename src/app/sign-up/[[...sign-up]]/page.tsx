@@ -19,6 +19,7 @@ export default function SignUpPage() {
         </CardHeader>
         <CardContent>
           <SignUp
+            fallbackRedirectUrl="/runs"
             appearance={{
               elements: {
                 rootBox: "mx-auto",

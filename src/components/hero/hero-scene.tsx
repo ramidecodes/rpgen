@@ -66,8 +66,8 @@ export function HeroScene() {
               size="lg"
               className="glow-border group relative overflow-hidden border-2 border-glow bg-background/80 px-8 py-6 font-title text-foreground text-xl tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20 hover:text-glow-foreground"
             >
-              <Link href="/profile" className="flex items-center gap-3">
-                <span>CONTINUE YOUR ADVENTURE</span>
+              <Link href="/runs" className="flex items-center gap-3">
+                <span>PLAY NOW</span>
                 <DungeonIcon className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
               </Link>
             </Button>

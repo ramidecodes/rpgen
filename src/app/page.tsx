@@ -296,7 +296,7 @@ export default function Home() {
                   size="lg"
                   className="glow-border border-2 border-glow bg-background/80 px-6 py-5 font-title text-foreground tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20"
                 >
-                  <Link href="/sign-up">Create Your Character</Link>
+                  <Link href="/sign-up">Start Playing</Link>
                 </Button>
               </SignedOut>
               <SignedIn>
@@ -305,7 +305,7 @@ export default function Home() {
                   size="lg"
                   className="glow-border border-2 border-glow bg-background/80 px-6 py-5 font-title text-foreground tracking-wider backdrop-blur-sm transition-all duration-300 hover:bg-glow/20"
                 >
-                  <Link href="/profile">View Your Profile</Link>
+                  <Link href="/runs">View Your Runs</Link>
                 </Button>
               </SignedIn>
             </div>
