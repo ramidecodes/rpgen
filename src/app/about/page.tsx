@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import {
@@ -7,6 +8,49 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen.ramilabs.com";
+
+export function generateMetadata(): Metadata {
+  return {
+    title: "About RPGen",
+    description:
+      "Learn about RPGen, a web-based text RPG that combines the best elements of classic adventure games with AI-driven procedural world generation and dynamic storytelling.",
+    keywords: [
+      "RPGen",
+      "RPG",
+      "about",
+      "game mechanics",
+      "AI game master",
+      "procedural generation",
+      "text adventure",
+    ],
+    openGraph: {
+      type: "website",
+      url: `${baseUrl}/about`,
+      siteName: "RPGen",
+      title: "About RPGen",
+      description:
+        "Learn about RPGen, a web-based text RPG that combines the best elements of classic adventure games with AI-driven procedural world generation.",
+      images: [
+        {
+          url: `${baseUrl}/favicon-96x96.png`,
+          width: 96,
+          height: 96,
+          alt: "RPGen",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary",
+      title: "About RPGen",
+      description:
+        "Learn about RPGen, a web-based text RPG that combines the best elements of classic adventure games with AI-driven procedural world generation.",
+      images: [`${baseUrl}/favicon-96x96.png`],
+    },
+  };
+}
 
 export default function AboutPage() {
   return (

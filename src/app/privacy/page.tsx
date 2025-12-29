@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import {
@@ -7,6 +8,45 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen.ramilabs.com";
+
+export function generateMetadata(): Metadata {
+  return {
+    title: "Privacy Policy | RPGen",
+    description:
+      "RPGen Privacy Policy. Learn how Rami Labs collects, uses, discloses, and safeguards your information when you use RPGen.",
+    keywords: ["privacy policy", "data protection", "RPGen", "user privacy"],
+    robots: {
+      index: true,
+      follow: true,
+    },
+    openGraph: {
+      type: "website",
+      url: `${baseUrl}/privacy`,
+      siteName: "RPGen",
+      title: "Privacy Policy | RPGen",
+      description:
+        "RPGen Privacy Policy. Learn how Rami Labs collects, uses, discloses, and safeguards your information when you use RPGen.",
+      images: [
+        {
+          url: `${baseUrl}/favicon-96x96.png`,
+          width: 96,
+          height: 96,
+          alt: "RPGen",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary",
+      title: "Privacy Policy | RPGen",
+      description:
+        "RPGen Privacy Policy. Learn how Rami Labs collects, uses, discloses, and safeguards your information when you use RPGen.",
+      images: [`${baseUrl}/favicon-96x96.png`],
+    },
+  };
+}
 
 export default function PrivacyPage() {
   return (

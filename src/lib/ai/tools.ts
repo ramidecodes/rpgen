@@ -1257,7 +1257,7 @@ export function createGenerateSceneImageTool(runId: string) {
               placeholder: false,
             },
           });
-        } catch (broadcastError) {
+        } catch (_broadcastError) {
           console.error("[Scene Generation] Failed to broadcast scene start", {
             runId,
             sceneId,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import {
@@ -7,6 +8,45 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen.ramilabs.com";
+
+export function generateMetadata(): Metadata {
+  return {
+    title: "Terms of Service | RPGen",
+    description:
+      "RPGen Terms of Service. Read the terms and conditions governing your use of RPGen, a web-based role-playing game platform.",
+    keywords: ["terms of service", "terms and conditions", "RPGen", "legal"],
+    robots: {
+      index: true,
+      follow: true,
+    },
+    openGraph: {
+      type: "website",
+      url: `${baseUrl}/terms`,
+      siteName: "RPGen",
+      title: "Terms of Service | RPGen",
+      description:
+        "RPGen Terms of Service. Read the terms and conditions governing your use of RPGen, a web-based role-playing game platform.",
+      images: [
+        {
+          url: `${baseUrl}/favicon-96x96.png`,
+          width: 96,
+          height: 96,
+          alt: "RPGen",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary",
+      title: "Terms of Service | RPGen",
+      description:
+        "RPGen Terms of Service. Read the terms and conditions governing your use of RPGen, a web-based role-playing game platform.",
+      images: [`${baseUrl}/favicon-96x96.png`],
+    },
+  };
+}
 
 export default function TermsPage() {
   return (
@@ -19,7 +59,8 @@ export default function TermsPage() {
               Terms of Service
             </h1>
             <p className="mb-8 text-muted-foreground">
-              Last updated: {new Date().toLocaleDateString("en-US", {
+              Last updated:{" "}
+              {new Date().toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
@@ -34,15 +75,15 @@ export default function TermsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="mb-4 text-muted-foreground">
-                    These Terms of Service ("Terms") constitute a legally binding
-                    agreement between you and Rami Labs ("we," "our," or "us")
-                    regarding your use of RPGen, a web-based role-playing game
-                    platform (the "Service").
+                    These Terms of Service ("Terms") constitute a legally
+                    binding agreement between you and Rami Labs ("we," "our," or
+                    "us") regarding your use of RPGen, a web-based role-playing
+                    game platform (the "Service").
                   </p>
                   <p className="text-muted-foreground">
                     By accessing or using RPGen, you agree to be bound by these
-                    Terms. If you disagree with any part of these Terms, then you
-                    may not access or use the Service.
+                    Terms. If you disagree with any part of these Terms, then
+                    you may not access or use the Service.
                   </p>
                 </CardContent>
               </Card>
@@ -144,8 +185,8 @@ export default function TermsPage() {
                       Service without permission
                     </li>
                     <li>
-                      Reverse engineer, decompile, or disassemble any part of the
-                      Service
+                      Reverse engineer, decompile, or disassemble any part of
+                      the Service
                     </li>
                     <li>
                       Create multiple accounts to circumvent restrictions or
@@ -192,14 +233,14 @@ export default function TermsPage() {
                       Labs a worldwide, non-exclusive, royalty-free license to:
                     </p>
                     <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-                      <li>Store, process, and display your content on the Service</li>
+                      <li>
+                        Store, process, and display your content on the Service
+                      </li>
                       <li>
                         Use your content to provide, maintain, and improve the
                         Service
                       </li>
-                      <li>
-                        Create backups and ensure data availability
-                      </li>
+                      <li>Create backups and ensure data availability</li>
                     </ul>
                     <p className="mt-4 text-muted-foreground">
                       You represent and warrant that you have all necessary
@@ -223,9 +264,7 @@ export default function TermsPage() {
                     Service:
                   </p>
                   <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-                    <li>
-                      You agree to provide accurate payment information
-                    </li>
+                    <li>You agree to provide accurate payment information</li>
                     <li>
                       Payments are processed by third-party payment processors
                       (e.g., Stripe)
@@ -239,8 +278,8 @@ export default function TermsPage() {
                       the terms of your subscription plan
                     </li>
                     <li>
-                      Refunds are subject to our refund policy, which may vary by
-                      jurisdiction
+                      Refunds are subject to our refund policy, which may vary
+                      by jurisdiction
                     </li>
                     <li>
                       We reserve the right to change our pricing with reasonable
@@ -303,10 +342,10 @@ export default function TermsPage() {
                     <li>Loss of goodwill or reputation</li>
                   </ul>
                   <p className="mt-4 text-muted-foreground">
-                    Our total liability for any claims arising from or related to
-                    the Service shall not exceed the amount you paid to us in the
-                    twelve (12) months preceding the claim, or $100, whichever is
-                    greater.
+                    Our total liability for any claims arising from or related
+                    to the Service shall not exceed the amount you paid to us in
+                    the twelve (12) months preceding the claim, or $100,
+                    whichever is greater.
                   </p>
                 </CardContent>
               </Card>
@@ -321,10 +360,10 @@ export default function TermsPage() {
                     You agree to indemnify, defend, and hold harmless Rami Labs
                     and its officers, directors, employees, and agents from and
                     against any claims, liabilities, damages, losses, and
-                    expenses, including reasonable attorneys' fees, arising out of
-                    or in any way connected with your use of the Service, your
-                    violation of these Terms, or your violation of any third-party
-                    rights.
+                    expenses, including reasonable attorneys' fees, arising out
+                    of or in any way connected with your use of the Service,
+                    your violation of these Terms, or your violation of any
+                    third-party rights.
                   </p>
                 </CardContent>
               </Card>
@@ -340,14 +379,14 @@ export default function TermsPage() {
                 <CardContent>
                   <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
                     <li>
-                      You may terminate your account at any time by contacting us
-                      or using account deletion features
+                      You may terminate your account at any time by contacting
+                      us or using account deletion features
                     </li>
                     <li>
                       We may terminate or suspend your account immediately,
                       without prior notice, for conduct that we believe violates
-                      these Terms or is harmful to other users, us, or
-                      third parties
+                      these Terms or is harmful to other users, us, or third
+                      parties
                     </li>
                     <li>
                       Upon termination, your right to use the Service will cease
@@ -378,8 +417,8 @@ export default function TermsPage() {
                     with the laws of the jurisdiction in which Rami Labs
                     operates, without regard to its conflict of law provisions.
                     Any disputes arising from or relating to these Terms or the
-                    Service shall be subject to the exclusive jurisdiction of the
-                    courts in that jurisdiction.
+                    Service shall be subject to the exclusive jurisdiction of
+                    the courts in that jurisdiction.
                   </p>
                 </CardContent>
               </Card>
@@ -387,9 +426,7 @@ export default function TermsPage() {
 
             {/* Changes to Terms */}
             <section className="mb-16">
-              <h2 className="mb-6 font-semibold text-3xl">
-                Changes to Terms
-              </h2>
+              <h2 className="mb-6 font-semibold text-3xl">Changes to Terms</h2>
               <Card>
                 <CardContent className="pt-6">
                   <p className="text-muted-foreground">
@@ -414,9 +451,9 @@ export default function TermsPage() {
                     If any provision of these Terms is held to be invalid or
                     unenforceable by a court, the remaining provisions of these
                     Terms will remain in effect. The invalid or unenforceable
-                    provision will be replaced with a valid, enforceable provision
-                    that most closely matches the intent of the original
-                    provision.
+                    provision will be replaced with a valid, enforceable
+                    provision that most closely matches the intent of the
+                    original provision.
                   </p>
                 </CardContent>
               </Card>
@@ -448,4 +485,3 @@ export default function TermsPage() {
     </div>
   );
 }
-

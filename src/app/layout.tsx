@@ -21,9 +21,25 @@ const cinzelDecorative = Cinzel_Decorative({
   display: "swap",
 });
 
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen.ramilabs.com";
+
 export const metadata: Metadata = {
   title: "RPGen",
   description: "AI-driven RPG campaign with procedurally generated worlds",
+  keywords: [
+    "RPG",
+    "role playing game",
+    "AI game",
+    "text adventure",
+    "D&D",
+    "procedural generation",
+    "game master",
+    "interactive fiction",
+  ],
+  authors: [{ name: "Rami Labs" }],
+  creator: "Rami Labs",
+  publisher: "Rami Labs",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -40,6 +56,30 @@ export const metadata: Metadata = {
     title: "RPGen",
   },
   manifest: "/manifest.json",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: baseUrl,
+    siteName: "RPGen",
+    title: "RPGen — Infinite Worlds, Boundless Choices",
+    description:
+      "AI-driven RPG campaign with procedurally generated worlds. Step into a world shaped by your decisions.",
+    images: [
+      {
+        url: `${baseUrl}/favicon-96x96.png`,
+        width: 96,
+        height: 96,
+        alt: "RPGen",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "RPGen — Infinite Worlds, Boundless Choices",
+    description:
+      "AI-driven RPG campaign with procedurally generated worlds. Step into a world shaped by your decisions.",
+    images: [`${baseUrl}/favicon-96x96.png`],
+  },
 };
 
 export default function RootLayout({

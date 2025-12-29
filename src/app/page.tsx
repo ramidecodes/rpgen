@@ -1,4 +1,5 @@
 import { SignedIn, SignedOut } from "@clerk/nextjs";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
@@ -11,6 +12,53 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { HeroScene } from "@/components/hero/hero-scene";
+
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://rpgen.ramilabs.com";
+
+export function generateMetadata(): Metadata {
+  return {
+    title: "RPGen — Infinite Worlds, Boundless Choices",
+    description:
+      "Step into a world shaped by your decisions. RPGen combines procedural worldbuilding, AI-driven narration, and a Game Master Agent that adapts to every action you take. Every run is its own universe — unique, reactive, and impossible to repeat.",
+    keywords: [
+      "RPG",
+      "role playing game",
+      "AI game",
+      "text adventure",
+      "D&D",
+      "procedural generation",
+      "game master",
+      "interactive fiction",
+      "fantasy RPG",
+      "sci-fi RPG",
+      "horror RPG",
+    ],
+    openGraph: {
+      type: "website",
+      url: baseUrl,
+      siteName: "RPGen",
+      title: "RPGen — Infinite Worlds, Boundless Choices",
+      description:
+        "Step into a world shaped by your decisions. RPGen combines procedural worldbuilding, AI-driven narration, and a Game Master Agent that adapts to every action you take.",
+      images: [
+        {
+          url: `${baseUrl}/favicon-96x96.png`,
+          width: 96,
+          height: 96,
+          alt: "RPGen",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary",
+      title: "RPGen — Infinite Worlds, Boundless Choices",
+      description:
+        "Step into a world shaped by your decisions. RPGen combines procedural worldbuilding, AI-driven narration, and a Game Master Agent that adapts to every action you take.",
+      images: [`${baseUrl}/favicon-96x96.png`],
+    },
+  };
+}
 
 export default function Home() {
   return (
