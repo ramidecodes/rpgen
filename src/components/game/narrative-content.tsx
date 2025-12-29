@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { NarrativeData, NarrativeDialog } from "@/types/narrative";
+import type { NarrativeData } from "@/types/narrative";
 
 type NarrationBlockProps = {
   text: string;
@@ -26,24 +26,36 @@ function NarrationBlock({ text, className }: NarrationBlockProps) {
 }
 
 type DialogBlockProps = {
-  dialog: NarrativeDialog;
+  character: string;
+  dialogue: string;
   className?: string;
 };
 
 /**
- * Renders a character dialog with distinct visual styling
+ * Renders a character dialog in traditional D&D style with structured dialog box
  */
-function DialogBlock({ dialog, className }: DialogBlockProps) {
+function DialogBlock({ character, dialogue, className }: DialogBlockProps) {
   return (
     <div
       className={cn(
-        "border-l-4 border-primary/40 bg-muted/30 dark:bg-primary/5 pl-4 pr-3 py-3 my-3 rounded-r-md",
+        "rounded-lg border border-border/50 bg-muted/50 dark:bg-muted/30",
+        "shadow-sm my-4 overflow-hidden",
         className
       )}
     >
-      <div className="text-foreground text-base leading-relaxed">
-        <span className="text-primary">{dialog.character}</span>: "
-        {dialog.dialogue}"
+      {/* Left border accent */}
+      <div className="border-l-4 border-primary pl-4 pr-5 py-4">
+        {/* Character nameplate */}
+        <div className="mb-2">
+          <span className="text-primary font-bold text-sm uppercase tracking-wide">
+            {character}
+          </span>
+        </div>
+
+        {/* Dialogue text */}
+        <div className="text-foreground text-base leading-relaxed italic">
+          "{dialogue}"
+        </div>
       </div>
     </div>
   );
@@ -56,24 +68,35 @@ type NarrativeContentProps = {
 
 /**
  * Main component that renders structured narrative content
- * Combines narration segments and dialogs in the correct order
+ * Renders ordered segments preserving the sequence of narration and dialogs
  */
 export function NarrativeContent({ data, className }: NarrativeContentProps) {
-  const { narration, dialogs } = data;
+  const { segments } = data;
 
-  // If we have both narration and dialogs, we need to interleave them
-  // For now, we'll render all narration first, then all dialogs
-  // In the future, we could enhance this to support interleaved content
-  // by having the tool return a more structured format with ordering
+  if (segments.length === 0) {
+    return null;
+  }
 
   return (
     <div className={cn("space-y-2", className)}>
-      {narration.map((narrationText, index) => (
-        <NarrationBlock key={`narration-${index}`} text={narrationText} />
-      ))}
-      {dialogs?.map((dialog, index) => (
-        <DialogBlock key={`dialog-${index}`} dialog={dialog} />
-      ))}
+      {segments.map((segment, index) => {
+        if (segment.type === "narration") {
+          return (
+            <NarrationBlock
+              key={`segment-narration-${index}`}
+              text={segment.text}
+            />
+          );
+        } else {
+          return (
+            <DialogBlock
+              key={`segment-dialog-${index}`}
+              character={segment.character}
+              dialogue={segment.dialogue}
+            />
+          );
+        }
+      })}
     </div>
   );
 }
