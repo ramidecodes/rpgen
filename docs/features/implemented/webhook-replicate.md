@@ -66,7 +66,7 @@
   - **Modified Files**:
 
     - `src/lib/ai/tools.ts`: Update `createGenerateSceneImageTool()` to use `createImagePrediction()` instead of `generateImage()`
-      - Construct webhook URL using `NGROK_HOST` (dev) or `NEXT_PUBLIC_APP_URL`/`WEBHOOK_BASE_URL` (prod)
+      - Construct webhook URL using `NGROK_HOST` (dev) or `NEXT_PUBLIC_SITE_URL`/`WEBHOOK_BASE_URL` (prod)
       - Pass webhook URL to `createImagePrediction()` along with metadata
     - `src/app/api/webhooks/replicate/route.ts`:
       - Add webhook signature validation using `REPLICATE_WEBHOOK_SECRET_B64`
@@ -113,8 +113,8 @@
       - Format: `https://${NGROK_HOST}/api/webhooks/replicate`
       - Example: If `NGROK_HOST=abc123.ngrok.io`, webhook URL is `https://abc123.ngrok.io/api/webhooks/replicate`
       - Requires ngrok tunnel to be running and `NGROK_HOST` to be set
-    - **Production**: Uses `NEXT_PUBLIC_APP_URL` or `WEBHOOK_BASE_URL` environment variable
-      - Format: `${NEXT_PUBLIC_APP_URL}/api/webhooks/replicate` or `${WEBHOOK_BASE_URL}/api/webhooks/replicate`
+    - **Production**: Uses `NEXT_PUBLIC_SITE_URL` or `WEBHOOK_BASE_URL` environment variable
+      - Format: `${NEXT_PUBLIC_SITE_URL}/api/webhooks/replicate` or `${WEBHOOK_BASE_URL}/api/webhooks/replicate`
     - Webhook URL is passed to Replicate's `predictions.create()` API via `webhook` parameter
 
   - **Metadata Passed to Replicate**:
@@ -150,7 +150,7 @@
   - ✅ Multiple clients can subscribe to same run simultaneously
   - ✅ Connection reconnection works automatically on network drops
   - ✅ Scene updates appear in UI within 1-2 seconds of webhook completion
-  - ✅ Webhook URL constructed correctly using `NGROK_HOST` (dev) or `NEXT_PUBLIC_APP_URL` (prod)
+  - ✅ Webhook URL constructed correctly using `NGROK_HOST` (dev) or `NEXT_PUBLIC_SITE_URL` (prod)
   - ✅ Webhook signature validation works correctly with `REPLICATE_WEBHOOK_SECRET_B64`
 
 - **Edge Cases**:
@@ -196,7 +196,7 @@
     - Development: `NGROK_HOST` must be set and ngrok tunnel must be running
       - If not set, log warning and fallback to synchronous approach
       - Provide clear error message if webhook URL construction fails
-    - Production: `NEXT_PUBLIC_APP_URL` or `WEBHOOK_BASE_URL` must be set
+    - Production: `NEXT_PUBLIC_SITE_URL` or `WEBHOOK_BASE_URL` must be set
       - If not set, log error and fallback to synchronous approach
     - Fallback: Can still use synchronous approach if webhook unavailable (with warning)
 
@@ -272,7 +272,7 @@
     - Example: `REPLICATE_WEBHOOK_SECRET_B64=dGVzdC1zZWNyZXQ=`
     - If not set, webhook will log warning but may still process (development mode only)
 
-  - **`NEXT_PUBLIC_APP_URL`** (Production):
+  - **`NEXT_PUBLIC_SITE_URL`** (Production):
 
     - Production application URL (e.g., `https://app.example.com`)
     - Used to construct webhook URL in production
@@ -280,9 +280,9 @@
     - Required in production
 
   - **`WEBHOOK_BASE_URL`** (Production, Optional):
-    - Alternative to `NEXT_PUBLIC_APP_URL` for webhook URL construction
-    - Used if `NEXT_PUBLIC_APP_URL` is not available
-    - Required in production if `NEXT_PUBLIC_APP_URL` is not set
+    - Alternative to `NEXT_PUBLIC_SITE_URL` for webhook URL construction
+    - Used if `NEXT_PUBLIC_SITE_URL` is not available
+    - Required in production if `NEXT_PUBLIC_SITE_URL` is not set
 
 - **Migration Strategy**:
 
@@ -301,7 +301,7 @@
     - SSE connection manager: add/remove/broadcast operations
     - Webhook payload parsing and validation
     - Webhook signature validation with `REPLICATE_WEBHOOK_SECRET_B64`
-    - Webhook URL construction with `NGROK_HOST` (development) and `NEXT_PUBLIC_APP_URL` (production)
+    - Webhook URL construction with `NGROK_HOST` (development) and `NEXT_PUBLIC_SITE_URL` (production)
     - Scene creation with pending state
     - Metadata extraction from Replicate webhook
 
@@ -327,7 +327,7 @@
       - Test with missing `REPLICATE_WEBHOOK_SECRET_B64` (should warn in dev)
     - Test multiple browser tabs receiving same events
     - Test error scenarios (failed generations, connection drops)
-    - Test webhook URL fallback when `NGROK_HOST` or `NEXT_PUBLIC_APP_URL` not set
+    - Test webhook URL fallback when `NGROK_HOST` or `NEXT_PUBLIC_SITE_URL` not set
 
 - **Success Metrics**:
 
