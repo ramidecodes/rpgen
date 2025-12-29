@@ -374,6 +374,10 @@
   font-family: var(--font-jersey-25);
 }
 
+@utility font-header {
+  font-family: var(--font-cinzel-decorative);
+}
+
 @utility container {
   width: 100%;
   margin-left: auto;

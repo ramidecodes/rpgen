@@ -42,7 +42,7 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "text-base font-semibold transition-colors",
+                    "text-base font-semibold font-header transition-colors",
                     isActive
                       ? "text-foreground"
                       : "text-foreground/70 hover:text-foreground"
