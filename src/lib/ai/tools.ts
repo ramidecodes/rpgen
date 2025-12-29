@@ -1125,7 +1125,7 @@ export function createGenerateSceneImageTool(runId: string) {
 
         // Construct webhook URL
         // Development: Use NGROK_HOST if available
-        // Production: Use NEXT_PUBLIC_APP_URL or WEBHOOK_BASE_URL
+        // Production: Use NEXT_PUBLIC_SITE_URL or WEBHOOK_BASE_URL
         let webhookBaseUrl: string | undefined;
         if (process.env.NGROK_HOST) {
           // Development with ngrok
@@ -1139,9 +1139,9 @@ export function createGenerateSceneImageTool(runId: string) {
           } else {
             webhookBaseUrl = `https://${ngrokHost}`;
           }
-        } else if (process.env.NEXT_PUBLIC_APP_URL) {
+        } else if (process.env.NEXT_PUBLIC_SITE_URL) {
           // Production
-          webhookBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
+          webhookBaseUrl = process.env.NEXT_PUBLIC_SITE_URL;
         } else if (process.env.WEBHOOK_BASE_URL) {
           // Alternative production URL
           webhookBaseUrl = process.env.WEBHOOK_BASE_URL;
