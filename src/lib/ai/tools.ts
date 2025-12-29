@@ -1116,7 +1116,10 @@ export function createGenerateSceneImageTool(runId: string) {
         try {
           enhancedPrompt = createScenePrompt(prompt);
         } catch (error) {
-          console.error("Scene generation failed - prompt validation error:", error);
+          console.error(
+            "Scene generation failed - prompt validation error:",
+            error
+          );
           throw error;
         }
 

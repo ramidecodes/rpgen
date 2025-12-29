@@ -84,7 +84,9 @@ function extractImageUrl(output: unknown): string {
       }
 
       // Log error for empty object case
-      console.error("[Replicate] Empty object in array - unexpected output format");
+      console.error(
+        "[Replicate] Empty object in array - unexpected output format"
+      );
 
       // Check if output is null/undefined (might be a placeholder)
       if (firstOutput === null || firstOutput === undefined) {

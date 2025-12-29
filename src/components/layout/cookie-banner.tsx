@@ -43,7 +43,8 @@ const getStoredConsent = (): CookieConsent | null => {
         return {
           essential: true,
           functional: value.functional,
-          timestamp: typeof value.timestamp === "number" ? value.timestamp : Date.now(),
+          timestamp:
+            typeof value.timestamp === "number" ? value.timestamp : Date.now(),
         };
       }
     }
@@ -119,16 +120,17 @@ export function CookieBanner() {
       <Alert
         className={cn(
           "pointer-events-auto flex max-w-4xl flex-col gap-2 rounded-xl border shadow-xl transition-transform duration-300 ease-out",
-          "translate-y-0",
+          "translate-y-0"
         )}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="space-y-0.5">
             <AlertTitle>We use cookies to enhance your adventure</AlertTitle>
             <AlertDescription className="text-sm">
-              We use essential cookies to keep RPGen running (authentication and session
-              management). With your permission, we also use functional cookies to
-              remember things like your theme and preferences. You can learn more in our{" "}
+              We use essential cookies to keep RPGen running (authentication and
+              session management). With your permission, we also use functional
+              cookies to remember things like your theme and preferences. You
+              can learn more in our{" "}
               <Link href="/privacy" className="underline underline-offset-4">
                 privacy policy
               </Link>
@@ -161,5 +163,3 @@ export function CookieBanner() {
     </div>
   );
 }
-
-
