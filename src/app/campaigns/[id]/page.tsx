@@ -14,7 +14,7 @@ import { eq, and } from "drizzle-orm";
 import { BookOpen, Calendar, Play } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 
 interface CampaignPageProps {
   params: Promise<{
@@ -46,7 +46,7 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
     .where(eq(campaigns.id, id));
 
   if (!campaignData) {
-    return <div>Campaign not found</div>;
+    notFound();
   }
 
   const { campaign, universe } = campaignData;

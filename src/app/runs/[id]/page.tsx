@@ -10,7 +10,7 @@ import { getPublicUrl } from "@/lib/storage/r2";
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { Calendar, Play } from "lucide-react";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Front } from "@/lib/db/schemas/campaign";
@@ -51,7 +51,7 @@ export default async function RunPage({ params }: RunPageProps) {
     .limit(1);
 
   if (!runData) {
-    return <div>Run not found</div>;
+    notFound();
   }
 
   const { run, campaign, character, universe } = runData;

@@ -81,30 +81,6 @@ export function createVisualEngineAgent(
   // Create tools with runId bound directly at creation time
   const tools = createVisualEngineTools(options.runId, options);
 
-  // Track whether a start signal has been emitted this execution
-  let hasEmittedStart = false;
-  const emitStart = async (sceneId?: string) => {
-    if (hasEmittedStart) return;
-    hasEmittedStart = true;
-    const placeholderId = sceneId || `pending-${options.runId}-${Date.now()}`;
-    try {
-      const { sseConnectionManager } = await import(
-        "@/lib/sse/connection-manager"
-      );
-      await sseConnectionManager.broadcast(options.runId, {
-        type: "scene-generation-started",
-        data: {
-          runId: options.runId,
-          sceneId: placeholderId,
-          narrativeContext: options.campaignState.currentContext,
-          placeholder: !sceneId,
-        },
-      });
-    } catch (error) {
-      console.error("[VEA] Failed to broadcast generation start", error);
-    }
-  };
-
   // Create the ToolLoopAgent
   const agent = new ToolLoopAgent({
     model,
@@ -126,20 +102,8 @@ export function createVisualEngineAgent(
       stepCountIs(4),
     ],
 
-    // Emit start when generateSceneImage is called (definitive signal that generation is happening)
-    // prepareStep is called before tool execution, so we can't check tool results here
-    // We emit when generateSceneImage is called, which is the reliable trigger
-    prepareStep: async (context) => {
-      const lastStep = context.steps[context.steps.length - 1];
-      const toolName = lastStep?.toolCalls?.[0]?.toolName;
-
-      // Emit when generateSceneImage is called - this is the definitive signal
-      if (!hasEmittedStart && toolName === "generateSceneImage") {
-        await emitStart();
-      }
-
-      return {};
-    },
+    // Note: scene-generation-started event is emitted by the generateSceneImage tool itself
+    // with the real scene ID after the scene record is created. No need to emit from prepareStep.
   });
 
   return {
@@ -177,18 +141,38 @@ CURRENT STATE:
 
 BACKGROUND PROCESSING INSTRUCTIONS:
 1. You are NOT an interactive agent. Do not produce text responses or chat messages.
-2. CONSERVATIVE GENERATION: Only generate after COMPLETE narrative moments.
+2. MANDATORY WORKFLOW: You MUST follow this exact sequence on EVERY execution:
+   a) ALWAYS call shouldGenerateScene tool FIRST - this is REQUIRED on every run
+   b) Extract narrative text from the recent messages (look for text parts and formatNarrativeTool parts with narration segments)
+   c) If shouldGenerateScene returns shouldGenerate: true, proceed to step (d)
+   d) Call determineSceneType tool - this is REQUIRED before generateImagePrompt
+   e) Call generateImagePrompt tool with the scene type from determineSceneType
+   f) Call generateSceneImage tool with the generated prompt
+   g) If shouldGenerateScene returns shouldGenerate: false, stop processing
+3. NARRATIVE EXTRACTION: To extract current narrative from messages:
+   - Look at the most recent assistant messages
+   - Extract text from text parts (type: "text")
+   - Extract narration segments from formatNarrativeTool parts (type: "tool-call", toolName: "formatNarrative")
+   - Combine all narration text into a single narrative string
+   - Use this narrative string as the currentNarrative parameter for shouldGenerateScene
+4. CONSERVATIVE GENERATION: Only generate after COMPLETE narrative moments.
    - Wait for complete narrative moments before generating (e.g., after skill check outcomes are fully explained with consequences)
    - Avoid generating during intermediate states (e.g., when skill check is requested but outcome pending)
    - Prioritize narrative completeness over frequency
-3. Use the shouldGenerateScene tool first to make the decision (this tool will detect intermediate states and defer if needed).
-4. CRITICAL: If generation is approved, you MUST use determineSceneType tool BEFORE generateImagePrompt.
+   - The shouldGenerateScene tool will handle intermediate state detection automatically
+5. CRITICAL: If generation is approved, you MUST use determineSceneType tool BEFORE generateImagePrompt.
    - This step is REQUIRED - do not skip it or guess the scene type
    - The scene type determines the entire composition and focus of the image
    - Pass the scene type result to generateImagePrompt tool
-5. Craft a detailed prompt with generateImagePrompt tool, ALWAYS including the scene type from determineSceneType.
-6. Finally, use generateSceneImage tool to create and store the image.
-7. Stop processing after completing the workflow or determining no generation is needed.
+6. Craft a detailed prompt with generateImagePrompt tool, ALWAYS including the scene type from determineSceneType.
+7. Finally, use generateSceneImage tool to create and store the image.
+8. Stop processing after completing the workflow or determining no generation is needed.
+
+EXAMPLES OF WHEN TO GENERATE:
+- After a successful skill check with full narrative consequences (e.g., "You draw the shard, lips forming the ancient words... The whispers shriek in discord, recoiling...")
+- When the character moves to a new location (e.g., "Pursue the fleeing rival leader toward the Thicket")
+- After major narrative events with complete resolution (e.g., "Prepare the tribe for rival incursion" with successful outcome)
+- When the environment dramatically changes (e.g., entering a new area, weather changes, time of day shifts)
 
 SCENE COMPOSITION GUIDELINES (STRICT ENFORCEMENT):
 
@@ -281,8 +265,14 @@ export function hasNarrativeText(messages: UIMessage[]): boolean {
   for (const part of lastAssistantMessage.parts) {
     if (isNarrativeToolPart(part)) {
       const extracted = extractNarrativeData(part as NarrativeToolPart);
-      if (extracted && extracted.narration.length > 0) {
-        return true;
+      if (extracted && extracted.segments.length > 0) {
+        // Check if there are any narration segments
+        const hasNarration = extracted.segments.some(
+          (seg) => seg.type === "narration"
+        );
+        if (hasNarration) {
+          return true;
+        }
       }
     }
   }

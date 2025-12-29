@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -37,6 +37,14 @@ export function SceneVisualizer({
   const [imageError, setImageError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { pendingSceneId } = useGameStore();
+
+  // Reset image state when imageUrl changes
+  useEffect(() => {
+    if (scene?.imageUrl) {
+      setImageLoaded(false);
+      setImageError(false);
+    }
+  }, [scene?.imageUrl]);
 
   // Check if this scene is pending generation
   const isPending = Boolean(pendingSceneId);
@@ -171,13 +179,14 @@ export function SceneVisualizer({
       )}
     >
       {isPending && (
-        <div className="pointer-events-none absolute rounded-xl glow-pulse-inset z-20" />
+        <div className="pointer-events-none absolute inset-0 rounded-xl glow-pulse-inset z-20" />
       )}
       <div className="relative h-full min-h-[260px] w-full overflow-hidden rounded-xl">
         {!imageLoaded && (
           <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
         )}
         <Image
+          key={scene.imageUrl}
           src={scene.imageUrl}
           alt="Current scene"
           fill
@@ -207,6 +216,7 @@ export function SceneVisualizer({
             </DialogTitle>
             <div className="relative aspect-video">
               <Image
+                key={scene.imageUrl}
                 src={scene.imageUrl}
                 alt="Current scene - full size"
                 fill

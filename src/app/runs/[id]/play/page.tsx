@@ -10,7 +10,7 @@ import {
 import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { auth } from "@clerk/nextjs/server";
 import { eq, asc } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { GamePlayClient } from "./game-play-client";
 import { getPublicUrl } from "@/lib/storage/r2";
 import type { UIMessage } from "@/types/ui-message";
@@ -52,7 +52,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
     .limit(1);
 
   if (!runData) {
-    return <div>Run not found</div>;
+    notFound();
   }
 
   const { run, campaign, character, universe } = runData;
