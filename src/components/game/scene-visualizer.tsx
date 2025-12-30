@@ -162,7 +162,7 @@ export function SceneVisualizer({
     );
 
     const metadata = (
-      <div className="text-xs text-muted-foreground">
+      <div className="mt-4 space-y-1 text-xs text-muted-foreground">
         <p className="line-clamp-2">{scene.narrativeContext}</p>
         <p>Status: Pending generation</p>
       </div>
