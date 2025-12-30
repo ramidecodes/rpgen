@@ -1,15 +1,17 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { characters, universes } from "@/lib/db/schema";
+import { characters, universes, campaigns, runs } from "@/lib/db/schema";
 import type { Universe } from "@/lib/db/schema";
 import { createUniverseInputSchema } from "@/lib/db/schemas/universe";
 import { generateUniverse } from "@/lib/ai/universe-generator";
 import { generateUniverseImage } from "@/lib/ai/image-generator";
-import { uploadImage, getPublicUrl } from "@/lib/storage/r2";
+import { uploadImage, getPublicUrl, deleteFolder } from "@/lib/storage/r2";
 import { ensureUserProfile } from "@/lib/db/utils/user-profile";
+import { getUserProfileByClerkId } from "@/lib/db/queries/user-profile";
 import { revalidatePath } from "next/cache";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql, and } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 
@@ -259,5 +261,104 @@ export async function likeUniverseAction(universeId: string) {
   } catch (error) {
     console.error("Failed to like universe:", error);
     return { success: false, error: "Failed to like universe" };
+  }
+}
+
+export async function deleteUniverse(universeId: string) {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Get internal user profile
+  const userProfile = await getUserProfileByClerkId(clerkUserId);
+  if (!userProfile) {
+    return { success: false, error: "User profile not found" };
+  }
+
+  // Verify universe exists and user owns it
+  const [universe] = await db
+    .select()
+    .from(universes)
+    .where(eq(universes.id, universeId))
+    .limit(1);
+
+  if (!universe) {
+    return { success: false, error: "Universe not found" };
+  }
+
+  if (!universe.userId || universe.userId !== userProfile.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    // 1. Delete all campaigns in this universe that belong to the user
+    // (Campaigns cascade to runs, which cascade to messages, scenes, quests, etc.)
+    const userCampaigns = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(and(eq(campaigns.universeId, universeId), eq(campaigns.userId, userProfile.id)));
+
+    for (const campaign of userCampaigns) {
+      // Delete all runs for this campaign
+      await db.delete(runs).where(eq(runs.campaignId, campaign.id));
+      // Delete campaign folder from R2
+      const campaignFolderPrefix = `${userProfile.id}/campaigns/${campaign.id}`;
+      try {
+        await deleteFolder(campaignFolderPrefix);
+      } catch (error) {
+        console.error(`Error deleting campaign folder ${campaign.id} from R2:`, error);
+      }
+    }
+
+    // Delete campaigns from database
+    await db
+      .delete(campaigns)
+      .where(and(eq(campaigns.universeId, universeId), eq(campaigns.userId, userProfile.id)));
+
+    // 2. Delete all characters in this universe that belong to the user
+    // (Characters cascade to runs, which cascade to messages, scenes, quests, etc.)
+    const userCharacters = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(and(eq(characters.universeId, universeId), eq(characters.userId, userProfile.id)));
+
+    for (const character of userCharacters) {
+      // Delete all runs for this character
+      await db.delete(runs).where(eq(runs.characterId, character.id));
+      // Delete character folder from R2
+      const characterFolderPrefix = `${userProfile.id}/characters/${character.id}/`;
+      try {
+        await deleteFolder(characterFolderPrefix);
+      } catch (error) {
+        console.error(`Error deleting character folder ${character.id} from R2:`, error);
+      }
+    }
+
+    // Delete characters from database
+    await db
+      .delete(characters)
+      .where(and(eq(characters.universeId, universeId), eq(characters.userId, userProfile.id)));
+
+    // 3. Delete universe folder from R2
+    const universeFolderPrefix = `${userProfile.id}/universes/${universeId}/`;
+    try {
+      await deleteFolder(universeFolderPrefix);
+    } catch (error) {
+      // Log error but don't fail deletion
+      console.error("Error deleting universe folder from R2:", error);
+    }
+
+    // 4. Delete universe from database
+    await db.delete(universes).where(eq(universes.id, universeId));
+
+    revalidatePath("/universes");
+    revalidatePath("/profile");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting universe:", error);
+    return { success: false, error: "Failed to delete universe" };
   }
 }

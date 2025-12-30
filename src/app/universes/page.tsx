@@ -6,20 +6,17 @@ import {
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Universe } from "@/lib/db/schema";
 import { ensureUserProfile } from "@/lib/db/utils/user-profile";
 import {
   BookOpen,
   Globe,
-  Heart,
   Plus,
   Sparkles,
   User as UserIcon,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
+import { UniverseCard } from "@/components/universe/universe-card";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +91,11 @@ export default async function UniverseListPage() {
               {userUniverses && userUniverses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {userUniverses.map((universe) => (
-                    <UniverseCard key={universe.id} universe={universe} />
+                    <UniverseCard
+                      key={universe.id}
+                      universe={universe}
+                      canDelete
+                    />
                   ))}
                 </div>
               ) : (
@@ -168,73 +169,5 @@ export default async function UniverseListPage() {
       </main>
       <Footer />
     </div>
-  );
-}
-
-function UniverseCard({
-  universe,
-  showLikes = false,
-  isStarter = false,
-}: {
-  universe: Universe;
-  showLikes?: boolean;
-  isStarter?: boolean;
-}) {
-  return (
-    <Link href={`/universes/${universe.id}`}>
-      <Card className="overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow border-primary/10 group cursor-pointer">
-        <div className="relative aspect-video w-full bg-muted">
-          {universe.coverImage ? (
-            <Image
-              src={universe.coverImage}
-              alt={universe.name}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground bg-secondary/30">
-              <Sparkles className="h-8 w-8 opacity-20" />
-            </div>
-          )}
-          <div className="absolute top-2 right-2 flex gap-2">
-            <span className="bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-sm font-medium">
-              {universe.ontology.timeframe}
-            </span>
-            {isStarter && (
-              <span className="bg-primary/80 text-primary-foreground px-2 py-1 rounded text-xs backdrop-blur-sm font-bold flex items-center gap-1">
-                <Sparkles className="h-3 w-3" /> Official
-              </span>
-            )}
-          </div>
-        </div>
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start gap-2">
-            <h3 className="text-xl font-bold line-clamp-1 group-hover:text-primary transition-colors">
-              {universe.name}
-            </h3>
-            {showLikes && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                <Heart className="h-3 w-3 fill-current" />
-                {universe.likesCount || 0}
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="grow pb-4">
-          <p className="text-sm text-foreground/75 line-clamp-3 mb-3">
-            {universe.description}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ring-primary/20 bg-primary/5 text-primary">
-              {universe.ontology.magicLevel}
-            </span>
-            <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ring-secondary-foreground/20 bg-secondary/50 text-secondary-foreground">
-              {universe.ontology.socialStructure}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   );
 }
