@@ -1,19 +1,19 @@
 import type { ToolUIPart } from "@/types/ui-message";
 
 /**
- * Character dialog structure
+ * Ordered narrative segment that can be either narration or dialog
+ * Used to preserve the order of narrative content as it appears in tool calls
  */
-export type NarrativeDialog = {
-  character: string;
-  dialogue: string;
-};
+export type NarrativeSegment =
+  | { type: "narration"; text: string }
+  | { type: "dialog"; character: string; dialogue: string };
 
 /**
  * Structured narrative data returned by formatNarrativeTool
+ * Uses ordered segments to preserve the sequence of narration and dialogs
  */
 export type NarrativeData = {
-  narration: string[];
-  dialogs?: NarrativeDialog[];
+  segments: NarrativeSegment[];
 };
 
 /**
@@ -25,10 +25,13 @@ export type NarrativeToolPart = ToolUIPart & {
 };
 
 /**
- * Type guard to validate that an object matches the NarrativeDialog structure
+ * Type guard to validate that an object matches the dialog segment structure
  * Ensures character and dialogue are non-empty strings
  */
-function isValidNarrativeDialog(value: unknown): value is NarrativeDialog {
+function isValidDialogSegment(value: unknown): value is {
+  character: string;
+  dialogue: string;
+} {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -104,9 +107,9 @@ export function isNarrativeToolPart(part: unknown): part is NarrativeToolPart {
 }
 
 /**
- * Extract narrative data from a tool part
+ * Extract narrative data from a tool part and convert to ordered segments
  * Handles different result structures from AI SDK v6
- * For non-HITL tools, the result can be in various places depending on execution state
+ * Always returns segments format, converting old format if needed
  */
 export function extractNarrativeData(
   part: NarrativeToolPart
@@ -117,104 +120,91 @@ export function extractNarrativeData(
     [key: string]: unknown;
   };
 
-  // For non-HITL tools that execute immediately, the result is typically in:
-  // 1. `result` field (most common for tool-result parts)
-  // 2. Direct properties on the part (for some AI SDK v6 structures)
-  // 3. `output` field (less common for non-HITL, but check anyway)
-  // 4. Nested in the tool execution result structure
-
   // Try result first (standard for non-HITL tool results)
   let data: unknown = typedPart.result;
 
-  // If no result field, check if the part itself has the narrative structure
-  if (!data) {
-    // Check if narration/dialogs are directly on the part
-    if (
-      "narration" in typedPart &&
-      Array.isArray(typedPart.narration) &&
-      typedPart.narration.every((item) => typeof item === "string")
-    ) {
-      return {
-        narration: typedPart.narration as string[],
-        dialogs: Array.isArray(typedPart.dialogs)
-          ? typedPart.dialogs.filter(isValidNarrativeDialog)
-          : undefined,
-      };
-    }
-  }
-
-  // Fallback to output (for HITL tools, though formatNarrative is non-HITL)
+  // Fallback to output field
   if (!data) {
     data = typedPart.output;
+  }
+
+  // Check if the part itself has the narrative structure directly
+  if (!data && "narration" in typedPart) {
+    data = typedPart;
   }
 
   // Process the data if we found it
   if (data && typeof data === "object") {
     const result = data as Record<string, unknown>;
+    const segments: NarrativeSegment[] = [];
 
-    // Check if it has the expected structure directly
-    if (
-      Array.isArray(result.narration) &&
-      result.narration.every((item) => typeof item === "string")
-    ) {
-      return {
-        narration: result.narration as string[],
-        dialogs: Array.isArray(result.dialogs)
-          ? result.dialogs.filter(isValidNarrativeDialog)
-          : undefined,
-      };
+    // Check for new format (segments) first
+    if (Array.isArray(result.segments)) {
+      const validSegments = result.segments.filter(
+        (seg): seg is NarrativeSegment => {
+          if (typeof seg !== "object" || seg === null) return false;
+          const s = seg as Record<string, unknown>;
+
+          if (s.type === "narration") {
+            return typeof s.text === "string" && s.text.trim().length > 0;
+          }
+          if (s.type === "dialog") {
+            return isValidDialogSegment({
+              character: s.character,
+              dialogue: s.dialogue,
+            });
+          }
+          return false;
+        }
+      );
+
+      if (validSegments.length > 0) {
+        return { segments: validSegments };
+      }
     }
 
-    // Also check if the result is wrapped in a success/response structure
-    // Some tools return { success: true, narration: [...], dialogs: [...] }
+    // Convert old format (narration/dialogs arrays) to segments
+    const narration: string[] = [];
+    const dialogs: Array<{ character: string; dialogue: string }> = [];
+
+    // Extract narration array
+    if (Array.isArray(result.narration)) {
+      narration.push(
+        ...result.narration.filter(
+          (item): item is string =>
+            typeof item === "string" && item.trim().length > 0
+        )
+      );
+    }
+
+    // Extract dialogs array (may be wrapped in success structure)
+    let dialogsData = result.dialogs;
     if (
+      !dialogsData &&
       "success" in result &&
-      Array.isArray(result.narration) &&
-      result.narration.every((item) => typeof item === "string")
+      typeof result.success === "boolean"
     ) {
-      return {
-        narration: result.narration as string[],
-        dialogs: Array.isArray(result.dialogs)
-          ? result.dialogs.filter(isValidNarrativeDialog)
-          : undefined,
-      };
+      dialogsData = (result as { dialogs?: unknown }).dialogs;
     }
-  }
 
-  // Final fallback: check if the part itself has output with state "output-available"
-  // This handles cases where the structure is: { type: "tool-formatNarrative", state: "output-available", output: {...} }
-  // Also check output field directly (it might be set even if we didn't find it earlier)
-  if ("output" in typedPart && typedPart.output) {
-    const outputData = typedPart.output;
-    if (outputData && typeof outputData === "object") {
-      const output = outputData as Record<string, unknown>;
+    if (Array.isArray(dialogsData)) {
+      dialogs.push(...dialogsData.filter(isValidDialogSegment));
+    }
 
-      // Check if it has the expected structure directly
-      if (
-        Array.isArray(output.narration) &&
-        output.narration.every((item) => typeof item === "string")
-      ) {
-        return {
-          narration: output.narration as string[],
-          dialogs: Array.isArray(output.dialogs)
-            ? output.dialogs.filter(isValidNarrativeDialog)
-            : undefined,
-        };
-      }
+    // Convert to segments: narration first, then dialogs (preserves order within tool call)
+    for (const text of narration) {
+      segments.push({ type: "narration", text });
+    }
+    for (const dialog of dialogs) {
+      segments.push({
+        type: "dialog",
+        character: dialog.character,
+        dialogue: dialog.dialogue,
+      });
+    }
 
-      // Check if wrapped in success structure
-      if (
-        "success" in output &&
-        Array.isArray(output.narration) &&
-        output.narration.every((item) => typeof item === "string")
-      ) {
-        return {
-          narration: output.narration as string[],
-          dialogs: Array.isArray(output.dialogs)
-            ? output.dialogs.filter(isValidNarrativeDialog)
-            : undefined,
-        };
-      }
+    if (segments.length > 0) {
+      return { segments };
     }
   }
 
