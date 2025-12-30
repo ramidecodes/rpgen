@@ -123,57 +123,70 @@ export function GamePlayClient({
         const data = JSON.parse(event.data);
         const { sceneId, imageUrl } = data;
 
-        // Clear pending after a minimal delay to ensure the UI renders the pulse
-        const clearPending = () => setPendingSceneId(null);
-        if (pendingClearTimeoutRef.current) {
-          clearTimeout(pendingClearTimeoutRef.current);
-        }
-        const startedAt = pendingStartRef.current;
-        if (startedAt) {
-          const elapsed = Date.now() - startedAt;
-          const remaining = Math.max(300 - elapsed, 0);
-          pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
-        } else {
-          clearPending();
-        }
+        // Helper to clear pending state if it matches the scene ID or if we have an image
+        const clearPendingIfMatch = (updatedSceneId: string, hasImage: boolean) => {
+          const currentPending = useGameStore.getState().pendingSceneId;
+          if (
+            currentPending &&
+            (currentPending === updatedSceneId || hasImage)
+          ) {
+            // Clear pending after a minimal delay to ensure the UI renders the pulse
+            const clearPending = () => setPendingSceneId(null);
+            if (pendingClearTimeoutRef.current) {
+              clearTimeout(pendingClearTimeoutRef.current);
+            }
+            const startedAt = pendingStartRef.current;
+            if (startedAt) {
+              const elapsed = Date.now() - startedAt;
+              const remaining = Math.max(300 - elapsed, 0);
+              pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
+            } else {
+              clearPending();
+            }
+          }
+        };
 
-        // Fetch the full scene data to ensure we have the latest state
+        // Use the imageUrl from SSE event directly (it's already a public URL)
+        // and fetch full scene data for other fields
         getCurrentSceneAction(run.id)
           .then(({ scene }) => {
-            if (scene) {
-              setCurrentSceneState(scene);
-              currentSceneStateRef.current = scene;
-              // Ensure pending state is cleared
-              if (scene.imageUrl) {
-                setPendingSceneId(null);
-              }
+            if (scene && scene.id === sceneId) {
+              // Scene matches - use the public URL from SSE event (more reliable)
+              const updatedScene: Scene = {
+                ...scene,
+                imageUrl: imageUrl || scene.imageUrl, // Prefer SSE URL, fallback to fetched URL
+              };
+              setCurrentSceneState(updatedScene);
+              currentSceneStateRef.current = updatedScene;
+              // Clear pending if scene ID matches or if scene has imageUrl
+              clearPendingIfMatch(scene.id, Boolean(updatedScene.imageUrl));
             } else if (imageUrl && sceneId) {
-              // If scene fetch fails but we have imageUrl and sceneId, create scene object
+              // Scene ID doesn't match or scene not found - use SSE data directly
               // This handles the case where scene was just created and fetch hasn't caught up
               const fallbackScene: Scene = {
                 id: sceneId,
                 runId: run.id,
-                sceneType: "environment",
-                imageUrl,
-                generationPrompt: "",
-                narrativeContext: "",
-                previousSceneId: null,
-                createdAt: new Date(),
+                sceneType: scene?.sceneType || "environment",
+                imageUrl, // Use public URL from SSE event
+                generationPrompt: scene?.generationPrompt || "",
+                narrativeContext: scene?.narrativeContext || "",
+                previousSceneId: scene?.previousSceneId || null,
+                createdAt: scene?.createdAt || new Date(),
               };
               setCurrentSceneState(fallbackScene);
               currentSceneStateRef.current = fallbackScene;
-              setPendingSceneId(null);
+              clearPendingIfMatch(sceneId, true);
             }
           })
           .catch((error) => {
             console.error("Error fetching scene after SSE update:", error);
-            // Fallback: if we have imageUrl and sceneId, create scene object
+            // Fallback: if we have imageUrl and sceneId, create scene object with SSE data
             if (imageUrl && sceneId) {
               const fallbackScene: Scene = {
                 id: sceneId,
                 runId: run.id,
                 sceneType: "environment",
-                imageUrl,
+                imageUrl, // Use public URL from SSE event
                 generationPrompt: "",
                 narrativeContext: "",
                 previousSceneId: null,
@@ -181,21 +194,22 @@ export function GamePlayClient({
               };
               setCurrentSceneState(fallbackScene);
               currentSceneStateRef.current = fallbackScene;
+              clearPendingIfMatch(sceneId, true);
             } else {
-              // Update existing scene if it matches
+              // Update existing scene if it matches - use SSE imageUrl
               setCurrentSceneState((prevScene) => {
                 if (prevScene && prevScene.id === sceneId && imageUrl) {
-                  const updated = {
+                  const updated: Scene = {
                     ...prevScene,
-                    imageUrl,
-                  } as Scene;
+                    imageUrl, // Use public URL from SSE event
+                  };
                   currentSceneStateRef.current = updated;
+                  clearPendingIfMatch(sceneId, true);
                   return updated;
                 }
                 return prevScene;
               });
             }
-            setPendingSceneId(null);
           });
       } catch (error) {
         console.error("Error parsing scene-updated event:", error);
@@ -214,21 +228,27 @@ export function GamePlayClient({
         }
 
         const data = JSON.parse(event.data);
-        const { sceneId } = data || {};
+        const { sceneId, placeholder } = data || {};
         if (typeof sceneId === "string") {
           pendingStartRef.current = Date.now();
           if (pendingClearTimeoutRef.current) {
             clearTimeout(pendingClearTimeoutRef.current);
           }
           // Always set to ensure the pulse triggers even for repeated ids
+          // If we have a real scene ID, use it; otherwise use placeholder
           setPendingSceneId(sceneId);
+          
           // Only fetch if we don't have a scene yet; otherwise keep the current image visible
           if (!currentSceneStateRef.current) {
             getCurrentSceneAction(run.id)
               .then(({ scene }) => {
                 if (scene) {
-                  setCurrentSceneState(scene);
-                  currentSceneStateRef.current = scene;
+                  // Create new reference to ensure re-render
+                  const updatedScene: Scene = {
+                    ...scene,
+                  };
+                  setCurrentSceneState(updatedScene);
+                  currentSceneStateRef.current = updatedScene;
                 }
               })
               .catch((error) => {
@@ -240,9 +260,11 @@ export function GamePlayClient({
           }
 
           // Fallback: clear pending if nothing changes after a timeout for placeholder ids
-          if (sceneId.startsWith("pending-")) {
+          // This handles cases where the webhook never arrives or fails
+          if (placeholder || sceneId.startsWith("pending-")) {
             setTimeout(() => {
               const currentPending = useGameStore.getState().pendingSceneId;
+              // Only clear if this specific placeholder is still pending
               if (currentPending === sceneId) {
                 setPendingSceneId(null);
               }

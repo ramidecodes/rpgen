@@ -1,4 +1,10 @@
-import { createAgentUIStreamResponse, type Agent } from "ai";
+// Configure AI SDK warnings based on environment variable
+if (typeof globalThis !== "undefined") {
+  globalThis.AI_SDK_LOG_WARNINGS =
+    process.env.AI_SDK_LOG_WARNINGS === "false" ? false : undefined;
+}
+
+import { createAgentUIStreamResponse, type Agent, getToolName } from "ai";
 import { db } from "@/lib/db";
 import {
   runs,
@@ -249,31 +255,10 @@ export async function POST(req: Request) {
     // Keep only the most recent assistant message for each unique content
     processedMessages = deduplicateAssistantMessages(processedMessages);
 
-    // CRITICAL: Check for consecutive skill checks and add context to prevent duplicates
-    // If the last assistant message contains a skill check, the system prompt will handle it
-    // This check ensures we're aware of the situation for logging/debugging
-    const lastAssistantMessage = processedMessages
-      .filter((msg) => msg.role === "assistant")
-      .pop();
-    if (lastAssistantMessage && Array.isArray(lastAssistantMessage.parts)) {
-      const hasSkillCheckInLastMessage = lastAssistantMessage.parts.some(
-        (part) => {
-          if (!isToolUIPart(part)) return false;
-          const toolPart = part as {
-            toolName?: string;
-            state?: string;
-          };
-          return (
-            toolPart.toolName === "requestSkillCheck" &&
-            (toolPart.state === "input-available" ||
-              toolPart.state === "output-available")
-          );
-        }
-      );
-      if (hasSkillCheckInLastMessage) {
-        // System prompt should prevent duplicate skill checks
-      }
-    }
+    // Extract tool calls from last assistant message for explicit context
+    // This makes it explicit to the agent what tool calls exist in the previous message
+    const lastMessageToolCalls =
+      extractLastAssistantMessageToolCalls(processedMessages);
 
     // CRITICAL: Ensure processedMessages is never empty
     // createAgentUIStreamResponse requires at least one message
@@ -296,9 +281,12 @@ export async function POST(req: Request) {
       ];
     }
 
-    // Check for empty initial message (unused for now, but function is available)
-    const _isEmptyInitialMessage =
-      checkForEmptyInitialMessage(incomingMessages);
+    // Detect if this is an initial message (no previous assistant messages + empty trigger)
+    const hasNoPreviousAssistantMessages =
+      storedMessages.filter((msg) => msg.role === "assistant").length === 0;
+    const isEmptyInitialMessage = checkForEmptyInitialMessage(incomingMessages);
+    const isInitialMessage =
+      hasNoPreviousAssistantMessages && isEmptyInitialMessage;
 
     // Query active quests for read-only context (GMA narrative awareness)
     const activeQuests = await getActiveQuestsByRunId(run.id);
@@ -324,6 +312,8 @@ export async function POST(req: Request) {
       universe,
       campaignState,
       activeQuests, // Read-only quest context for narrative awareness
+      isInitialMessage, // Flag to indicate this is the initial message
+      lastMessageToolCalls, // Explicit context about tool calls in last assistant message
     });
 
     // Create the streaming response
@@ -405,6 +395,52 @@ export async function POST(req: Request) {
 }
 
 /**
+ * Extract tool calls from the last assistant message for explicit context
+ * Returns a summary of tool calls that the agent can see in the last message
+ */
+function extractLastAssistantMessageToolCalls(
+  messages: UIMessage[]
+): string | null {
+  const lastAssistantMessage = messages
+    .filter((msg) => msg.role === "assistant")
+    .pop();
+
+  if (!lastAssistantMessage || !Array.isArray(lastAssistantMessage.parts)) {
+    return null;
+  }
+
+  const toolCalls: string[] = [];
+
+  for (const part of lastAssistantMessage.parts) {
+    if (isToolUIPart(part)) {
+      const toolName = getToolName(part as never);
+      const toolPart = part as {
+        state?: string;
+        toolCallId?: string;
+      };
+
+      if (toolName === "requestSkillCheck") {
+        if (toolPart.state === "input-available") {
+          toolCalls.push("requestSkillCheck (pending - awaiting player roll)");
+        } else if (toolPart.state === "output-available") {
+          toolCalls.push("requestSkillCheck (completed - player rolled)");
+        } else {
+          toolCalls.push("requestSkillCheck");
+        }
+      } else if (toolName) {
+        toolCalls.push(toolName);
+      }
+    }
+  }
+
+  if (toolCalls.length === 0) {
+    return null;
+  }
+
+  return toolCalls.join(", ");
+}
+
+/**
  * Prepare messages for model processing by filtering out empty messages
  * and converting to the format expected by the model
  */
@@ -462,16 +498,19 @@ function createMessageContentSignature(message: UIMessage): string {
     if (isNarrativeToolPart(part)) {
       const extracted = extractNarrativeData(part as NarrativeToolPart);
       if (extracted) {
-        narrativeTexts.push(
-          ...extracted.narration.map((n) => n.trim().toLowerCase())
-        );
-        if (extracted.dialogs) {
-          dialogTexts.push(
-            ...extracted.dialogs.map((d) =>
-              `${d.character}:${d.dialogue}`.trim().toLowerCase()
-            )
+        // Extract narration text from segments
+        const narrationFromSegments = extracted.segments
+          .filter((seg) => seg.type === "narration")
+          .map((seg) => seg.text.trim().toLowerCase());
+        narrativeTexts.push(...narrationFromSegments);
+
+        // Extract dialog text from segments
+        const dialogsFromSegments = extracted.segments
+          .filter((seg) => seg.type === "dialog")
+          .map((seg) =>
+            `${seg.character}:${seg.dialogue}`.trim().toLowerCase()
           );
-        }
+        dialogTexts.push(...dialogsFromSegments);
       }
     } else if (isTextUIPart(part)) {
       const text = part.text.trim().toLowerCase();
@@ -522,9 +561,12 @@ function convertUIMessagesToCoreMessages(
         for (const part of msg.parts) {
           if (isNarrativeToolPart(part)) {
             const extracted = extractNarrativeData(part as NarrativeToolPart);
-            if (extracted && extracted.narration.length > 0) {
-              // Join all narration segments with spaces
-              narrativeTextParts.push(...extracted.narration);
+            if (extracted && extracted.segments.length > 0) {
+              // Extract narration text from segments
+              const narrationFromSegments = extracted.segments
+                .filter((seg) => seg.type === "narration")
+                .map((seg) => seg.text);
+              narrativeTextParts.push(...narrationFromSegments);
             }
           }
         }
@@ -747,6 +789,69 @@ function isMessageInHistory(
   }
 
   return false;
+}
+
+/**
+ * Check if a message already exists in the database by comparing content
+ * Queries the most recent message of the same role for the run and performs deep equality check
+ * Returns true if duplicate, false if new
+ */
+async function isMessageDuplicate(
+  runId: string,
+  message: UIMessage
+): Promise<boolean> {
+  // Query most recent message of the same role for this run
+  const mostRecent = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.runId, runId), eq(messages.role, message.role)))
+    .orderBy(desc(messages.createdAt))
+    .limit(1)
+    .then((results) => results[0] || null);
+
+  if (!mostRecent) {
+    return false;
+  }
+
+  // Deep compare content JSONB
+  const existingContent = mostRecent.content as UIMessagePart[];
+  const incomingContent = message.parts || [];
+
+  // Normalize parts for comparison (handle property ordering differences)
+  // Sort by type to ensure consistent comparison regardless of part order
+  const normalizeParts = (parts: unknown[]): string => {
+    return JSON.stringify(
+      parts
+        .filter((part) => part !== null && typeof part === "object")
+        .map((part) => {
+          // Create a normalized version of each part
+          const typedPart = part as Record<string, unknown>;
+          const normalized: Record<string, unknown> = {};
+
+          // Sort keys for consistent comparison
+          const sortedKeys = Object.keys(typedPart).sort();
+          for (const key of sortedKeys) {
+            normalized[key] = typedPart[key];
+          }
+
+          return normalized;
+        })
+        .sort((a, b) => {
+          const aType = String(a.type || "");
+          const bType = String(b.type || "");
+          return aType.localeCompare(bType);
+        })
+    );
+  };
+
+  const normalizedExisting = normalizeParts(
+    Array.isArray(existingContent) ? existingContent : []
+  );
+  const normalizedIncoming = normalizeParts(
+    Array.isArray(incomingContent) ? incomingContent : []
+  );
+
+  return normalizedExisting === normalizedIncoming;
 }
 
 /**
@@ -1081,7 +1186,12 @@ async function persistAssistantMessage(
 
   // Check if message has tool parts
   if (!responseMessage.parts || !Array.isArray(responseMessage.parts)) {
-    // No parts or invalid structure - insert normally
+    // No parts or invalid structure - check for duplicate before inserting
+    const isDuplicate = await isMessageDuplicate(runId, responseMessage);
+    if (isDuplicate) {
+      console.log("[API] Skipping duplicate assistant message (no parts)");
+      return;
+    }
     await persistMessage(runId, responseMessage);
     return;
   }
@@ -1113,9 +1223,14 @@ async function persistAssistantMessage(
     return hasOutput && hasValidState && hasToolCallId;
   });
 
-  // If no HITL tool parts with output found, insert message normally
+  // If no HITL tool parts with output found, check for duplicate before inserting
   // This includes non-HITL tool results which are already complete in the message
   if (hitlToolPartsWithOutput.length === 0) {
+    const isDuplicate = await isMessageDuplicate(runId, responseMessage);
+    if (isDuplicate) {
+      console.log("[API] Skipping duplicate assistant message (no HITL tools)");
+      return;
+    }
     await persistMessage(runId, responseMessage);
     return;
   }
@@ -1222,8 +1337,15 @@ async function persistAssistantMessage(
     }
   }
 
-  // If any tool part with output didn't find a match, insert the message once
+  // If any tool part with output didn't find a match, check for duplicate before inserting
   if (updatedToolCallIds.size < toolCallIdsToProcess.size) {
+    const isDuplicate = await isMessageDuplicate(runId, responseMessage);
+    if (isDuplicate) {
+      console.log(
+        "[API] Skipping duplicate assistant message (unmatched toolCallIds)"
+      );
+      return;
+    }
     await persistMessage(runId, responseMessage);
   }
 }
@@ -1378,22 +1500,13 @@ async function triggerVisualEngineAgent(
   incomingMessages: UIMessage[]
 ): Promise<void> {
   try {
-    // Early exit: Skip VEA if latest assistant message has no narrative text
-    // This prevents duplicate scene generation for tool-call-only messages (e.g., requestSkillCheck)
-    if (!hasNarrativeText(recentMessages)) {
-      return;
-    }
+    console.log("[VEA] Triggering Visual Engine Agent", {
+      runId: run.id,
+      messageCount: recentMessages.length,
+      hasCurrentScene: !!run.currentSceneId,
+    });
 
-    // Early exit: Skip VEA if there's a pending skill check
-    // Conservative generation: wait for complete narrative moments
-    if (hasPendingSkillCheck(recentMessages)) {
-      return;
-    }
-
-    // Extract character action from the latest user message
-    const characterAction = extractCharacterAction(incomingMessages);
-
-    // Get current scene for comparison
+    // Get current scene for comparison (needed to check if this is initial scene)
     const currentScene = run.currentSceneId
       ? await db
           .select({
@@ -1411,6 +1524,78 @@ async function triggerVisualEngineAgent(
           .limit(1)
           .then((results) => results[0] || null)
       : null;
+
+    // Check if this is an initial scene (no previous scene exists)
+    const isInitialScene = currentScene === null;
+
+    console.log("[VEA] Scene check", {
+      isInitialScene,
+      currentSceneId: run.currentSceneId,
+    });
+
+    // For initial scenes: Check specifically for formatNarrativeTool parts
+    // This ensures initial scenes generate even if hasNarrativeText would return false
+    if (isInitialScene) {
+      const lastAssistantMessage = recentMessages
+        .filter((msg) => msg.role === "assistant")
+        .pop();
+
+      if (lastAssistantMessage && Array.isArray(lastAssistantMessage.parts)) {
+        const hasFormatNarrativeTool = lastAssistantMessage.parts.some(
+          (part) => {
+            if (isNarrativeToolPart(part)) {
+              const extracted = extractNarrativeData(part as NarrativeToolPart);
+              return extracted !== null && extracted.segments.length > 0;
+            }
+            return false;
+          }
+        );
+
+        console.log("[VEA] Initial scene check", {
+          hasFormatNarrativeTool,
+          hasLastAssistantMessage: !!lastAssistantMessage,
+        });
+
+        // If initial scene has formatNarrativeTool, proceed with generation
+        // (skip hasNarrativeText and hasPendingSkillCheck checks for initial scenes)
+        if (hasFormatNarrativeTool) {
+          // Proceed to scene generation below
+        } else {
+          // No formatNarrativeTool found, skip generation
+          console.log("[VEA] Skipping - no formatNarrativeTool in initial scene");
+          return;
+        }
+      } else {
+        // No assistant message or parts, skip generation
+        console.log("[VEA] Skipping - no assistant message or parts");
+        return;
+      }
+    } else {
+      // For non-initial scenes: Use standard checks
+      // Early exit: Skip VEA if latest assistant message has no narrative text
+      // This prevents duplicate scene generation for tool-call-only messages (e.g., requestSkillCheck)
+      const hasNarrative = hasNarrativeText(recentMessages);
+      console.log("[VEA] Narrative text check", { hasNarrative });
+      if (!hasNarrative) {
+        console.log("[VEA] Skipping - no narrative text");
+        return;
+      }
+
+      // Early exit: Skip VEA if there's a pending skill check
+      // (initial scenes already handled above)
+      const hasPending = hasPendingSkillCheck(recentMessages);
+      console.log("[VEA] Pending skill check", { hasPending });
+      if (hasPending) {
+        console.log("[VEA] Skipping - pending skill check");
+        return;
+      }
+    }
+
+    // Extract character action from the latest user message
+    const characterAction = extractCharacterAction(incomingMessages);
+    console.log("[VEA] Character action extracted", {
+      characterAction: characterAction.substring(0, 100),
+    });
 
     // Create Visual Engine Agent
     const vea = createVisualEngineAgent({
@@ -1430,13 +1615,30 @@ async function triggerVisualEngineAgent(
       recentMessages.slice(-10) // Last 10 messages for context
     );
 
+    console.log("[VEA] Executing agent", {
+      messageCount: veaMessages.length,
+      lastMessagePreview: veaMessages[veaMessages.length - 1]?.content?.substring(0, 100),
+    });
+
     // Execute visual engine processing (background, no streaming)
     // runId is already bound in the tool at agent creation time
-    await vea.getAgent().generate({
+    const result = await vea.getAgent().generate({
       messages: veaMessages,
     });
+
+    console.log("[VEA] Agent execution completed", {
+      runId: run.id,
+      hasResponse: !!result.response,
+      hasText: !!result.text,
+      responseLength: result.text?.length || 0,
+      stepsCount: result.steps?.length || 0,
+    });
   } catch (error) {
-    console.error("[API] Visual Engine Agent failed:", error);
+    console.error("[VEA] Visual Engine Agent failed:", {
+      runId: run.id,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     // Don't fail the main request if visual processing fails
   }
 }

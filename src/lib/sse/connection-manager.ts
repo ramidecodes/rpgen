@@ -8,7 +8,10 @@
 
 import { db } from "@/lib/db";
 import { sseEvents } from "@/lib/db/schema";
-import type { CreateSSEEventInput } from "@/lib/db/schemas/sse-event";
+import {
+  type CreateSSEEventInput,
+  createSSEEventSchema,
+} from "@/lib/db/schemas/sse-event";
 
 type SSEConnection = {
   id: string;
@@ -29,7 +32,9 @@ class SSEConnectionManager {
     runId: string,
     controller: ReadableStreamDefaultController
   ): string {
-    const connectionId = `${runId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const connectionId = `${runId}-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(7)}`;
     const connection: SSEConnection = {
       id: connectionId,
       controller,
@@ -76,6 +81,33 @@ class SSEConnectionManager {
     eventInput: CreateSSEEventInput
   ): Promise<{ id: string; createdAt: Date } | null> {
     try {
+      // Validate payload with Zod schema before storing
+      const validationResult = createSSEEventSchema.safeParse(eventInput);
+      if (!validationResult.success) {
+        console.error("[SSE] Failed to validate event payload", {
+          runId: eventInput.runId,
+          eventType: eventInput.eventType,
+          validationErrors: validationResult.error.issues,
+          payloadSize: JSON.stringify(eventInput.eventData).length,
+        });
+        return null;
+      }
+
+      // Calculate payload size for logging
+      const payloadString = JSON.stringify(eventInput.eventData);
+      const payloadSize = Buffer.byteLength(payloadString, "utf8");
+      const payloadSizeKB = (payloadSize / 1024).toFixed(2);
+
+      // Log payload size for large events
+      if (payloadSize > 100 * 1024) {
+        // > 100KB
+        console.warn("[SSE] Large payload detected", {
+          runId: eventInput.runId,
+          eventType: eventInput.eventType,
+          payloadSizeKB,
+        });
+      }
+
       const [storedEvent] = await db
         .insert(sseEvents)
         .values({
@@ -89,6 +121,7 @@ class SSEConnectionManager {
         console.error("[SSE] Failed to store event - no result returned", {
           runId: eventInput.runId,
           eventType: eventInput.eventType,
+          payloadSizeKB,
         });
         return null;
       }
@@ -98,11 +131,39 @@ class SSEConnectionManager {
         createdAt: storedEvent.createdAt,
       };
     } catch (error) {
-      console.error("[SSE] Failed to store event in database", {
+      // Enhanced error logging with full error details
+      const errorDetails: Record<string, unknown> = {
         runId: eventInput.runId,
         eventType: eventInput.eventType,
-        error: error instanceof Error ? error.message : String(error),
-      });
+        payloadSize: JSON.stringify(eventInput.eventData).length,
+      };
+
+      if (error instanceof Error) {
+        errorDetails.error = error.message;
+        errorDetails.errorName = error.name;
+        errorDetails.stack = error.stack;
+        // Check if it's a Drizzle error with additional properties
+        if ("cause" in error) {
+          errorDetails.cause = error.cause;
+        }
+        if ("code" in error) {
+          errorDetails.code = error.code;
+        }
+        if ("constraint" in error) {
+          errorDetails.constraint = error.constraint;
+        }
+        if ("detail" in error) {
+          errorDetails.detail = error.detail;
+        }
+        if ("hint" in error) {
+          errorDetails.hint = error.hint;
+        }
+      } else {
+        errorDetails.error = String(error);
+        errorDetails.errorType = typeof error;
+      }
+
+      console.error("[SSE] Failed to store event in database", errorDetails);
       return null;
     }
   }
@@ -130,7 +191,9 @@ class SSEConnectionManager {
       `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
     // Format event in proper SSE format
-    const sseFormattedEvent = `id: ${eventId}\nevent: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`;
+    const sseFormattedEvent = `id: ${eventId}\nevent: ${
+      event.type
+    }\ndata: ${JSON.stringify(event.data)}\n\n`;
 
     const connections = this.connections.get(runId);
     if (!connections || connections.length === 0) {
@@ -144,7 +207,7 @@ class SSEConnectionManager {
         connection.controller.enqueue(
           new TextEncoder().encode(sseFormattedEvent)
         );
-      } catch (error) {
+      } catch (_error) {
         // Connection is dead, mark for removal
         console.error("[SSE] Failed to send event to connection", {
           connectionId: connection.id,

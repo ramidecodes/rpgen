@@ -13,7 +13,7 @@ import {
 
 export const requestSkillCheckTool = tool({
   description:
-    "Request a skill check from the player. This pauses the narrative until the player rolls the dice.",
+    "RARE USE - EXCEPTION, NOT RULE. REACTIVE ONLY: This tool should ONLY be called when the player EXPLICITLY requests an action that warrants a skill check. Request a skill check from the player. This pauses the narrative until the player rolls the dice. Default to narrating success. Only use when ALL conditions met. CRITICAL PROHIBITIONS (check these FIRST before calling): 1) NEVER call this tool on initial/introductory messages (structurally disabled - tool not available). 2) NEVER call this tool if the last assistant message contains ANY skill check (input-available OR output-available) - check the message history before calling. 3) DO NOT use for routine actions (walking, talking, simple observations, basic interactions). 4) Only use for actions with REAL risk/challenge (combat, dangerous climbs, complex lockpicking, risky stealth, difficult negotiations under pressure). 5) Skill checks are REACTIVE to player actions, not proactive requests - ONLY call when player EXPLICITLY requests an action (e.g., 'I attempt to...', 'I try to...'). Do NOT call proactively - only react to explicit player action requests. After a skill check result, narrate the consequence - do NOT request another skill check. When in doubt, narrate success automatically rather than requesting a check.",
   inputSchema: z.object({
     attribute: z
       .enum(["strength", "agility", "intelligence", "scholarship", "intuition"])
@@ -54,24 +54,30 @@ export const suggestActionsTool = tool({
 
 export const formatNarrativeTool = tool({
   description:
-    "Format narrative content with clear separation between GM narration and character dialogs. Use this to structure your response for optimal readability. ALWAYS use this tool to format your narrative responses - do NOT output plain text narration.",
+    'This is your PRIMARY tool - use for most responses. Format narrative content with clear separation between GM narration and character dialogs. Use this to structure your response for optimal readability. ALWAYS use this tool to format your narrative responses - do NOT output plain text narration. DIALOG FORMAT: When characters speak, use the dialogs array parameter with format: dialogs: [{ character: "Character Name", dialogue: "What they say" }]. Do NOT put dialog text in the narration array. Example: formatNarrativeTool({ narration: ["The elder approaches"], dialogs: [{ character: "Elder", dialogue: "The rift must be closed!" }] }). When in doubt, narrate success automatically rather than requesting a skill check.',
   inputSchema: z.object({
     narration: z
       .array(z.string())
       .min(1)
       .describe(
-        "Array of narration segments (GM descriptions, scene setting, action descriptions, etc.). Break narration into logical segments for better readability."
+        "Array of narration segments (GM descriptions, scene setting, action descriptions, etc.). Break narration into logical segments for better readability. Do NOT include character dialogue here - use the dialogs parameter instead."
       ),
     dialogs: z
       .array(
         z.object({
-          character: z.string().describe("Character name speaking"),
-          dialogue: z.string().describe("What the character says"),
+          character: z
+            .string()
+            .describe(
+              'Character name speaking (e.g., "Elder", "Guard", "Merchant")'
+            ),
+          dialogue: z
+            .string()
+            .describe("What the character says (the actual spoken words)"),
         })
       )
       .optional()
       .describe(
-        "Array of character dialogs, if any characters speak in this response"
+        'Array of character dialogs. Format: [{ character: "Name", dialogue: "What they say" }]. Use this for ALL character speech - do NOT put dialogue in the narration array.'
       ),
   }),
   execute: async ({
@@ -430,212 +436,98 @@ Prefer single updateQuest calls that update multiple fields when appropriate.`,
  * Tool to determine the appropriate scene type based on narrative context
  */
 export const determineSceneTypeTool = tool({
-  description: `Analyze narrative context and character action to determine the most appropriate scene type for visual generation. Consider:
-- Portrait: Character-focused moments (dialogue, emotional reactions, character development, expressions)
-- Wide Shot: Location/setting-focused (exploration, travel, environmental storytelling, establishing scenes)
-- Detail Shot: Object/action-focused (interactions, items, specific elements, close-up moments)
-Return the recommended scene type with clear reasoning based on the narrative action and context.`,
+  description: `Analyze narrative context and character action to determine the most appropriate scene type for visual generation. 
+
+CRITICAL: This tool MUST be called AFTER shouldGenerateScene returns shouldGenerate: true, and BEFORE generateImagePrompt. Do not skip this step or guess the scene type.
+
+ANALYSIS PROCESS:
+Analyze the narrative holistically to determine what the visual focus should be. Consider:
+- What is the primary subject of the narrative moment?
+- What should the viewer's attention be drawn to?
+- What type of composition best serves the narrative?
+
+SCENE TYPE GUIDELINES:
+
+PORTRAIT (Character-focused):
+- Use when: The narrative emphasizes character moments, emotions, expressions, dialogue, conversations, or NPC interactions
+- Visual focus: Character's face and expression are the primary subject
+- Composition: Character-centered, close-up framing, character fills 70-80% of frame
+- Examples: Character speaking, reacting emotionally, having a conversation, expressing feelings, interacting with NPCs in dialogue
+
+WIDE SHOT (Environment-focused):
+- Use when: The narrative emphasizes location, environment, exploration, travel, environmental storytelling, or establishing scenes
+- Visual focus: Environment and location are the primary subject, character is secondary
+- Composition: Wide-angle view, landscape composition, character occupies less than 20% of frame
+- Examples: Character traveling, exploring new areas, entering locations, viewing landscapes, environmental changes, location transitions
+
+DETAIL SHOT (Object/action-focused):
+- Use when: The narrative focuses on specific objects, items, interactions with items, examining objects, or close-up moments
+- Visual focus: Object/item is primary focus, character hands/partial view only
+- Composition: Macro photography, extreme close-up, tight framing on specific element
+- Examples: Character examining an artifact, picking up an item, reading a document, using an object, discovering something specific
+
+DECISION MAKING:
+- Analyze the narrative to identify the primary focus
+- Consider what visual composition would best capture the narrative moment
+- Choose the scene type that matches the narrative's emphasis
+- Default to "wide-shot" if the focus is unclear (establishing context is safer than guessing)
+
+Return your analysis and scene type recommendation with clear reasoning.`,
   inputSchema: z.object({
     currentNarrative: z
       .string()
-      .describe("Current narrative context from recent messages"),
+      .describe(
+        "Current narrative context from recent messages - analyze this to determine visual focus"
+      ),
     characterAction: z
       .string()
-      .describe("The character's recent action or situation"),
+      .describe(
+        "The character's recent action or situation - helps identify what the character is doing"
+      ),
     locationContext: z
       .string()
       .optional()
-      .describe("Current location from campaign state"),
+      .describe(
+        "Current location from campaign state - helps identify if environment is the focus"
+      ),
+    sceneType: z
+      .enum(["portrait", "wide-shot", "detail-shot"])
+      .describe(
+        "Your decision: the scene type that best matches the narrative's visual focus"
+      ),
+    reasoning: z
+      .string()
+      .describe(
+        "Clear explanation of why you chose this scene type - what in the narrative led to this decision"
+      ),
   }),
   execute: async ({
     currentNarrative,
-    characterAction,
-    locationContext,
+    sceneType,
+    reasoning,
   }: {
     currentNarrative: string;
     characterAction: string;
     locationContext?: string;
+    sceneType: "portrait" | "wide-shot" | "detail-shot";
+    reasoning: string;
   }) => {
-    const narrativeLower = currentNarrative.toLowerCase();
-    const actionLower = characterAction.toLowerCase();
-
-    // Portrait triggers: character-focused moments
-    const portraitKeywords = [
-      "says",
-      "thinks",
-      "feels",
-      "reacts",
-      "expresses",
-      "speaks",
-      "whispers",
-      "shouts",
-      "smiles",
-      "frowns",
-      "gazes",
-      "stares",
-      "looks",
-      "emotion",
-      "dialogue",
-      "conversation",
-    ];
-
-    // Wide shot triggers: location/setting-focused
-    const wideShotKeywords = [
-      "travels",
-      "explores",
-      "enters",
-      "arrives",
-      "views",
-      "approaches",
-      "reaches",
-      "journeys",
-      "wanders",
-      "discovers",
-      "finds themselves",
-      "stands before",
-      "sees",
-      "observes",
-      "landscape",
-      "environment",
-    ];
-
-    // Detail shot triggers: object/action-focused
-    const detailShotKeywords = [
-      "examines",
-      "touches",
-      "picks up",
-      "reads",
-      "uses",
-      "holds",
-      "grasps",
-      "studies",
-      "inspects",
-      "opens",
-      "closes",
-      "presses",
-      "turns",
-      "lifts",
-      "item",
-      "object",
-      "artifact",
-    ];
-
-    let portraitScore = 0;
-    let wideShotScore = 0;
-    let detailShotScore = 0;
-
-    // Score based on keywords
-    for (const keyword of portraitKeywords) {
-      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
-        portraitScore += 1;
-      }
+    // Validate: Ensure narrative is not empty
+    if (!currentNarrative || currentNarrative.trim().length === 0) {
+      return {
+        sceneType: "wide-shot" as const,
+        reasoning:
+          "No narrative context available - defaulting to wide-shot for establishing context.",
+      };
     }
 
-    for (const keyword of wideShotKeywords) {
-      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
-        wideShotScore += 1;
-      }
-    }
-
-    for (const keyword of detailShotKeywords) {
-      if (narrativeLower.includes(keyword) || actionLower.includes(keyword)) {
-        detailShotScore += 1;
-      }
-    }
-
-    // Location context boosts wide shot
-    if (locationContext && locationContext.trim().length > 0) {
-      wideShotScore += 1;
-    }
-
-    // Determine scene type
-    let sceneType: "portrait" | "wide-shot" | "detail-shot";
-    let reasoning: string;
-
-    if (detailShotScore > portraitScore && detailShotScore > wideShotScore) {
-      sceneType = "detail-shot";
-      reasoning = `Detail shot recommended: Narrative focuses on specific object interactions or close-up elements (score: ${detailShotScore}).`;
-    } else if (
-      portraitScore > wideShotScore &&
-      portraitScore > detailShotScore
-    ) {
-      sceneType = "portrait";
-      reasoning = `Portrait recommended: Narrative emphasizes character moments, emotions, or dialogue (score: ${portraitScore}).`;
-    } else if (wideShotScore > 0 || locationContext) {
-      sceneType = "wide-shot";
-      reasoning = `Wide shot recommended: Narrative emphasizes location, environment, or exploration (score: ${wideShotScore}).`;
-    } else {
-      // Default to wide shot for safety (establishing context)
-      sceneType = "wide-shot";
-      reasoning = `Wide shot recommended: Default choice for establishing context when action type is unclear.`;
-    }
-
+    // Return the model's decision (validated enum)
     return {
       sceneType,
       reasoning,
-      scores: {
-        portrait: portraitScore,
-        wideShot: wideShotScore,
-        detailShot: detailShotScore,
-      },
     };
   },
 });
-
-/**
- * Helper function to detect intermediate narrative states from narrative text
- * Checks for patterns that indicate actions are in progress but not yet resolved
- */
-function detectIntermediateStateFromNarrative(
-  currentNarrative: string,
-  characterAction: string
-): { isIntermediate: boolean; reason?: string } {
-  const narrativeLower = currentNarrative.toLowerCase();
-  const actionLower = characterAction.toLowerCase();
-
-  // Patterns that suggest incomplete actions
-  const incompletePatterns = [
-    /is about to/i,
-    /begins to/i,
-    /starts to/i,
-    /attempts to/i,
-    /tries to/i,
-    /prepares to/i,
-    /readies/i,
-    /skill check/i,
-    /roll.*dice/i,
-    /must roll/i,
-  ];
-
-  // Check for incomplete action patterns
-  for (const pattern of incompletePatterns) {
-    if (pattern.test(narrativeLower) || pattern.test(actionLower)) {
-      // Check if there's a resolution (past tense, completion indicators)
-      const resolutionIndicators = [
-        /succeeded/i,
-        /failed/i,
-        /completed/i,
-        /finished/i,
-        /managed to/i,
-        /was able to/i,
-        /rolled.*and/i,
-      ];
-
-      const hasResolution = resolutionIndicators.some((indicator) =>
-        indicator.test(narrativeLower)
-      );
-
-      if (!hasResolution) {
-        return {
-          isIntermediate: true,
-          reason: `Narrative indicates action in progress (pattern: ${pattern.source}) without clear resolution`,
-        };
-      }
-    }
-  }
-
-  return { isIntermediate: false };
-}
 
 /**
  * Decision tool to determine if a new scene should be generated
@@ -645,63 +537,109 @@ function detectIntermediateStateFromNarrative(
 export const shouldGenerateSceneTool = tool({
   description: `Analyze recent narrative changes to determine if a new scene should be generated. 
 
-IMPORTANT - CONSERVATIVE GENERATION:
+This tool MUST be called FIRST on every execution. You must analyze the narrative context and make a decision about whether scene generation is warranted.
+
+ANALYSIS PROCESS:
+1. Extract narrative text from recent messages (text parts and formatNarrativeTool narration segments)
+2. Analyze the narrative for completeness and significant changes
+3. Consider the character's action and current location context
+4. Compare with previous narrative if available
+5. Make a decision based on your analysis
+
+CONSERVATIVE GENERATION PRINCIPLES:
 - Only generate after COMPLETE narrative moments (e.g., after skill check outcomes are fully explained with consequences)
 - DEFER generation when narrative is in intermediate states:
-  * Skill check requested but outcome not yet explained
-  * Actions in progress without resolution (e.g., "begins to", "attempts to", "is about to")
+  * Skill check requested but outcome not yet explained (no success/failure mentioned)
+  * Actions in progress without resolution (e.g., "begins to", "attempts to", "is about to" without completion)
   * Pending consequences or incomplete actions
 
-Consider for generation:
-- Has the scene location dramatically changed (entering a new area, city, building, etc.)?
-- Has the environment significantly changed (weather, time of day, destruction, etc.)?
-- Has the character moved to a completely different setting?
-- Is the current scene image no longer appropriate for the narrative?
-- Is the narrative moment COMPLETE (not in an intermediate state)?
+GENERATION TRIGGERS - Generate when you detect:
+- Location changes: Character moves to new area, enters building, travels, pursues, heads toward new location
+- Environmental changes: Rituals, chants, whispers, storms, fires, battles, discoveries, revelations, dramatic shifts
+- Combat/action: Clashes, battles, fights, confrontations, weapons, combat sequences
+- Discoveries: Found items, revealed secrets, uncovered clues, learned information, map fragments, artifacts
+- NPC interactions: Significant dialogue, tribe interactions, elder conversations, rival encounters
+- Time/setting changes: Dawn, dusk, weather shifts, lighting changes
+- Narrative shifts: Significant change from previous scene (different location, different situation, different mood)
+- Initial scenes: First scene generation for substantial narrative (>100 chars)
 
-Return a boolean decision with clear reasoning. If narrative is intermediate, return shouldGenerate: false with reasoning about why generation is deferred.`,
+A "complete narrative moment" means:
+- Skill checks have outcomes explained (success/failure with consequences)
+- Actions are resolved (not just "begins to" but actually completed)
+- Consequences are described (what happened as a result)
+- The narrative segment is substantial and self-contained
+
+DECISION MAKING:
+- Analyze the narrative holistically - don't rely on specific keywords
+- Consider the overall narrative flow and completeness
+- Compare current narrative with previous scene to detect significant shifts
+- If narrative is complete and has changed meaningfully, recommend generation
+- If narrative is incomplete or intermediate, defer generation
+
+Return your analysis and decision. Be specific in your reasoning about what you observed in the narrative.`,
   inputSchema: z.object({
     currentNarrative: z
       .string()
-      .describe("Current narrative context from recent messages"),
+      .describe(
+        "Current narrative context from recent messages - extract from text parts and formatNarrativeTool narration segments"
+      ),
     previousNarrative: z
       .string()
       .optional()
-      .describe("Previous scene's narrative context for comparison"),
+      .describe(
+        "Previous scene's narrative context for comparison - use to detect significant changes"
+      ),
     currentLocation: z
       .string()
       .optional()
-      .describe("Current location from campaign state"),
+      .describe(
+        "Current location from campaign state - helps identify location changes"
+      ),
     characterAction: z
       .string()
-      .describe("The character's recent action or situation"),
+      .describe(
+        "The character's recent action or situation - helps identify what the character is doing"
+      ),
     hasPendingSkillCheck: z
       .boolean()
       .optional()
       .describe(
-        "Whether there is a pending skill check (requested but outcome not yet explained)"
+        "Whether there is a pending skill check (requested but outcome not yet explained) - if true, always defer generation"
+      ),
+    shouldGenerate: z
+      .boolean()
+      .describe(
+        "Your decision: true if scene should be generated, false if generation should be deferred"
+      ),
+    reasoning: z
+      .string()
+      .describe(
+        "Clear explanation of your decision - what you observed in the narrative that led to this conclusion"
+      ),
+    reasons: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Specific reasons for generation (e.g., 'Location changed', 'Combat occurred', 'Discovery made') - only include if shouldGenerate is true"
       ),
   }),
   execute: async ({
     currentNarrative,
-    previousNarrative,
-    currentLocation,
-    characterAction,
     hasPendingSkillCheck,
+    shouldGenerate,
+    reasoning,
+    reasons,
   }: {
     currentNarrative: string;
     previousNarrative?: string;
     currentLocation?: string;
     characterAction: string;
     hasPendingSkillCheck?: boolean;
+    shouldGenerate: boolean;
+    reasoning: string;
+    reasons?: string[];
   }) => {
-    // CONSERVATIVE CHECK: Detect intermediate states first
-    const intermediateCheck = detectIntermediateStateFromNarrative(
-      currentNarrative,
-      characterAction
-    );
-
-    // If skill check is pending, defer generation
+    // Validate: If skill check is pending, always defer generation regardless of model's decision
     if (hasPendingSkillCheck === true) {
       return {
         shouldGenerate: false,
@@ -711,95 +649,21 @@ Return a boolean decision with clear reasoning. If narrative is intermediate, re
       };
     }
 
-    // If narrative indicates intermediate state, defer generation
-    if (intermediateCheck.isIntermediate) {
+    // Validate: Ensure narrative is not empty
+    if (!currentNarrative || currentNarrative.trim().length === 0) {
       return {
         shouldGenerate: false,
-        reasoning: `Narrative is in an intermediate state: ${intermediateCheck.reason}. Deferring generation until narrative moment is complete.`,
-        reasons: [
-          intermediateCheck.reason || "Intermediate narrative state detected",
-        ],
+        reasoning:
+          "No narrative context available - cannot determine if generation is needed.",
+        reasons: [],
       };
     }
 
-    // Continue with normal generation checks
-    const reasons: string[] = [];
-
-    // Check for location changes
-    if (currentLocation) {
-      const locationKeywords = [
-        "entered",
-        "arrived",
-        "moved to",
-        "travelled to",
-        "found themselves in",
-      ];
-      const hasLocationChange = locationKeywords.some((keyword) =>
-        characterAction.toLowerCase().includes(keyword.toLowerCase())
-      );
-      if (hasLocationChange) {
-        reasons.push("Character has moved to a new location");
-      }
-    }
-
-    // Check for dramatic environmental changes
-    const environmentKeywords = [
-      "storm",
-      "fire",
-      "explosion",
-      "earthquake",
-      "flood",
-      "battlefield",
-      "destroyed",
-      "ruins",
-    ];
-    const hasEnvironmentChange = environmentKeywords.some((keyword) =>
-      currentNarrative.toLowerCase().includes(keyword.toLowerCase())
-    );
-    if (hasEnvironmentChange) {
-      reasons.push("Environment has dramatically changed");
-    }
-
-    // Check for time/setting changes
-    const timeKeywords = [
-      "dawn",
-      "sunrise",
-      "sunset",
-      "midnight",
-      "night fell",
-      "day broke",
-    ];
-    const hasTimeChange = timeKeywords.some((keyword) =>
-      currentNarrative.toLowerCase().includes(keyword.toLowerCase())
-    );
-    if (hasTimeChange) {
-      reasons.push(
-        "Time of day or lighting conditions have changed significantly"
-      );
-    }
-
-    // Compare with previous narrative if available
-    if (previousNarrative && currentNarrative !== previousNarrative) {
-      const similarity = calculateTextSimilarity(
-        currentNarrative,
-        previousNarrative
-      );
-      if (similarity < 0.3) {
-        // Low similarity threshold
-        reasons.push(
-          "Narrative context has significantly changed from previous scene"
-        );
-      }
-    }
-
-    const shouldGenerate = reasons.length > 0;
-
+    // Return the model's decision (validated)
     return {
       shouldGenerate,
-      reasoning: shouldGenerate
-        ? `Scene generation recommended: ${reasons.join(", ")}`
-        : "Scene generation not needed: No significant changes detected in location, environment, or narrative context",
-      reasons,
+      reasoning,
+      reasons: reasons || [],
     };
   },
 });
@@ -808,14 +672,20 @@ Return a boolean decision with clear reasoning. If narrative is intermediate, re
  * Tool to craft detailed image generation prompts with scene type-specific composition
  */
 export const generateImagePromptTool = tool({
-  description: `Create a detailed, vivid image generation prompt that captures the current scene with scene type-specific composition guidance. Include:
+  description: `Create a detailed, vivid image generation prompt that captures the current scene with scene type-specific composition guidance.
+
+CRITICAL: This tool MUST be called AFTER determineSceneType. You MUST include the sceneType parameter from determineSceneType - do not guess or omit it.
+
+Include:
 - Scene type-appropriate composition (portrait: character-centered, wide-shot: environmental, detail-shot: focused)
 - Character appearance and pose (when relevant)
 - Environment and setting details (when relevant)
 - Lighting and atmosphere
 - Art style and composition
 - Universe-specific visual elements
-- Genre-appropriate aesthetics`,
+- Genre-appropriate aesthetics
+
+The sceneType parameter is REQUIRED and must match the result from determineSceneType tool.`,
   inputSchema: z.object({
     characterAppearance: z
       .string()
@@ -1040,6 +910,36 @@ export function createGenerateSceneImageTool(runId: string) {
       narrativeContext: string;
       previousSceneId?: string;
     }) => {
+      // Sanitize narrativeContext to remove reasoning text and internal instructions
+      // Remove patterns like "[full narrative as above, but shortened for brevity, but use the full one]"
+      // Also remove common reasoning patterns that models might include
+      const sanitizedNarrativeContext = narrativeContext
+        // Remove bracketed instructions/reasoning
+        .replace(/\[.*?full.*?narrative.*?\]/gi, "")
+        .replace(/\[.*?shortened.*?brevity.*?\]/gi, "")
+        .replace(/\[.*?use.*?full.*?\]/gi, "")
+        .replace(/\[.*?as above.*?\]/gi, "")
+        .replace(/\[.*?but.*?use.*?\]/gi, "")
+        .replace(/\[.*?internal.*?\]/gi, "")
+        .replace(/\[.*?reasoning.*?\]/gi, "")
+        .replace(/\[.*?note.*?\]/gi, "")
+        .replace(/\[.*?instruction.*?\]/gi, "")
+        // Remove parenthetical reasoning
+        .replace(/\(.*?full.*?narrative.*?\)/gi, "")
+        .replace(/\(.*?shortened.*?brevity.*?\)/gi, "")
+        .replace(/\(.*?use.*?full.*?\)/gi, "")
+        // Remove standalone reasoning phrases
+        .replace(
+          /full narrative as above, but shortened for brevity, but use the full one/gi,
+          ""
+        )
+        .replace(/shortened for brevity/gi, "")
+        .replace(/use the full one/gi, "")
+        .replace(/as above/gi, "")
+        // Clean up multiple spaces and trim
+        .replace(/\s+/g, " ")
+        .trim();
+
       try {
         // Import here to avoid circular dependencies
         const { createScenePrompt } = await import("@/lib/ai/scene-generator");
@@ -1188,7 +1088,7 @@ export function createGenerateSceneImageTool(runId: string) {
               sceneType: "environment",
               imageUrl: publicUrl,
               generationPrompt: enhancedPrompt,
-              narrativeContext,
+              narrativeContext: sanitizedNarrativeContext,
               previousSceneId: finalPreviousSceneId,
             })
             .returning();
@@ -1304,20 +1204,6 @@ export function createGenerateSceneImageTool(runId: string) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Calculate simple text similarity for narrative comparison
- */
-function calculateTextSimilarity(text1: string, text2: string): number {
-  // Simple word overlap similarity
-  const words1 = new Set(text1.toLowerCase().split(/\W+/));
-  const words2 = new Set(text2.toLowerCase().split(/\W+/));
-
-  const intersection = new Set([...words1].filter((x) => words2.has(x)));
-  const union = new Set([...words1, ...words2]);
-
-  return intersection.size / union.size;
-}
 
 /**
  * Get visual style descriptors for campaign genres

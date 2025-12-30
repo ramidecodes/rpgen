@@ -37,9 +37,10 @@ flowchart TB
 
 - Location: `src/agents/game-master.ts`
 - Model: OpenRouter `base` via `ToolLoopAgent`.
-- Tools: Only `requestSkillCheck` (HITL) for dice rolls; **no state-mutating tools**.
+- Tools: `requestSkillCheck` (HITL) for dice rolls, `formatNarrative`, `suggestActions`; **no state-mutating tools**.
 - Duties: Interactive narration, pacing, and issuing skill checks. Reads campaign/quest context but treats it as read-only.
-- Limits: `stopWhen: stepCountIs(5)` to avoid tool spam.
+- Limits: `stopWhen: stepCountIs(3)` for regular messages, `stepCountIs(2)` for initial messages to avoid tool spam.
+- Skill Check Behavior: Skill checks are **REACTIVE only** - triggered only when player explicitly requests an action that warrants a check. `requestSkillCheck` is conditionally excluded from `activeTools` for initial messages (structural enforcement prevents skill checks on initial messages).
 
 ### Campaign Manager Agent (CMA)
 
