@@ -74,9 +74,9 @@ export function createScenePrompt(
 ): string {
   let prompt = basePrompt.trim();
 
-  // Check if quality instructions are already present
+  // Check if quality instructions are already present (including Moebius-inspired style terms)
   const hasQualityKeywords =
-    /(high quality|detailed|cinematic|professional|illustration)/i.test(prompt);
+    /(high quality|detailed|cinematic|professional|illustration|moebius|clean fluid lines|vibrant saturated|graphic novel|sophisticated composition)/i.test(prompt);
 
   // Add character appearance if provided and not already in prompt
   if (characterAppearance && !prompt.includes(characterAppearance)) {
@@ -96,7 +96,7 @@ export function createScenePrompt(
 
   // Only add quality text if not already present and we have room
   if (!hasQualityKeywords && prompt.length <= 850) {
-    prompt = `${prompt}. High quality, detailed, cinematic, digital art, vivid colors, professional illustration.`;
+    prompt = `${prompt}. Moebius-inspired art style, clean fluid lines, vibrant saturated colors, modern graphic novel illustration, sophisticated composition, realistic proportions, classy fantasy art.`;
   }
 
   // Check length and truncate if needed (preserve core content)

@@ -174,6 +174,16 @@ EXAMPLES OF WHEN TO GENERATE:
 - After major narrative events with complete resolution (e.g., "Prepare the tribe for rival incursion" with successful outcome)
 - When the environment dramatically changes (e.g., entering a new area, weather changes, time of day shifts)
 
+VISUAL STYLE REQUIREMENTS (MOEBIUS-INSPIRED MODERN GRAPHIC NOVEL):
+- Art Style: Moebius-inspired (Jean Giraud) with modern, realistic, and color-rich aesthetic
+- Linework: Clean, fluid lines with intricate detailed linework - precise and sophisticated
+- Colors: Vibrant saturated colors with rich color palettes - emphasize color richness and harmonious color schemes
+- Composition: Sophisticated, classy composition with modern graphic novel illustration style
+- Proportions: Realistic proportions with contemporary fantasy aesthetic (less surreal/abstract than pure Moebius)
+- Quality: High quality detailed art, professional illustration, evocative D&D fantasy art style
+- Balance: Maintain D&D fantasy elements while incorporating modern realistic style and vibrant color richness
+- When crafting prompts, always include: "Moebius-inspired", "clean fluid lines", "vibrant saturated colors", "modern graphic novel illustration", "sophisticated composition", "realistic proportions", "classy fantasy art"
+
 SCENE COMPOSITION GUIDELINES (STRICT ENFORCEMENT):
 
 PORTRAIT (Character-focused):

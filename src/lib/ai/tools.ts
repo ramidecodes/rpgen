@@ -859,9 +859,9 @@ The sceneType parameter is REQUIRED and must match the result from determineScen
       prompt += `Art style: ${genreStyles.join(", ")}. `;
     }
 
-    // Add technical quality instructions
+    // Add technical quality instructions with Moebius-inspired modern graphic novel style
     prompt +=
-      "Highly detailed digital art, cinematic lighting, professional illustration, vivid colors, atmospheric depth.";
+      "Moebius-inspired art style, clean fluid lines, intricate detailed linework, vibrant saturated colors, rich color palette, modern graphic novel illustration, sophisticated composition, realistic proportions, classy fantasy art, D&D fantasy illustration style, high quality detailed art, professional illustration.";
 
     // Append negative prompt if present (some models support negative prompts)
     const finalPrompt = negativePrompt
