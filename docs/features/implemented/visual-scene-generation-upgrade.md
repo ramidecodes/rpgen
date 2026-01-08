@@ -56,7 +56,29 @@
 - No detection of intermediate narrative states (e.g., skill check requests)
 - Generates images even when narrative is incomplete (e.g., skill check requested but outcome pending)
 
-## 3. Requirements
+## 3. Prompt Architecture & Comic-Book Style
+
+### 3.1 Centralized Prompt Module
+
+All VEA scene image prompts are now built using a centralized module (`src/lib/ai/prompts/scene-image-prompts.ts`) that ensures consistent comic-book / Moebius illustration style across all generated images.
+
+**Key Features**:
+- **Scene-type-specific builders**: Separate functions for portrait, wide-shot, and detail-shot prompts
+- **Comic-book style enforcement**: All prompts automatically include Moebius-inspired, graphic novel, and comic book art style tokens
+- **Photography term removal**: Replaced camera/photography terms (e.g., "85mm lens", "macro photography") with illustration terms (e.g., "close-up illustration", "comic book panel style")
+- **Negative prompts**: Includes explicit "NOT photographic, NOT realistic photo" to prevent realistic rendering
+
+**Module Structure**:
+- `buildSceneImagePrompt(context)`: Main entry point that handles scene type routing
+- `buildPortraitPrompt(context)`: Character-focused, close-up illustration prompts
+- `buildWideShotPrompt(context)`: Environment-focused, landscape illustration prompts
+- `buildDetailShotPrompt(context)`: Object/action-focused, detail illustration prompts
+- `appendComicBookStyle(prompt, genres, universeStyle)`: Ensures comic-book style tokens are always included
+
+**Style Tokens**:
+All VEA prompts include: "Moebius-inspired art style, clean fluid lines, intricate detailed linework, vibrant saturated colors, rich color palette, modern graphic novel illustration, sophisticated composition, realistic proportions, classy fantasy art, D&D fantasy illustration style, high quality detailed art, professional illustration, comic book art style, graphic novel panel, illustrated scene"
+
+## 4. Requirements
 
 ### 3.1 Functional Requirements
 

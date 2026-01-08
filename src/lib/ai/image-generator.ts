@@ -177,7 +177,7 @@ export async function generateUniverseImage(prompt: string): Promise<Buffer> {
   const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
-    prompt: `Epic, cinematic, highly detailed concept art: ${prompt}. 8k resolution, trending on artstation.`,
+    prompt: `Epic, highly detailed fantasy illustration, comic book art style, graphic novel panel: ${prompt}. Moebius-inspired art style, vibrant saturated colors, modern graphic novel illustration.`,
     go_fast: true,
     megapixels: "1",
     num_outputs: 1,
@@ -216,7 +216,7 @@ export async function generateCharacterPortrait(
   const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
-    prompt: `Character portrait, highly detailed, expressive face, cinematic lighting: ${prompt}. 8k resolution, trending on artstation, centered composition.`,
+    prompt: `Character portrait illustration, highly detailed, expressive face, comic book art style, graphic novel panel: ${prompt}. Moebius-inspired art style, vibrant saturated colors, modern graphic novel illustration, centered composition.`,
     go_fast: true,
     megapixels: "1",
     num_outputs: 1,
@@ -252,7 +252,7 @@ export async function generateCampaignCover(prompt: string): Promise<Buffer> {
   const model = imageModel as ReplicateModelIdentifier;
 
   const input = {
-    prompt: `Movie poster style, campaign cover art, highly detailed, atmospheric: ${prompt}. Titleless, cinematic composition, 8k resolution, dramatic lighting.`,
+    prompt: `Campaign cover art illustration, highly detailed, atmospheric, comic book art style, graphic novel panel: ${prompt}. Moebius-inspired art style, vibrant saturated colors, modern graphic novel illustration, dramatic composition.`,
     go_fast: true,
     megapixels: "1",
     num_outputs: 1,

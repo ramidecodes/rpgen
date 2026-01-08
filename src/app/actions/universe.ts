@@ -298,7 +298,12 @@ export async function deleteUniverse(universeId: string) {
     const userCampaigns = await db
       .select({ id: campaigns.id })
       .from(campaigns)
-      .where(and(eq(campaigns.universeId, universeId), eq(campaigns.userId, userProfile.id)));
+      .where(
+        and(
+          eq(campaigns.universeId, universeId),
+          eq(campaigns.userId, userProfile.id)
+        )
+      );
 
     for (const campaign of userCampaigns) {
       // Delete all runs for this campaign
@@ -308,21 +313,34 @@ export async function deleteUniverse(universeId: string) {
       try {
         await deleteFolder(campaignFolderPrefix);
       } catch (error) {
-        console.error(`Error deleting campaign folder ${campaign.id} from R2:`, error);
+        console.error(
+          `Error deleting campaign folder ${campaign.id} from R2:`,
+          error
+        );
       }
     }
 
     // Delete campaigns from database
     await db
       .delete(campaigns)
-      .where(and(eq(campaigns.universeId, universeId), eq(campaigns.userId, userProfile.id)));
+      .where(
+        and(
+          eq(campaigns.universeId, universeId),
+          eq(campaigns.userId, userProfile.id)
+        )
+      );
 
     // 2. Delete all characters in this universe that belong to the user
     // (Characters cascade to runs, which cascade to messages, scenes, quests, etc.)
     const userCharacters = await db
       .select({ id: characters.id })
       .from(characters)
-      .where(and(eq(characters.universeId, universeId), eq(characters.userId, userProfile.id)));
+      .where(
+        and(
+          eq(characters.universeId, universeId),
+          eq(characters.userId, userProfile.id)
+        )
+      );
 
     for (const character of userCharacters) {
       // Delete all runs for this character
@@ -332,14 +350,22 @@ export async function deleteUniverse(universeId: string) {
       try {
         await deleteFolder(characterFolderPrefix);
       } catch (error) {
-        console.error(`Error deleting character folder ${character.id} from R2:`, error);
+        console.error(
+          `Error deleting character folder ${character.id} from R2:`,
+          error
+        );
       }
     }
 
     // Delete characters from database
     await db
       .delete(characters)
-      .where(and(eq(characters.universeId, universeId), eq(characters.userId, userProfile.id)));
+      .where(
+        and(
+          eq(characters.universeId, universeId),
+          eq(characters.userId, userProfile.id)
+        )
+      );
 
     // 3. Delete universe folder from R2
     const universeFolderPrefix = `${userProfile.id}/universes/${universeId}/`;

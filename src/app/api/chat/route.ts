@@ -1562,7 +1562,9 @@ async function triggerVisualEngineAgent(
           // Proceed to scene generation below
         } else {
           // No formatNarrativeTool found, skip generation
-          console.log("[VEA] Skipping - no formatNarrativeTool in initial scene");
+          console.log(
+            "[VEA] Skipping - no formatNarrativeTool in initial scene"
+          );
           return;
         }
       } else {
@@ -1617,7 +1619,9 @@ async function triggerVisualEngineAgent(
 
     console.log("[VEA] Executing agent", {
       messageCount: veaMessages.length,
-      lastMessagePreview: veaMessages[veaMessages.length - 1]?.content?.substring(0, 100),
+      lastMessagePreview: veaMessages[
+        veaMessages.length - 1
+      ]?.content?.substring(0, 100),
     });
 
     // Execute visual engine processing (background, no streaming)

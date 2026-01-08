@@ -196,9 +196,9 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
             {typeof error === "string"
               ? error
               : (error as { message?: unknown }).message &&
-                typeof (error as { message?: unknown }).message === "string"
-              ? (error as { message?: string }).message ?? ""
-              : "The Game Master ran into an error. Please try again."}
+                  typeof (error as { message?: unknown }).message === "string"
+                ? ((error as { message?: string }).message ?? "")
+                : "The Game Master ran into an error. Please try again."}
           </div>
         )}
 
@@ -363,12 +363,12 @@ export function ChatInterface({ gameChat }: ChatInterfaceProps) {
                           }
                         ).output
                       : "result" in skillCheckPart
-                      ? (
-                          skillCheckPart as {
-                            result?: unknown;
-                          }
-                        ).result
-                      : undefined;
+                        ? (
+                            skillCheckPart as {
+                              result?: unknown;
+                            }
+                          ).result
+                        : undefined;
 
                   let detailMeta: {
                     rollValue?: number;

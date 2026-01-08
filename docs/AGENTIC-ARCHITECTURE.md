@@ -513,6 +513,43 @@ triggerBackgroundStateReconciliation(/* ... */).catch((error) => {
 
 ---
 
+## Prompt Architecture
+
+### Centralized Prompt Modules
+
+RPGen uses a minimal, well-organized prompt architecture under `src/lib/ai/prompts/` to ensure consistency and maintainability.
+
+**Module Structure**:
+- `scene-image-prompts.ts`: VEA-specific scene image prompt builder with comic-book / Moebius style enforcement
+
+**Key Principles**:
+1. **VEA Style Localization**: Comic-book / Moebius illustration style is enforced in the VEA prompt module, not globally
+2. **Scene-Type-Specific Builders**: Separate functions for portrait, wide-shot, and detail-shot prompts
+3. **Style Token Consistency**: All VEA prompts automatically include comic-book style tokens to prevent realistic/photographic rendering
+4. **Photography Term Removal**: Camera/photography terms (e.g., "85mm lens", "macro photography") are replaced with illustration terms (e.g., "close-up illustration", "comic book panel style")
+
+**VEA Prompt Module** (`src/lib/ai/prompts/scene-image-prompts.ts`):
+
+```typescript
+// Main entry point
+buildSceneImagePrompt(context: ScenePromptContext): ScenePromptResult
+
+// Scene-type-specific builders
+buildPortraitPrompt(context): { prompt, negativePrompt }
+buildWideShotPrompt(context): { prompt, negativePrompt }
+buildDetailShotPrompt(context): { prompt, negativePrompt }
+
+// Style enforcement
+appendComicBookStyle(prompt, genres, universeStyle): string
+```
+
+**Comic-Book Style Tokens**:
+All VEA prompts include: "Moebius-inspired art style, clean fluid lines, intricate detailed linework, vibrant saturated colors, rich color palette, modern graphic novel illustration, sophisticated composition, realistic proportions, classy fantasy art, D&D fantasy illustration style, high quality detailed art, professional illustration, comic book art style, graphic novel panel, illustrated scene"
+
+**Usage in Tools**:
+- `generateImagePromptTool` in `src/lib/ai/tools.ts` delegates to `buildSceneImagePrompt()`
+- Other image generators (universe, character, campaign covers) use comic-book style prefixes but are not part of the centralized module (they have different use cases)
+
 ## Migration & Refactoring
 
 ### HITL Persistence Migration (Update-by-toolCallId)

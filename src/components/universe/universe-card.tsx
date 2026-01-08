@@ -82,7 +82,8 @@ export function UniverseCard({
   // 1. canDelete prop is true (user's own universes tab)
   // 2. User is the owner
   // 3. Not a starter template
-  const showDeleteButton = canDelete && isOwner && !isStarter && universe.userId;
+  const showDeleteButton =
+    canDelete && isOwner && !isStarter && universe.userId;
 
   return (
     <Card className="overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow border-primary/10 group cursor-pointer relative">
@@ -135,9 +136,9 @@ export function UniverseCard({
                 <AlertDialogTitle>Delete Universe</AlertDialogTitle>
                 <AlertDialogDescription>
                   Are you sure you want to delete this universe? This action
-                  cannot be undone. All associated characters, campaigns, runs, and
-                  their messages will be permanently deleted, and all files in
-                  storage will be removed.
+                  cannot be undone. All associated characters, campaigns, runs,
+                  and their messages will be permanently deleted, and all files
+                  in storage will be removed.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

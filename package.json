@@ -12,7 +12,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test:r2": "tsx scripts/test-r2-upload.ts"
+    "test:r2": "tsx scripts/test-r2-upload.ts",
+    "test:vea": "tsx scripts/test-vea.ts",
+    "test:vea:quick": "tsx scripts/test-vea.ts --quick",
+    "test:vea:images": "VEA_GENERATE_IMAGES=true tsx scripts/test-vea.ts --generate-images",
+    "test:vea:quick:images": "VEA_GENERATE_IMAGES=true tsx scripts/test-vea.ts --quick --generate-images"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.1",

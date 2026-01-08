@@ -8,6 +8,7 @@ import {
   updateQuest as updateQuestQuery,
   getQuestById,
 } from "@/lib/db/queries/quests";
+import { buildSceneImagePrompt } from "@/lib/ai/prompts/scene-image-prompts";
 
 // --- Interactive Tools (HITL - Client triggers) ---
 
@@ -762,124 +763,19 @@ The sceneType parameter is REQUIRED and must match the result from determineScen
       }
     }
 
-    let prompt = "";
-    let negativePrompt = "";
+    // Use the centralized prompt builder with comic-book / Moebius style
+    const result = buildSceneImagePrompt({
+      characterAppearance,
+      characterProfession,
+      currentNarrative,
+      universeVisualStyle,
+      campaignGenres,
+      locationContext,
+      sceneType: inferredSceneType,
+      compositionGuidance,
+    });
 
-    // Scene type-specific prompt structure with explicit composition rules
-    if (inferredSceneType === "portrait") {
-      // Portrait: Character-centered, expressive, close-up framing
-      // Lead with character appearance and expression
-      if (characterAppearance) {
-        prompt += `${characterAppearance}`;
-        if (characterProfession) {
-          prompt += `, a ${characterProfession.toLowerCase()}`;
-        }
-        prompt +=
-          ", expressive face, close-up portrait, character-centered composition";
-      }
-      // Add narrative as background context
-      if (currentNarrative) {
-        prompt += `. ${currentNarrative} (environment as background context only, out of focus). `;
-      }
-      // Portrait-specific composition and camera instructions
-      if (compositionGuidance) {
-        prompt += `${compositionGuidance}. `;
-      } else {
-        prompt +=
-          "Close-up shot, 85mm lens, shallow depth of field, character fills 70-80% of frame, centered composition, expressive lighting, character portrait. ";
-      }
-      // No negative prompt needed for portrait (this is the default)
-    } else if (inferredSceneType === "wide-shot") {
-      // Wide Shot: Environmental context, establishing view, landscape composition
-      // Lead with location/environment description (NOT character)
-      if (locationContext) {
-        prompt += `${locationContext}, `;
-      }
-      // Narrative with environmental emphasis (lead with environment)
-      prompt += `${currentNarrative}, `;
-      // Character mentioned late as small element
-      if (characterAppearance) {
-        prompt += `small figure in distance (${characterAppearance}), character visible but NOT the focus, `;
-      }
-      // Wide shot-specific composition and camera instructions
-      prompt +=
-        "establishing shot, wide-angle lens (24mm), deep depth of field, landscape composition, environmental storytelling, rule of thirds, atmospheric depth. ";
-      if (compositionGuidance) {
-        prompt += `${compositionGuidance}. `;
-      } else {
-        prompt +=
-          "Character occupies less than 20% of frame, environment is primary subject, environmental focus. ";
-      }
-      // Negative prompts to prevent portrait bias
-      negativePrompt =
-        "NOT a character portrait, NOT close-up, NOT character-focused, character is secondary element, avoid character filling frame";
-    } else if (inferredSceneType === "detail-shot") {
-      // Detail Shot: Object/action-focused, close-up framing, focused composition
-      // Lead with object/action description (NOT character)
-      prompt += `${currentNarrative}, `;
-      // Character mentioned only if hands/partial view relevant
-      if (characterAppearance) {
-        prompt += `${characterAppearance} (hands/partial view only, character face NOT visible), `;
-      }
-      // Detail shot-specific composition and camera instructions
-      prompt +=
-        "macro photography, extreme close-up, macro lens, shallow depth of field, object/item is primary focus, tight framing on specific element, detail-oriented composition. ";
-      if (compositionGuidance) {
-        prompt += `${compositionGuidance}. `;
-      } else {
-        prompt +=
-          "Object in sharp focus, character hands/partial view if relevant, character face not visible. ";
-      }
-      // Negative prompts to prevent portrait bias
-      negativePrompt =
-        "NOT a character portrait, NOT full body shot, NOT character face visible, NOT character-centered, avoid showing character's full face";
-    } else {
-      // Fallback: Default to wide-shot for variety (safer than portrait)
-      if (locationContext) {
-        prompt += `${locationContext}, `;
-      }
-      prompt += `${currentNarrative}, `;
-      if (characterAppearance) {
-        prompt += `small figure (${characterAppearance}), character visible but NOT the focus, `;
-      }
-      prompt +=
-        "establishing shot, wide-angle view, environmental focus, landscape composition. ";
-      negativePrompt =
-        "NOT a character portrait, NOT close-up, character is secondary element";
-    }
-
-    // Add universe visual style
-    if (universeVisualStyle) {
-      prompt += `Visual style: ${universeVisualStyle}. `;
-    }
-
-    // Add genre-appropriate aesthetics
-    const genreStyles = getGenreVisualStyles(campaignGenres);
-    if (genreStyles.length > 0) {
-      prompt += `Art style: ${genreStyles.join(", ")}. `;
-    }
-
-    // Add technical quality instructions with Moebius-inspired modern graphic novel style
-    prompt +=
-      "Moebius-inspired art style, clean fluid lines, intricate detailed linework, vibrant saturated colors, rich color palette, modern graphic novel illustration, sophisticated composition, realistic proportions, classy fantasy art, D&D fantasy illustration style, high quality detailed art, professional illustration.";
-
-    // Append negative prompt if present (some models support negative prompts)
-    const finalPrompt = negativePrompt
-      ? `${prompt.trim()} | Negative: ${negativePrompt}`
-      : prompt.trim();
-
-    return {
-      prompt: finalPrompt,
-      components: {
-        character: characterAppearance || "Not specified",
-        environment: locationContext || currentNarrative,
-        style: universeVisualStyle || "Default fantasy style",
-        genres: campaignGenres,
-        sceneType: inferredSceneType || "default",
-        composition: compositionGuidance || "standard",
-        negativePrompt: negativePrompt || "none",
-      },
-    };
+    return result;
   },
 });
 
@@ -939,6 +835,18 @@ export function createGenerateSceneImageTool(runId: string) {
         // Clean up multiple spaces and trim
         .replace(/\s+/g, " ")
         .trim();
+
+      // Check for test mode - skip DB operations in test mode
+      if (process.env.VEA_TEST_MODE === "true") {
+        return {
+          sceneId: `test-scene-${Date.now()}`,
+          imageUrl: null,
+          message: "Scene generation initiated (test mode - no DB write)",
+          prompt,
+          narrativeContext,
+          previousSceneId: previousSceneId || null,
+        };
+      }
 
       try {
         // Import here to avoid circular dependencies

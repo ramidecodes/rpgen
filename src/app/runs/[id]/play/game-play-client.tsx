@@ -124,7 +124,10 @@ export function GamePlayClient({
         const { sceneId, imageUrl } = data;
 
         // Helper to clear pending state if it matches the scene ID or if we have an image
-        const clearPendingIfMatch = (updatedSceneId: string, hasImage: boolean) => {
+        const clearPendingIfMatch = (
+          updatedSceneId: string,
+          hasImage: boolean
+        ) => {
           const currentPending = useGameStore.getState().pendingSceneId;
           if (
             currentPending &&
@@ -139,7 +142,10 @@ export function GamePlayClient({
             if (startedAt) {
               const elapsed = Date.now() - startedAt;
               const remaining = Math.max(300 - elapsed, 0);
-              pendingClearTimeoutRef.current = setTimeout(clearPending, remaining);
+              pendingClearTimeoutRef.current = setTimeout(
+                clearPending,
+                remaining
+              );
             } else {
               clearPending();
             }
@@ -237,7 +243,7 @@ export function GamePlayClient({
           // Always set to ensure the pulse triggers even for repeated ids
           // If we have a real scene ID, use it; otherwise use placeholder
           setPendingSceneId(sceneId);
-          
+
           // Only fetch if we don't have a scene yet; otherwise keep the current image visible
           if (!currentSceneStateRef.current) {
             getCurrentSceneAction(run.id)
